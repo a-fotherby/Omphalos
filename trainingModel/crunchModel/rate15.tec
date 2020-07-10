@@ -1,0 +1,4 @@
+ TITLE = "Mineral Rate (mol/m^3/sec)" 
+VARIABLES = "X"          "Y"              "Z"            "FeS(am)"        "FeS34(am)"      "Siderite"       "SiO2(am)"       "Quartz"         "Calcite"        "Calcite44"      "Sepiolite"      "K-Feldspar"     "Kaolinite"      "C5H7O2NSO4(s)" 
+ ZONE I=           1 , J=           1 , K=           1  F=POINT
+   5.00000000E-01   5.00000000E-01   5.00000000E-01  -8.89959293E-11   0.00000000E+00   0.00000000E+00   0.00000000E+00   1.17104403E-30   3.36130943E-10   7.27611446E-12  -1.24764854E-13   1.94059189E-13  -9.70312294E-14   0.00000000E+00

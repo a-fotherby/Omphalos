@@ -1,0 +1,4 @@
+ TITLE = "Isotope ratios" 
+VARIABLES = "X"          "Y"              "Z"            "Calcite"        "FeS(am)"       
+ ZONE I=           1 , J=           1 , K=           1  F=POINT
+   5.00000000E-01   5.00000000E-01   5.00000000E-01  -3.49635292E-01  -1.96307834E+02

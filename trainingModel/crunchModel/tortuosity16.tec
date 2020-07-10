@@ -1,0 +1,4 @@
+ TITLE = "Tortuosity" 
+ VARIABLES = "X"          "Y"              "Z"     "Tortuosity" 
+ ZONE I=           1 , J=           1 , K=           1  F=POINT
+   5.00000000E-01   5.00000000E-01   5.00000000E-01   1.00000000E+00

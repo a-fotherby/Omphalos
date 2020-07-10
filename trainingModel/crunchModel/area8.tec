@@ -1,4 +1,0 @@
- TITLE = "Mineral Area" 
-VARIABLES = "X"          "Y"              "Z"            "FeS(am)"        "FeS34(am)"      "Siderite"       "SiO2(am)"       "Quartz"         "Calcite"        "Calcite44"      "Sepiolite"      "K-Feldspar"     "Kaolinite"      "C5H7O2NSO4(s)" 
- ZONE I=           1 , J=           1 , K=           1  F=POINT
-   5.00000000E-01   5.00000000E-01   5.00000000E-01   1.91314235E-01   6.73453099E-02   0.00000000E+00   0.00000000E+00   1.00000000E+00   1.00002185E+00   1.00002230E+00   1.24776750E+06   1.40610309E+06   7.13365219E+06   1.00000000E+00

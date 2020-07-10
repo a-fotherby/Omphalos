@@ -1,4 +1,0 @@
- TITLE = "Isotope ratios" 
-VARIABLES = "X"          "Y"              "Z"            "Ca++"           "H2S(aq)"        "SO4--"         
- ZONE I=           1 , J=           1 , K=           1  F=POINT
-   5.00000000E-01   5.00000000E-01   5.00000000E-01   2.16644356E+01   6.00960099E+03   2.10033559E+01

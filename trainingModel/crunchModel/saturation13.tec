@@ -1,4 +1,0 @@
- TITLE = "Mineral Saturation State" 
-VARIABLES = "X"          "Y"              "Z"            "FeS(am)"        "FeS34(am)"      "Siderite"       "SiO2(am)"       "Quartz"         "Calcite"        "Calcite44"      "Sepiolite"      "K-Feldspar"     "Kaolinite"      "C5H7O2NSO4(s)" 
- ZONE I=           1 , J=           1 , K=           1  F=POINT
-   5.00000000E-01   5.00000000E-01   5.00000000E-01  -6.69337354E-01  -1.00961896E+00  -3.74922147E+00  -6.22678070E-01   8.06272543E-01   1.84137577E+00   1.77174705E-01  -3.73421060E+00   8.68243563E-01  -2.53115058E+00   0.00000000E+00

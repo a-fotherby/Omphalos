@@ -1,4 +1,0 @@
- TITLE = "Aqueous Rate (mol/L/s) " 
-VARIABLES = "X"          "Y"              "Z"            "Sulfate_reduct" "Sulfate34_redu" "AOM"            "AOM34"          "Methanogenesis"
- ZONE F=POINT,I=           1 , J=           1
-   5.00000000E-01   5.00000000E-01   5.00000000E-01   4.66341517E-07   1.94304171E-08   5.35477683E-10   2.04998120E-11   3.27165131E-11

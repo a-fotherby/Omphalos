@@ -1,6 +1,0 @@
-spatial_profile              1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 2000 20000 200000     
-time_series                  output.out 1                                                                                           
-time_series_print            pH Ca++ Ca44++ SO4-- Fe++                                                                              
-time_series_interval         1                                                                                                      
-
-

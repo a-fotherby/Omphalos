@@ -1,4 +1,0 @@
- TITLE = "Mineral Volumes" 
-VARIABLES = "X"          "Y"              "Z"            "FeS(am)"        "FeS34(am)"      "Siderite"       "SiO2(am)"       "Quartz"         "Calcite"        "Calcite44"      "Sepiolite"      "K-Feldspar"     "Kaolinite"      "C5H7O2NSO4(s)" 
- ZONE I=           1 , J=           1 , K=           1  F=POINT
-   5.00000000E-01   5.00000000E-01   5.00000000E-01   9.82049075E-06   3.48560010E-07   0.00000000E+00   0.00000000E+00   2.00000000E-02   3.00004648E-01   6.36014158E-03   1.00015687E-02   1.00000037E-02   4.99999994E-02   5.18900000E-06

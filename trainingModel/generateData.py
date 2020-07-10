@@ -1,8 +1,13 @@
 import numpy as np
 import matplotlib as pyplot
+import inputFileObjects
 
-"""Return a dictionary of lines in a file, with the values as the line numbers."""
 def importFile(filePath):
+    """Return a dictionary of lines in a file, with the values as the line numbers.
+    
+    Will ignore any commented lines in the CT input file, but will still count their line number,
+    so line numbers in dictionary will map to the true line number in the file.
+    """
     inputFile = {}
 
     with open(filePath, 'r') as f:
@@ -17,11 +22,45 @@ def importFile(filePath):
         f.close
     return inputFile
 
-"""Search for dictionary keys by value. Numeric keys only, returns numpy array of matches."""
-def searchKeysByVal(dict, byVal):
+def searchInputFile(dict, byVal):
+    """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
+    
+    Will search for partial matches at the beginning of the line - 
+    e.g. if you wanted to find all the CONDITION keywords by you didn't know the name of each keyword block
+    you could search by using 'CONDITON'.
+    You can't search from the back, however, so can't find a specific CONDITION block line num by searching for its name.
+    """
     keysList = np.empty(0, dtype=int)
     itemsList = dict.items()
     for item in itemsList:
-        if item[1] == byVal:
+        if item[1].startswith(byVal):
             keysList = np.append(keysList, item[0])
     return keysList
+
+def extractKeywordBlock(inputFile, keyword):
+    # Get all instances of the keyword in question, in a numpy array.
+    blockStart = searchInputFile(inputFile, keyword)
+
+    # Get array of line numbers for the END statements in the input file.
+    # All CT input file keyword blocks end with 'END'.
+    endingArray = searchInputFile(inputFile, 'END')
+
+    # Find the index for the END line corresponding to the block of interest.
+    blockEnd = endingArray[np.searchsorted(endingArray, blockStart)]
+
+    for startLN, endLN in zip(blockStart, blockEnd):
+        # Set the block type using the keyword in question.
+        #block = keywordBlock(inputFile[blockStart])
+        keywordDict = {}
+        for a in np.arange(startLN, endLN):
+            # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+            lineList = inputFile[a].split()
+            #newEntry = {lineList[0] : lineList[1:]}
+            # Commented lines are removed but line number index is preserved.
+            # So put in try-except statement to ignore error thrown by missing line removed due to commenting.
+            try:
+                keywordDict.update({lineList[0] : lineList[1:]})
+            except:
+                pass
+            
+    return keywordDict

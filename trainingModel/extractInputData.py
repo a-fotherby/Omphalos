@@ -2,9 +2,10 @@ import numpy as np
 import matplotlib as pyplot
 import inputFile as ipf
 
+
 def importFile(filePath):
     """Return a dictionary of lines in a file, with the values as the line numbers.
-    
+
     Will ignore any commented lines in the CT input file, but will still count their line number,
     so line numbers in dictionary will map to the true line number in the file.
     """
@@ -17,15 +18,16 @@ def importFile(filePath):
             if line.startswith('!'):
                 # It's a commented line, so don't import.
                 pass
-            else:  
+            else:
                 inputFile.update({lineNum: line.rstrip('\n ')})
         f.close
     return inputFile
 
+
 def searchInputFile(dict, byVal):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
-    
-    Will search for partial matches at the beginning of the line - 
+
+    Will search for partial matches at the beginning of the line -
     e.g. if you wanted to find all the CONDITION keywords by you didn't know the name of each keyword block
     you could search by using 'CONDITON'.
     You can't search from the back, however, so can't find a specific CONDITION block line num by searching for its name.

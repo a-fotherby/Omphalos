@@ -8,6 +8,7 @@ class inputFile:
         self.path = filePath
         self.raw = eid.importFile(self.path)
         self.keywordBlocks = {}
+        self.conditionBlocks = {}
         
     def getKeywordBlock(self, inputFile, keyword):
         """Method to get a keyword block from the input file, specified by keyword.
@@ -37,10 +38,10 @@ class inputFile:
             keywordDict = {}
             for a in np.arange(startLN, endLN):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                lineList = inputFile[a].split()
                 # Commented lines are removed but line number index is preserved.
                 # So put in try-except statement to ignore error thrown by missing line removed due to commenting.
                 try:
+                    lineList = inputFile[a].split()
                     keywordDict.update({lineList[0] : lineList[1:]})
                 except:
                     pass
@@ -48,7 +49,44 @@ class inputFile:
             block.contentDict = keywordDict
         self.keywordBlocks.update({keyword : block})
         
+    def getConditionBlocks(self, inputFile):
+        """Special method for getting CONDITION blocks from input files, of which there may be multiple."""
+        # Get all instances of the keyword in question, in a numpy array.
+        blockStart = eid.searchInputFile(inputFile, 'CONDITION')
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        endingArray = eid.searchInputFile(inputFile, 'END')
+
+        # Find the index for the END line corresponding to the block of interest.
+        blockEnd = endingArray[np.searchsorted(endingArray, blockStart)]
+
+        for startLN, endLN in zip(blockStart, blockEnd):
+            # Set the block type using the keyword in question.
+            conditionName = inputFile[startLN].split()[1]
+            condition = conditionBlock()
+            keywordDict = {}
+            for a in np.arange(startLN, endLN):
+                # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by missing line removed due to commenting.
+                try:
+                    lineList = inputFile[a].split()
+                    keywordDict.update({lineList[0] : lineList[1:]})
+                except:
+                    pass
+            
+            condition.contents = keywordDict
+            self.conditionBlocks.update({conditionName : condition})
+        
+        
 class keywordBlock:
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""
     def __init__(self, blockType):
         self.blockType = blockType
+        self.contents = {}
+        
+class conditionBlock(keywordBlock):
+    """Object describing a CT input file keyword block. An input file is comprised of many of these."""
+    def __init__(self):
+        keywordBlock.__init__(self, 'CONDITION')

@@ -21,6 +21,9 @@ class inputFile:
         
         The dictionary entry itself is the remaining contents of the line stored as a list.
         Each entry of the list is a single word from the input file line, split by whitespace.
+        
+        This method works for all keyword blocks except conditions, of which there may be multiple in an input file.
+        In the event that a keyword block is erroneously added more than once, it will use the first instance of that keyword for assignment.
         """
         # Get all instances of the keyword in question, in a numpy array.
         blockStart = eid.searchInputFile(inputFile, keyword)
@@ -32,21 +35,20 @@ class inputFile:
         # Find the index for the END line corresponding to the block of interest.
         blockEnd = endingArray[np.searchsorted(endingArray, blockStart)]
 
-        for startLN, endLN in zip(blockStart, blockEnd):
-            # Set the block type using the keyword in question.
-            block = keywordBlock(keyword)
-            keywordDict = {}
-            for a in np.arange(startLN, endLN):
-                # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by missing line removed due to commenting.
-                try:
-                    lineList = inputFile[a].split()
-                    keywordDict.update({lineList[0] : lineList[1:]})
-                except:
-                    pass
-            
-            block.contentDict = keywordDict
+        # Set the block type using the keyword in question.
+        block = keywordBlock(keyword)
+        keywordDict = {}
+        for a in np.arange(blockStart[0], blockEnd[0]):
+            # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+            # Commented lines are removed but line number index is preserved.
+            # So put in try-except statement to ignore error thrown by missing line removed due to commenting.
+            try:
+                lineList = inputFile[a].split()
+                keywordDict.update({lineList[0] : lineList[1:]})
+            except:
+                pass
+
+        block.contents = keywordDict
         self.keywordBlocks.update({keyword : block})
         
     def getConditionBlocks(self, inputFile):

@@ -2,17 +2,17 @@ import extractInputData as eid
 import numpy as np
 
 
-class inputFile:
+class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, name, filePath):
-        self.ID = name
-        self.path = filePath
-        self.raw = eid.importFile(self.path)
-        self.keywordBlocks = {}
-        self.conditionBlocks = {}
+    def __init__(self, name, file_path):
+        self.id = name
+        self.path = file_path
+        self.raw = eid.import_file(self.path)
+        self.keyword_blocks = {}
+        self.condition_blocks = {}
 
-    def getKeywordBlock(self, inputFile, keyword):
+    def get_keyword_block(self, input_file, keyword):
         """Method to get a keyword block from the input file, specified by keyword.
 
         Creates a block object which is added to the dictionary of keyword blocks in the inputFile object.
@@ -28,80 +28,80 @@ class inputFile:
         In the event that a keyword block is erroneously added more than once, it will use the first instance of that keyword for assignment.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        blockStart = eid.searchInputFile(inputFile, keyword)
+        block_start = eid.search_input_file(input_file, keyword)
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        endingArray = eid.searchInputFile(inputFile, 'END')
+        ending_array = eid.search_input_file(input_file, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
-        blockEnd = endingArray[np.searchsorted(endingArray, blockStart)]
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
         # Set the block type using the keyword in question.
-        block = keywordBlock(keyword)
-        keywordDict = {}
-        for a in np.arange(blockStart[0], blockEnd[0]):
+        block = KeywordBlock(keyword)
+        keyword_dict = {}
+        for a in np.arange(block_start[0], block_end[0]):
             # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
             # Commented lines are removed but line number index is preserved.
             # So put in try-except statement to ignore error thrown by missing
             # line removed due to commenting.
             try:
-                lineList = inputFile[a].split()
-                keywordDict.update({lineList[0]: lineList[1:]})
+                line_list = input_file[a].split()
+                keyword_dict.update({line_list[0]: line_list[1:]})
             except BaseException:
                 pass
 
-        block.contents = keywordDict
-        self.keywordBlocks.update({keyword: block})
+        block.contents = keyword_dict
+        self.keyword_blocks.update({keyword: block})
 
-    def getConditionBlocks(self, inputFile):
+    def get_condition_blocks(self, input_file):
         """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
 
         Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
         The key for each dictionary entry is the condition name specified in the CunchTope input file.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        blockStart = eid.searchInputFile(inputFile, 'CONDITION')
+        block_start = eid.search_input_file(input_file, 'CONDITION')
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        endingArray = eid.searchInputFile(inputFile, 'END')
+        ending_array = eid.search_input_file(input_file, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
-        blockEnd = endingArray[np.searchsorted(endingArray, blockStart)]
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
-        for startLN, endLN in zip(blockStart, blockEnd):
+        for start, end in zip(block_start, block_end):
             # Set the block type using the keyword in question.
-            conditionName = inputFile[startLN].split()[1]
-            condition = conditionBlock()
-            keywordDict = {}
-            for a in np.arange(startLN, endLN):
+            condition_name = input_file[start].split()[1]
+            condition = ConditionBlock()
+            keyword_dict = {}
+            for a in np.arange(start, end):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
                 # Commented lines are removed but line number index is preserved.
                 # So put in try-except statement to ignore error thrown by
                 # missing line removed due to commenting.
                 try:
-                    lineList = inputFile[a].split()
-                    keywordDict.update({lineList[0]: lineList[1:]})
+                    line_list = input_file[a].split()
+                    keyword_dict.update({line_list[0]: line_list[1:]})
                 except BaseException:
                     pass
 
-            condition.contents = keywordDict
-            self.conditionBlocks.update({conditionName: condition})
+            condition.contents = keyword_dict
+            self.condition_blocks.update({condition_name: condition})
 
 
-class keywordBlock:
+class KeywordBlock:
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""
 
-    def __init__(self, blockType):
-        self.blockType = blockType
+    def __init__(self, block_type):
+        self.block_type = block_type
         self.contents = {}
 
 
-class conditionBlock(keywordBlock):
+class ConditionBlock(KeywordBlock):
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""
 
     def __init__(self):
-        keywordBlock.__init__(self, 'CONDITION')
+        KeywordBlock.__init__(self, 'CONDITION')

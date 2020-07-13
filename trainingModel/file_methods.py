@@ -36,3 +36,17 @@ def search_input_file(dict, by_val):
         if item[1].startswith(by_val):
             keys_list = np.append(keys_list, item[0])
     return keys_list
+
+def read_tec_file(path_to_directory, output):
+    fileName = '{}{}1.tec'.format(path_to_directory, output)
+    with open(file_name) as f:
+        f.readline()
+        header = f.readline()
+        columnHeaders = header.split()
+        columnHeaders = columnHeaders[2:]
+        for i in columnHeaders:
+            columnHeaders[columnHeaders.index(i)] = i.replace('"', '')
+
+        df = pd.read_csv(fileName, sep=' ', skipinitialspace=True, skiprows=[0,1,2], names=columnHeaders)
+
+        return df, columnHeaders

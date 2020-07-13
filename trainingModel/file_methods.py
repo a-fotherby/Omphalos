@@ -2,10 +2,12 @@ import numpy as np
 import matplotlib as pyplot
 import input_file as ipf
 import pandas as pd
+import re
+
 
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.
-    
+
     Will ignore any commented lines in the CT input file, but will still count their line number,
     so line numbers in dictionary will map to the true line number in the file.
     """
@@ -18,15 +20,16 @@ def import_file(file_path):
             if line.startswith('!'):
                 # It's a commented line, so don't import.
                 pass
-            else:  
+            else:
                 input_file.update({line_num: line.rstrip('\n ')})
         f.close
     return input_file
 
+
 def search_input_file(dict, by_val):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
-    
-    Will search for partial matches at the beginning of the line - 
+
+    Will search for partial matches at the beginning of the line -
     e.g. if you wanted to find all the CONDITION keywords by you didn't know the name of each keyword block
     you could search by using 'CONDITON'.
     You can't search from the back, however, so can't find a specific CONDITION block line num by searching for its name.
@@ -38,18 +41,30 @@ def search_input_file(dict, by_val):
             keys_list = np.append(keys_list, item[0])
     return keys_list
 
+
 def read_tec_file(path_to_directory, output):
+    """Import the spatial profile output file of the system at the target time specified in the input file. Takes files in the tecplot format."""
     file_name = '{}{}1.tec'.format(path_to_directory, output)
+    # Column headers are quite badly mangled by tecplot output format. Python csv sniffer will not correctly identify the column headers.
+    # So we manually create the correct list by opening the file and navigating to the second line (the header line for tecplot outputs)
+    # and perform some judicious stripping and a regex split to generate the correct list of column headers.
+    # We can then pass the header list straight to the read_table method as an
+    # override.
     with open(file_name) as f:
         f.readline()
         headers = f.readline()
-        # Pretty sure there is an easier way to get the desired format using re.split() but the regex is being a bitch.
-        # Also would then remove the need for the clumsy i.replace later.
-        headers = headers.split()
-        headers = headers[2:]
-        for i in headers:
-            headers[headers.index(i)] = i.replace('"', '')
-            
-        df = pd.read_table(file_name, sep='\s+', skipinitialspace=True, skiprows=[0,1,2], names=headers)
+        headers = headers.strip('VARIABLES = "')
+        headers = headers.rstrip('" \n')
+        headers = re.split(r'"\s+"', headers)
+
+        df = pd.read_table(
+            file_name,
+            sep=r'\s+',
+            skipinitialspace=True,
+            skiprows=[
+                0,
+                1,
+                2],
+            names=headers)
 
         return df

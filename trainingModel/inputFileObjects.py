@@ -50,7 +50,11 @@ class inputFile:
         self.keywordBlocks.update({keyword : block})
         
     def getConditionBlocks(self, inputFile):
-        """Special method for getting CONDITION blocks from input files, of which there may be multiple."""
+        """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
+        
+        Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
+        The key for each dictionary entry is the condition name specified in the CunchTope input file.
+        """
         # Get all instances of the keyword in question, in a numpy array.
         blockStart = eid.searchInputFile(inputFile, 'CONDITION')
 

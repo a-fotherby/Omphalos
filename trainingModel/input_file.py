@@ -1,4 +1,4 @@
-import extractInputData as eid
+import extract_input as ei
 import numpy as np
 
 
@@ -8,7 +8,7 @@ class InputFile:
     def __init__(self, name, file_path):
         self.id = name
         self.path = file_path
-        self.raw = eid.import_file(self.path)
+        self.raw = ei.import_file(self.path)
         self.keyword_blocks = {}
         self.condition_blocks = {}
 
@@ -28,11 +28,11 @@ class InputFile:
         In the event that a keyword block is erroneously added more than once, it will use the first instance of that keyword for assignment.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = eid.search_input_file(input_file, keyword)
+        block_start = ei.search_input_file(input_file, keyword)
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = eid.search_input_file(input_file, 'END')
+        ending_array = ei.search_input_file(input_file, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
@@ -62,11 +62,11 @@ class InputFile:
         The key for each dictionary entry is the condition name specified in the CunchTope input file.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = eid.search_input_file(input_file, 'CONDITION')
+        block_start = ei.search_input_file(input_file, 'CONDITION')
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = eid.search_input_file(input_file, 'END')
+        ending_array = ei.search_input_file(input_file, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.

@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib as pyplot
-import inputFile as ipf
+import input_file as ipf
 
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.

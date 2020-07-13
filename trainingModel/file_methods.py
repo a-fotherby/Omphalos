@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib as pyplot
 import input_file as ipf
+import pandas as pd
 
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.
@@ -38,15 +39,17 @@ def search_input_file(dict, by_val):
     return keys_list
 
 def read_tec_file(path_to_directory, output):
-    fileName = '{}{}1.tec'.format(path_to_directory, output)
+    file_name = '{}{}1.tec'.format(path_to_directory, output)
     with open(file_name) as f:
         f.readline()
-        header = f.readline()
-        columnHeaders = header.split()
-        columnHeaders = columnHeaders[2:]
-        for i in columnHeaders:
-            columnHeaders[columnHeaders.index(i)] = i.replace('"', '')
+        headers = f.readline()
+        # Pretty sure there is an easier way to get the desired format using re.split() but the regex is being a bitch.
+        # Also would then remove the need for the clumsy i.replace later.
+        headers = headers.split()
+        headers = headers[2:]
+        for i in headers:
+            headers[headers.index(i)] = i.replace('"', '')
+            
+        df = pd.read_table(file_name, sep='\s+', skipinitialspace=True, skiprows=[0,1,2], names=headers)
 
-        df = pd.read_csv(fileName, sep=' ', skipinitialspace=True, skiprows=[0,1,2], names=columnHeaders)
-
-        return df, columnHeaders
+        return df

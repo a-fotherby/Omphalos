@@ -1,18 +1,16 @@
 import file_methods as fm
 import numpy as np
 
-
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, name, file_path):
-        self.id = name
+    def __init__(self, file_path):
         self.path = file_path
         self.raw = fm.import_file(self.path)
         self.keyword_blocks = {}
         self.condition_blocks = {}
 
-    def get_keyword_block(self, input_file, keyword):
+    def get_keyword_block(self, keyword):
         """Method to get a keyword block from the input file, specified by keyword.
 
         Creates a block object which is added to the dictionary of keyword blocks in the inputFile object.
@@ -28,11 +26,11 @@ class InputFile:
         In the event that a keyword block is erroneously added more than once, it will use the first instance of that keyword for assignment.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = fm.search_input_file(input_file, keyword)
+        block_start = fm.search_input_file(self.raw, keyword)
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(input_file, 'END')
+        ending_array = fm.search_input_file(self.raw, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
@@ -41,32 +39,35 @@ class InputFile:
         # Set the block type using the keyword in question.
         block = KeywordBlock(keyword)
         keyword_dict = {}
-        for a in np.arange(block_start[0], block_end[0]):
-            # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-            # Commented lines are removed but line number index is preserved.
-            # So put in try-except statement to ignore error thrown by missing
-            # line removed due to commenting.
-            try:
-                line_list = input_file[a].split()
-                keyword_dict.update({line_list[0]: line_list[1:]})
-            except BaseException:
-                pass
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by missing
+                # line removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    pass
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print('The keyword "{}" you searched for does not exist. If you are sure that this keyword is in your input file, check your spelling.'.format(keyword))
 
-        block.contents = keyword_dict
-        self.keyword_blocks.update({keyword: block})
 
-    def get_condition_blocks(self, input_file):
+    def get_condition_blocks(self):
         """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
 
         Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
         The key for each dictionary entry is the condition name specified in the CunchTope input file.
         """
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = fm.search_input_file(input_file, 'CONDITION')
+        block_start = fm.search_input_file(self.raw, 'CONDITION')
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(input_file, 'END')
+        ending_array = fm.search_input_file(self.raw, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
@@ -74,7 +75,7 @@ class InputFile:
 
         for start, end in zip(block_start, block_end):
             # Set the block type using the keyword in question.
-            condition_name = input_file[start].split()[1]
+            condition_name = self.raw[start].split()[1]
             condition = ConditionBlock()
             keyword_dict = {}
             for a in np.arange(start, end):
@@ -83,7 +84,7 @@ class InputFile:
                 # So put in try-except statement to ignore error thrown by
                 # missing line removed due to commenting.
                 try:
-                    line_list = input_file[a].split()
+                    line_list = self.raw[a].split()
                     keyword_dict.update({line_list[0]: line_list[1:]})
                 except BaseException:
                     pass

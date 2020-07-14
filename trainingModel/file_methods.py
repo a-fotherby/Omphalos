@@ -1,6 +1,5 @@
 import numpy as np
 import matplotlib as pyplot
-import input_file as ipf
 import pandas as pd
 import re
 

@@ -118,9 +118,27 @@ class InputFile:
                 self.condition_blocks[condition].parameters.update({entry: contents[entry]})
 
 
-    def print_input_file():
-        pass
+    def print_input_file(self):
+        """Writes out a populated input file to a CrunchTope readable *.in file.
+        
+        *** Pretty sure this code hopelessly mangles the data structure of the InputFile object. ***
+        """
+        with open(self.path, 'x') as f:
+            for block in self.keyword_blocks:
+                for entry in self.keyword_blocks[block].contents:
+                    self.keyword_blocks[block].contents[entry].insert(0, entry)
+                    self.keyword_blocks[block].contents[entry].append('\n')
+                    f.write(" ".join(self.keyword_blocks[block].contents[entry]))
+                f.write('END\n\n')
                 
+            for block in self.condition_blocks:
+                    for species_type in [self.condition_blocks[block].parameters, self.condition_blocks[block].primary_species, self.condition_blocks[block].gases, self.condition_blocks[block].minerals,]:
+                        for entry in species_type:
+                            species_type[entry].insert(0, entry)
+                            species_type[entry].append('\n')
+                            f.write(" ".join(species_type[entry]))
+                    f.write('END\n\n')
+                    
 
 class KeywordBlock:
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""

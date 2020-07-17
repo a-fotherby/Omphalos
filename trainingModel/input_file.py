@@ -1,7 +1,6 @@
 import file_methods as fm
 import numpy as np
 
-
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
@@ -56,6 +55,7 @@ class InputFile:
         except IndexError:
             print('The keyword "{}" you searched for does not exist. If you are sure that this keyword is in your input file, check your spelling.'.format(keyword))
 
+
     def get_condition_blocks(self):
         """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
 
@@ -91,44 +91,36 @@ class InputFile:
 
             condition.contents = keyword_dict
             self.condition_blocks.update({condition_name: condition})
-
+            
     def sort_condition_block(self, condition):
         """Sort a conditon block dictionary into dictionaries for each types of species (mineral, gas, aqueous, parameter).
-
+        
         This is required when you need to distinguish between types of entry in a condition block.
         """
-        # Try and get the lists of minerals, gases, and primary species for
-        # comparison. Raise an exception otherwise.
+        # Try and get the lists of minerals, gases, and primary species for comparison. Raise an exception otherwise.
         try:
             mineral_list = self.keyword_blocks['MINERALS'].contents.keys()
             gases_list = self.keyword_blocks['GASES'].contents.keys()
-            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
-            )
+            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys()
         except IndexError:
             print("You must populate your MINERAL, GASES, and PRIMARY_SPECIES keyword blocks before you can sort a condition block.\nTry running the get_keyword_blocks() method first.")
-        # For each entry in the dictionary, compare with the PRIMARY_SPECIES,
-        # MINERALS, and GASES blocks to assign the entry to the right dict.
+        # For each entry in the dictionary, compare with the PRIMARY_SPECIES, MINERALS, and GASES blocks to assign the entry to the right dict.
         contents = self.condition_blocks[condition].contents
-        # Maybe there is a way to make this if logic compact? Worth thinking
-        # about maybe...
+        # Maybe there is a way to make this if logic compact? Worth thinking about maybe...
         for entry in contents:
             if entry in mineral_list:
-                self.condition_blocks[condition].minerals.update(
-                    {entry: contents[entry]})
-                print("{} is a mineral!".format(entry))
+                self.condition_blocks[condition].minerals.update({entry: contents[entry]})
             elif entry in gases_list:
-                self.condition_blocks[condition].gases.update(
-                    {entry: contents[entry]})
-                print("{} is a gas!".format(entry))
+                self.condition_blocks[condition].gases.update({entry: contents[entry]})
             elif entry in primary_species_list:
-                self.condition_blocks[condition].primary_species.update(
-                    {entry: contents[entry]})
-                print("{} is a primary species!".format(entry))
+                self.condition_blocks[condition].primary_species.update({entry: contents[entry]})
             else:
-                self.condition_blocks[condition].parameters.update(
-                    {entry: contents[entry]})
-                print("{} is a parameter!".format(entry))
+                self.condition_blocks[condition].parameters.update({entry: contents[entry]})
 
+
+    def print_input_file():
+        pass
+                
 
 class KeywordBlock:
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""

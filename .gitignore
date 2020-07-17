@@ -1,3 +1,6 @@
+# OSX file structure
+.DS_Store
+
 # Crunchtope files
 *.tec
 *.rst

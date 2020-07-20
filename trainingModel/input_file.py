@@ -137,7 +137,7 @@ class InputFile:
                         self.keyword_blocks[block].contents[entry])
                     line.insert(0, entry)
                     line.append('\n')
-                    f.write(" ".join(line))
+                    f.write(' '.join(line))
                 f.write('END\n\n')
 
             for block in self.condition_blocks:
@@ -152,7 +152,7 @@ class InputFile:
                         line = copy.deepcopy(species_type[entry])
                         line.insert(0, entry)
                         line.append('\n')
-                        f.write(" ".join(line))
+                        f.write(' '.join(line))
                 f.write('END\n\n')
 
 

@@ -5,7 +5,8 @@ import input_file as ipf
 import file_methods as fm
 import random as rand
 import copy
-
+import subprocess
+import results
 
 def import_template(file_path):
     """Import the template import file. Returns an input_file object, fully populated with all available keyword blocks.
@@ -73,3 +74,31 @@ def create_condition_series(
                 {species: round(rand.uniform(var_min, var_max), 5)})
 
     return file_dict
+
+
+def generate_data_set(template, condition, number_of_files, var_min, var_max):
+    file_dict = create_condition_series(template, condition, number_of_files, var_min, var_max)
+    for file_num, entry in enumerate(file_dict):
+        # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
+        file_name = 'random' + str(file_num) + '.in'
+        tmp_dir = 'tmp/'
+        file_dict[entry].path = tmp_dir + file_name
+        file_dict[entry].print_input_file()
+        # Have to invoke absolute path for CT, this might vary by installation.
+        subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd = tmp_dir)
+        
+        # Make a results object that is an attribute of the InputFile object.
+        file_dict[entry].results = results.Results()
+        
+        output_categories = fm.get_data_cats(tmp_dir)
+        print(output_categories)
+        
+        for output in output_categories: 
+            file_dict[entry].results.get_output(tmp_dir, output)
+    
+        # Clean the temp directory ready the next input file.
+        subprocess.run(['rm', "*.tec"], cwd = tmp_dir)
+
+        
+    return file_dict
+        

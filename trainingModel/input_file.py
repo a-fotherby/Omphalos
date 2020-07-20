@@ -1,5 +1,6 @@
 import file_methods as fm
 import numpy as np
+import copy
 
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
@@ -121,22 +122,23 @@ class InputFile:
     def print_input_file(self):
         """Writes out a populated input file to a CrunchTope readable *.in file.
         
-        *** Pretty sure this code hopelessly mangles the data structure of the InputFile object. ***
         """
         with open(self.path, 'x') as f:
             for block in self.keyword_blocks:
                 for entry in self.keyword_blocks[block].contents:
-                    self.keyword_blocks[block].contents[entry].insert(0, entry)
-                    self.keyword_blocks[block].contents[entry].append('\n')
-                    f.write(" ".join(self.keyword_blocks[block].contents[entry]))
+                    line = copy.deepcopy(self.keyword_blocks[block].contents[entry])
+                    line.insert(0, entry)
+                    line.append('\n')
+                    f.write(" ".join(line))
                 f.write('END\n\n')
                 
             for block in self.condition_blocks:
                     for species_type in [self.condition_blocks[block].parameters, self.condition_blocks[block].primary_species, self.condition_blocks[block].gases, self.condition_blocks[block].minerals,]:
                         for entry in species_type:
-                            species_type[entry].insert(0, entry)
-                            species_type[entry].append('\n')
-                            f.write(" ".join(species_type[entry]))
+                            line = copy.deepcopy(species_type[entry])
+                            line.insert(0, entry)
+                            line.append('\n')
+                            f.write(" ".join(line))
                     f.write('END\n\n')
                     
 

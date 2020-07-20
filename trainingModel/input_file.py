@@ -141,6 +141,7 @@ class InputFile:
                 f.write('END\n\n')
 
             for block in self.condition_blocks:
+                self.sort_condition_block(block)
                 for species_type in [
                     self.condition_blocks[block].parameters,
                     self.condition_blocks[block].primary_species,

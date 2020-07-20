@@ -3,7 +3,8 @@ import matplotlib as pyplot
 import pandas as pd
 import re
 import copy
-
+import os
+import glob
 
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.
@@ -68,3 +69,12 @@ def read_tec_file(path_to_directory, output):
             names=headers)
 
         return df
+    
+def get_data_cats(directory):
+    #os.chdir(directory)
+    f_list = glob.glob(directory + '*.tec')
+    f_list = [i.rstrip('.tec') for i in f_list]
+    f_list = [i.rstrip('0123456789') for i in f_list]
+    f_list = [i.split('/', 1)[-1] for i in f_list]
+    f_set = set(f_list)
+    return f_set

@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib as pyplot
 import pandas as pd
 import re
+import copy
 
 
 def import_file(file_path):

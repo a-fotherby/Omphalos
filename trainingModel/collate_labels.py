@@ -5,7 +5,7 @@ import file_methods as fm
 
 class Results(self):
     """An object containing the results of a given CrunchTope input file.
-    
+
     Results objects contain objects refering to the contents of each type of CrunchTope output file,
     e.g. totcon, conc, pH, volume, etc.
     """
@@ -22,4 +22,3 @@ class Results(self):
         """
         df = fm.read_tec_files(path_to_directory, output)
         self.results_dict.update{output: df}
-        

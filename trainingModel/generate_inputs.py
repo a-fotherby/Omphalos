@@ -76,7 +76,7 @@ def create_condition_series(
     return file_dict
 
 
-def generate_data_set(template, condition, number_of_files, var_min, var_max):
+def generate_data_set(template, condition, number_of_files, var_min, var_max, name):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
     
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -87,7 +87,7 @@ def generate_data_set(template, condition, number_of_files, var_min, var_max):
     file_dict = create_condition_series(template, condition, number_of_files, var_min, var_max)
     for file_num, entry in enumerate(file_dict):
         # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
-        file_name = 'random' + str(file_num) + '.in'
+        file_name = name + str(file_num) + '.in'
         tmp_dir = 'tmp/'
         file_dict[entry].path = tmp_dir + file_name
         file_dict[entry].print_input_file()
@@ -98,7 +98,6 @@ def generate_data_set(template, condition, number_of_files, var_min, var_max):
         file_dict[entry].results = results.Results()
         
         output_categories = fm.get_data_cats(tmp_dir)
-        print(output_categories)
         
         for output in output_categories: 
             file_dict[entry].results.get_output(tmp_dir, output)

@@ -71,7 +71,7 @@ def create_condition_series(
         for species in file_dict[file].condition_blocks[condition].primary_species.keys(
         ):
             file_dict[file].condition_blocks[condition].primary_species.update(
-                {species: round(rand.uniform(var_min, var_max), 5)})
+                {species: [round(rand.expovariate(1000000), 15)]})
 
     return file_dict
 

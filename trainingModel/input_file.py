@@ -103,8 +103,7 @@ class InputFile:
         try:
             mineral_list = self.keyword_blocks['MINERALS'].contents.keys()
             gases_list = self.keyword_blocks['GASES'].contents.keys()
-            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
-            )
+            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys()
         except IndexError:
             print("You must populate your MINERAL, GASES, and PRIMARY_SPECIES keyword blocks before you can sort a condition block.\nTry running the get_keyword_blocks() method first.")
         # For each entry in the dictionary, compare with the PRIMARY_SPECIES,
@@ -141,7 +140,12 @@ class InputFile:
                 f.write('END\n\n')
 
             for block in self.condition_blocks:
-                self.sort_condition_block(block)
+                # Check to see if the condition block has been sorted before. If not then sort it. 
+                # Originally this was done to all ConditionBlock objects but this was overwriting data from gi.create_condition_series because the original template is still stored in ConditionBlock.contents.
+                if bool(self.condition_blocks[block].parameters) == False:
+                    self.sort_condition_block(block)
+                else:
+                    pass
                 for species_type in [
                     self.condition_blocks[block].parameters,
                     self.condition_blocks[block].primary_species,
@@ -149,7 +153,10 @@ class InputFile:
                     self.condition_blocks[block].minerals,
                 ]:
                     for entry in species_type:
+                        # Ugh, weird workaround because of various type error - need to be a string to compose the line, but I want to store as number for data analysis purposes.
+                        # This might come back to bite later, so if things start going tits up maybe check here first for any type-casting fuckery.
                         line = copy.deepcopy(species_type[entry])
+                        line = [str(line[0])]
                         line.insert(0, entry)
                         line.append('\n')
                         f.write(' '.join(line))

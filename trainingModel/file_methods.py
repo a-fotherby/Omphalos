@@ -5,6 +5,7 @@ import re
 import copy
 import os
 import glob
+import pickle
 
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.
@@ -78,3 +79,15 @@ def get_data_cats(directory):
     f_list = [i.split('/', 1)[-1] for i in f_list]
     f_set = set(f_list)
     return f_set
+
+def pickle_data_set(data_set, file_name):
+    with open('{}.pickle'.format(file_name), 'wb') as f:
+        # Pickle the 'data' dictionary using the highest protocol available.
+        pickle.dump(data_set, f, pickle.HIGHEST_PROTOCOL)
+
+def unpickle(file_name):
+    with open(file_name, 'rb') as f:
+        # The protocol version used is detected automatically, so we do not
+        # have to specify it.
+        data = pickle.load(f)
+        return data

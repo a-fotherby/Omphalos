@@ -6,6 +6,9 @@
 *.rst
 *.out
 
+# Pickle module files
+*.pickle
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

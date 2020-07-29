@@ -37,8 +37,8 @@ MINERALS
 !Siderite                     -rate  -10.0
 !SiO2(am)                     -rate  -9.0  
 !Quartz                       -default        -rate  -30.0          
-!Calcite                      -label default  -rate  -10.6  
-!Sepiolite                    -rate  -19.0  
+Calcite                      -label default  -rate  -10.6  
+Calcite44                    -label default  -rate  -10.600556
 !K-Feldspar                   -rate  -19.0  
 !Kaolinite                    -rate  -19.2    
 C5H7O2NSO4(s)                -label  default -rate  -2.0
@@ -46,6 +46,11 @@ END
 
 GASES
 !CO2(g)
+END
+
+ISOTOPES
+primary                      Ca44++        Ca++        0.0212075584
+mineral                      Calcite44     Calcite     bulk
 END
 
 CONDITION                    Seawater
@@ -71,6 +76,11 @@ Methane(aq)                  1e-08
 Cl-                          charge
 NO3-                         3.9e-5
 Formaldehyde                 1.2e-01
+!!!
+!! Solid phase.
+!!!
+Calcite                      0.3                 1.0   
+Calcite44                    0.006360041         1.0 
 C5H7O2NSO4                   C5H7O2NSO4(s)
 END
 
@@ -96,6 +106,11 @@ Methane(aq)                  1.000e-15
 Cl-                          charge
 NO3-                         1.000e-15
 Formaldehyde                 1.000e-15
+!!!
+!! Solid phase.
+!!!
+Calcite                      0.3E-15                 1.0   
+Calcite44                    0.006360041E-15         1.0 
 C5H7O2NSO4                   C5H7O2NSO4(s)
 END
 

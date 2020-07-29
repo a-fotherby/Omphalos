@@ -49,3 +49,29 @@ def train_model(model, features, labels, epochs, batch_size):
     rmse = hist["mse"]
 
     return history
+
+def format_primary_species(data_set, condition, result_category, target_labels):
+    """Takes a data set (a set of InputFile objects), a condition, and a target label and returns two dataframes; labels and attributes.
+    
+    The attribute array will be of dimension (# of InputFile objects x # of primary species).
+    The labels array will be of dimension (# of InputFile objects x # target_labels)
+    """
+    # Put data into a dataframe for visualisation.
+    attributes = pd.DataFrame()
+
+    for i in data_set:
+        append = pd.DataFrame.from_dict(data_set[i].condition_blocks[condition].primary_species)
+        attributes = attributes.append(append, ignore_index = True)
+
+    # Generate dataframe of requested labels.
+    labels = pd.DataFrame()
+    for label in target_labels:
+        label_list = pd.DataFrame()
+        for i in data_set:
+            label_list = label_list.append(data_set[i].results.results_dict[result_category][label], ignore_index = True)
+            
+        label_list.columns = [label]
+        labels[label] = label_list[label]
+
+    
+    return attributes, labels

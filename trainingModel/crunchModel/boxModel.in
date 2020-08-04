@@ -33,24 +33,31 @@ END
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 MINERALS
-!FeS(am)                      -rate  -9.0
-!Siderite                     -rate  -10.0
-!SiO2(am)                     -rate  -9.0  
-!Quartz                       -default        -rate  -30.0          
+FeS(am)                      -rate  -9.0
+FeS34(am)                    -rate  -9.0
+Siderite                     -rate  -10.0
+SiO2(am)                     -rate  -9.0  
+Quartz                       -default        -rate  -30.0          
 Calcite                      -label default  -rate  -10.6  
 Calcite44                    -label default  -rate  -10.600556
-!K-Feldspar                   -rate  -19.0  
-!Kaolinite                    -rate  -19.2    
+K-Feldspar                   -rate  -19.0  
+Kaolinite                    -rate  -19.2    
 C5H7O2NSO4(s)                -label  default -rate  -2.0
+Fluorapatite                 -rate  -10.6    
+Fluorapatite44               -rate  -10.600556
 END
 
 GASES
-!CO2(g)
+CO2(g)
 END
 
 ISOTOPES
 primary                      Ca44++        Ca++        0.0212075584
+primary                      H2S34(aq)     H2S(aq)     0.0441626
+primary                      S34O4--       SO4--       0.0441626
 mineral                      Calcite44     Calcite     bulk
+mineral                      FeS34(am)     FeS(am)     none
+mineral                      Fluorapatite44 Fluorapatite     none
 END
 
 CONDITION                    Seawater
@@ -65,11 +72,15 @@ Al+++                        0.037e-06
 Fe++                         2.600e-05
 Fe+++                        1.000e-13
 Ca++                         1.3153E0
+Ca44++                       2.84986E-2
 K+                           1.200e-02
+F-                           0.000074
 SO4--                        26.79609E-03
+S34O4--                      1.2082360893E-03
 B(OH)3(aq)                   0.400e-03
 HPO4--                       1.700e-06
 H2S(aq)                      1.000e-15
+H2S34(aq)                    1.000e-15
 SiO2(aq)                     1.57e-04     
 Na+                          4.740e-01
 Methane(aq)                  1e-08
@@ -79,39 +90,20 @@ Formaldehyde                 1.2e-01
 !!!
 !! Solid phase.
 !!!
-Calcite                      0.3                 1.0   
+FeS(am)                      0.00001       0.2
+FeS34(am)                    4.5090014600E-07       0.2
+SiO2(am)                     0.00         0.2
+Quartz                       0.02         1.0
+Siderite                     0.00         1.0
+Calcite                      0.3         1.0   
 Calcite44                    0.006360041         1.0 
+Sepiolite                    0.01     ssa 55.0
+K-Feldspar                   0.01     ssa 55.0
+Kaolinite                    0.05     ssa 55.0
+C5H7O2NSO4(s)                5.189E-6
 C5H7O2NSO4                   C5H7O2NSO4(s)
-END
-
-CONDITION                    empty  
-temperature                  1.000e-15
-pH                           7.0
-CO2(aq)                      1.000e-15
-O2(aq)                       1.000e-15
-NH3(aq)                      1.000e-15
-Mg++                         1.000e-15
-Al+++                        1.000e-15
-Fe++                         1.000e-15
-Fe+++                        1.000e-15
-Ca++                         3.00E-15        
-K+                           1.000e-15
-SO4--                        1.000e-15
-B(OH)3(aq)                   1.000e-15
-HPO4--                       1.000e-15
-H2S(aq)                      1.000e-15
-SiO2(aq)                     1.000e-15     
-Na+                          1.000e-15
-Methane(aq)                  1.000e-15
-Cl-                          charge
-NO3-                         1.000e-15
-Formaldehyde                 1.000e-15
-!!!
-!! Solid phase.
-!!!
-Calcite                      0.3E-15                 1.0   
-Calcite44                    0.006360041E-15         1.0 
-C5H7O2NSO4                   C5H7O2NSO4(s)
+Fluorapatite                 0.3E-10         1.0   
+Fluorapatite44               0.006360041E-10         1.0 
 END
 
 AQUEOUS_KINETICS
@@ -127,12 +119,16 @@ CO2(aq)
 NH3(aq)
 Mg++
 Ca++
+Ca44++
 Fe++
 Fe+++
 Cl-
 K+
+F-
 H2S(aq)
+H2S34(aq)
 SO4--
+S34O4--
 Na+
 SiO2(aq)
 O2(aq)
@@ -141,6 +137,7 @@ HPO4--
 NO3-
 Methane(aq)
 Formaldehyde
+!Formic_acid(aq)
 C5H7O2NSO4
 END
  
@@ -148,14 +145,21 @@ SECONDARY_SPECIES
 HNO3(aq)
 Al(OH)2+                                                                
 Al(SO4)2-
+Al(S34O4)2-
 AlO2-                                                                   
 AlOH++
 HCO3-   
 CO3--                                                                    
 CaCl+
+Ca44Cl+                                                                   
 CaCl2(aq)
+Ca44Cl2(aq)
 CaOH+  
-CaSO4(aq)                                                            
+Ca44OH+                                                                 
+CaSO4(aq)  
+CaS34O4(aq)  
+Ca44SO4(aq)                                                              
+Ca44S34O4(aq)                                                              
 Fe(OH)2(aq)                                                             
 Fe(OH)3-                                                                
 Fe(OH)4--                                                               
@@ -164,26 +168,34 @@ FeCl2(aq)
 FeCl4--                                                                 
 FeOH+                                                                   
 FeSO4(aq)    
+FeS34O4(aq)    
 OH-     
 HS-  
+HS34-  
 H2PO4- 
 H3PO4(aq)
 HAlO2(aq)
 HSO4-                                                                   
+HS34O4-                                                                   
 HSiO3-                                                                  
 KCl(aq)                                                                 
 KHSO4(aq)                                                               
+KHS34O4(aq)                                                               
 KOH(aq)                                                                 
 KSO4-                                                            
+KS34O4-                                                            
 NaAlO2(aq)                                                              
 NaCl(aq)                                                                
 NaHSiO3(aq)                                                             
 NaOH(aq)                                                                
 NaSO4-
+NaS34O4-
 NH4+
 H2(aq)                                                                 
 CaHPO4(aq)  
+Ca44HPO4(aq)
 CaPO4-      
+Ca44PO4-                                                            
 FeCO3(aq)                                                             
 FeH2PO4+
 FeHPO4(aq)                                                              
@@ -191,8 +203,10 @@ FePO4-
 KHPO4-
 PO4---                                                                  
 S--
+S34--
 BO2- 
 MgB(OH)4+
+MgF+
 END
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

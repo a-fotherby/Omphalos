@@ -55,8 +55,8 @@ def create_condition_series(
         template,
         condition,
         number_of_files,
-        var_min,
-        var_max):
+        mean_recip
+        ):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
     template.sort_condition_block(condition)
@@ -69,15 +69,28 @@ def create_condition_series(
         file_dict.update({key: copy.deepcopy(template)})
 
     for file in file_dict:
-        for species in file_dict[file].condition_blocks[condition].primary_species.keys(
-        ):
-            file_dict[file].condition_blocks[condition].primary_species.update(
-                {species: [round(rand.expovariate(1000000), 15)]})
+        for species in file_dict[file].condition_blocks[condition].primary_species.keys():
+            if species == 'Ca++':
+                ca_conc = round(rand.expovariate(mean_recip), 15)
+                ca44_conc = ca_conc * 0.021226645
+                file_dict[file].condition_blocks[condition].primary_species.update({species: [ca_conc]})
+                file_dict[file].condition_blocks[condition].primary_species.update({'Ca44++': [ca44_conc]})
+            elif species == 'Ca44++':
+                pass
+            elif species == 'SO4--':
+                s_conc = round(rand.expovariate(mean_recip), 15)
+                s34_conc = s_conc * 0.0450900146
+                file_dict[file].condition_blocks[condition].primary_species.update({species: [s_conc]})
+                file_dict[file].condition_blocks[condition].primary_species.update({'S34O4--': [s34_conc]})
+            elif species == 'S34O4--':
+                pass
+            else:
+                file_dict[file].condition_blocks[condition].primary_species.update({species: [round(rand.expovariate(mean_recip), 15)]})
 
     return file_dict
 
 
-def generate_data_set(template, condition, number_of_files, var_min, var_max, name):
+def generate_data_set(template, condition, number_of_files, mean_recip, name):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
     
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -85,7 +98,7 @@ def generate_data_set(template, condition, number_of_files, var_min, var_max, na
     
     The directory specified by tmp_dir must already exist and be populated with the required databases, and otherwise be empty.
     """
-    file_dict = create_condition_series(template, condition, number_of_files, var_min, var_max)
+    file_dict = create_condition_series(template, condition, number_of_files, mean_recip)
     for file_num, entry in enumerate(file_dict):
         # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
         file_name = name + str(file_num) + '.in'

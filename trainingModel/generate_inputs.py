@@ -102,22 +102,25 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
     for file_num, entry in enumerate(file_dict):
         # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
         file_name = name + str(file_num) + '.in'
+        out_file_name = name + str(file_num) + '.out'
         tmp_dir = 'tmp/'
         file_dict[entry].path = tmp_dir + file_name
         file_dict[entry].print_input_file()
         # Have to invoke absolute path for CT, this might vary by installation.
         subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd = tmp_dir)
-        
+                
         # Make a results object that is an attribute of the InputFile object.
         file_dict[entry].results = results.Results()
         
         output_categories = fm.get_data_cats(tmp_dir)
-        
         for output in output_categories: 
             file_dict[entry].results.get_output(tmp_dir, output)
     
         # Clean the temp directory ready the next input file.
         subprocess.run(['rm', "*.tec"], cwd = tmp_dir)
+        subprocess.run(['rm', file_name], cwd = tmp_dir)
+        subprocess.run(['rm', out_file_name], cwd = tmp_dir)
+
 
     return file_dict
         

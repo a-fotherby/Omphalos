@@ -25,7 +25,7 @@ class InputFile:
         Each entry of the list is a single word from the input file line, split by whitespace.
 
         This method works for all keyword blocks except conditions, of which there may be multiple in an input file.
-        In the event that a keyword block is erroneously added more than once, it will use the first instance of that keyword for assignment.
+        In the event that a keyword block is erroneously added more than once in the input file, it will use the first instance of that keyword for assignment.
         """
         # Get all instances of the keyword in question, in a numpy array.
         block_start = fm.search_input_file(self.raw, keyword)
@@ -51,7 +51,7 @@ class InputFile:
                     line_list = self.raw[a].split()
                     keyword_dict.update({line_list[0]: line_list[1:]})
                 except BaseException:
-                    pass
+                    print('BaseException: This is normally due to a commented line in the input file. If it is not, something has gone really wrong!')
                 block.contents = keyword_dict
                 self.keyword_blocks.update({keyword: block})
         except IndexError:

@@ -92,6 +92,48 @@ class InputFile:
 
             condition.contents = keyword_dict
             self.condition_blocks.update({condition_name: condition})
+            
+    def get_isotope_block(self):
+        """Method to get the isotope block from the input file and encode it as a KeywordBlock object in the InputFile.
+
+        We have to do this in a seperate method because the isotope block is unique in CrunchTope because it has non-unique left-most words (either 'primary' or 'mineral').
+        This means that the dictionary keys keep overwriting each other, so we use the rare mineral entry as the dict key instead.
+        """
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'ISOTOPES'
+        block_start = fm.search_input_file(self.raw, keyword)
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_input_file(self.raw, 'END')
+
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
+        # Set the block type using the keyword in question.
+        block = KeywordBlock(keyword)
+        keyword_dict = {}
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as the dict key (in this specific context, the rare isotope)
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by missing
+                # line removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    reordered_list = [line_list[0]] + line_list[2:]
+                    keyword_dict.update({line_list[1]: reordered_list})
+                except IndexError:
+                    # The block keyword is by itself, so there is no rare isotope keyword to use as a key.
+                    # This will raise an IndexError, so catch it and allocate the dict entries accordingly.
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    print('BaseException: this is normally due to a commented line in the input file. If it is not, something has gone really wrong!')
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print('The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your input file, check your spelling.')
 
     def sort_condition_block(self, condition):
         """Sort a conditon block dictionary into dictionaries for each types of species (mineral, gas, aqueous, parameter).
@@ -130,13 +172,24 @@ class InputFile:
 
         """
         with open(self.path, 'x') as f:
+            # Print out each keyword block, not condition blocks: they require special treatment.
             for block in self.keyword_blocks:
-                for entry in self.keyword_blocks[block].contents:
-                    line = copy.deepcopy(
-                        self.keyword_blocks[block].contents[entry])
-                    line.insert(0, entry)
-                    line.append('\n')
-                    f.write(' '.join(line))
+                # Special treatment for the ISOTOPE block becuase of the way the dictionary is indexed.
+                # Ensure that the dictionary is unpacked in the right order so that the file has the right syntax.
+                if block == 'ISOTOPES':
+                    for entry in self.keyword_blocks[block].contents:
+                        line = copy.deepcopy(
+                            self.keyword_blocks[block].contents[entry])
+                        line.insert(1, entry)
+                        line.append('\n')
+                        f.write(' '.join(line))                
+                else:
+                    for entry in self.keyword_blocks[block].contents:
+                        line = copy.deepcopy(
+                            self.keyword_blocks[block].contents[entry])
+                        line.insert(0, entry)
+                        line.append('\n')
+                        f.write(' '.join(line))
                 f.write('END\n\n')
 
             for block in self.condition_blocks:

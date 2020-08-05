@@ -1,0 +1,27 @@
+program: sweep_test.py
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+method: bayes
+metric:
+  name: val_loss
+  goal: minimize
+parameters:
+  epochs:
+    distribution: int_uniform
+    min: 45
+    max: 55
+  dropout:
+    distribution: uniform
+    min: 0.05
+    max: 0.15
+  batch_size:
+    distribution: int_uniform
+    min: 8
+    max: 24
+  learning_rate:
+    distribution: uniform
+    min: 0.05
+    max: 0.15

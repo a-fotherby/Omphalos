@@ -209,10 +209,11 @@ class InputFile:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the line, but I want to store as number for data analysis purposes.
                         # This might come back to bite later, so if things start going tits up maybe check here first for any type-casting fuckery.
                         line = copy.deepcopy(species_type[entry])
-                        line = [str(line[0])]
-                        line.insert(0, entry)
-                        line.append('\n')
-                        f.write(' '.join(line))
+                        string = entry
+                        for word in line:
+                            string += (' ' + str(word))
+                        
+                        f.write(string + '\n')
                 f.write('END\n\n')
 
 

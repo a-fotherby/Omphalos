@@ -1,5 +1,6 @@
 import file_methods as fm
 import numpy as np
+import pandas as pd
 import copy
 
 
@@ -215,8 +216,31 @@ class InputFile:
                         
                         f.write(string + '\n')
                 f.write('END\n\n')
+                
+    
+    def calculate_mineral_diff(self, condition):
+        """Calculate the total mineral volume evolution over the run.
+        
+        Currently only able to handle a single, uniform geochemical condition for the entire system.
+        Keyword arguments:
+        condition -- the dictionary entry key for the condition in question.
+        """
+        if bool(self.condition_blocks[condition].parameters) == False:
+            self.sort_condition_block(condition)
+        else:
+            pass
+        mineral_dict = self.condition_blocks[condition].minerals
+        for key in mineral_dict:
+            mineral_dict.update({key: mineral_dict[key][0]})
+            
+        mineral_vol_init = pd.DataFrame(mineral_dict, index=[0], dtype = float)
+        mineral_vol_out = self.results.results_dict['volume'].iloc[:, 3:]
+        delta_mineral_vol= mineral_vol_init - mineral_vol_out
+        
+        return delta_mineral_vol
 
-
+    
+                
 class KeywordBlock:
     """Object describing a CT input file keyword block. An input file is comprised of many of these."""
 

@@ -217,6 +217,12 @@ class InputFile:
                         f.write(string + '\n')
                 f.write('END\n\n')
                 
+    def check_condition_sort(self, condition):            
+        """Check to see if the condition block has been sorted. If not, sort it."""
+        if bool(self.condition_blocks[condition].parameters) == False:
+            self.sort_condition_block(condition)
+        else:
+            pass            
     
     def calculate_mineral_diff(self, condition):
         """Calculate the total mineral volume evolution over the run.

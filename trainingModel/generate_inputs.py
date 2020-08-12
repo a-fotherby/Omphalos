@@ -55,7 +55,11 @@ def create_condition_series(
         template,
         condition,
         number_of_files,
-        mean_recip
+        mean_recip,
+        *,
+        primary_species=False,
+        mineral_volumes=False,
+        mineral_rates=False
         ):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
@@ -69,25 +73,57 @@ def create_condition_series(
         file_dict.update({key: copy.deepcopy(template)})
 
     for file in file_dict:
-        for species in file_dict[file].condition_blocks[condition].primary_species.keys():
-            if species == 'Ca++':
-                ca_conc = round(rand.expovariate(mean_recip), 15)
-                ca44_conc = ca_conc * 0.021226645
-                file_dict[file].condition_blocks[condition].primary_species.update({species: [ca_conc]})
-                file_dict[file].condition_blocks[condition].primary_species.update({'Ca44++': [ca44_conc]})
-            elif species == 'Ca44++':
-                pass
-            elif species == 'SO4--':
-                s_conc = round(rand.expovariate(mean_recip), 15)
-                s34_conc = s_conc * 0.0450900146
-                file_dict[file].condition_blocks[condition].primary_species.update({species: [s_conc]})
-                file_dict[file].condition_blocks[condition].primary_species.update({'S34O4--': [s34_conc]})
-            elif species == 'S34O4--':
-                pass
-            else:
-                file_dict[file].condition_blocks[condition].primary_species.update({species: [round(rand.expovariate(mean_recip), 15)]})
-
+        if primary_species == True:
+            concentrations(file_dict[file], condition, mean_recip)
+        else:
+            pass
+        
+        if mineral_volumes == True:
+            minerals_volumes(file_dict[file], condition, 0.9)
+        else:
+            pass
+        
     return file_dict
+
+def concentrations(input_file, condition, mean_recip):
+    for species in input_file.condition_blocks[condition].primary_species.keys():
+        if species == 'Ca++':
+            ca_conc = round(rand.expovariate(mean_recip), 15)
+            ca44_conc = ca_conc * 0.021226645
+            input_file.condition_blocks[condition].primary_species.update({species: [ca_conc]})
+            input_file.condition_blocks[condition].primary_species.update({'Ca44++': [ca44_conc]})
+        elif species == 'Ca44++':
+            pass
+        elif species == 'SO4--':
+            s_conc = round(rand.expovariate(mean_recip), 15)
+            s34_conc = s_conc * 0.0450900146
+            input_file.condition_blocks[condition].primary_species.update({species: [s_conc]})
+            input_file.condition_blocks[condition].primary_species.update({'S34O4--': [s34_conc]})
+        elif species == 'S34O4--':
+            pass
+        else:
+            input_file.condition_blocks[condition].primary_species.update({species: [round(rand.expovariate(mean_recip), 15)]})
+
+def minerals_volumes(input_file, condition, total_volume):
+    """Randomise mineral volume fractions in a data_set of InputFiles.
+    
+    Total volume must be less than exactly 1 or CrunchTope wont run: 0.9999 is acceptable.
+    """
+    # First ensure that the sum total of mineral volume fractions is less than 1.
+    # Use the Dirichlet function to provide a list of numbers that sum to 1 on the interval [0,1].
+    # The Dirichlet function is very flexible; in it's symmetric (i.e. all entries in input vectors the same - in which case we call that single value the concentration parameter) 
+    # case no returned value will be biased larger than the others, and in the case that the concentration parameter is 1, the entries will all be drawn from a uniform distribution.
+    # In the case that conc_param > 1, values returned will be more similar. If conc_param < 1 then the the values will be less similar.
+    mineral_num = len(input_file.condition_blocks[condition].minerals)
+    alpha = np.ones(mineral_num)    
+    
+    volume_fractions = np.random.dirichlet(alpha) * total_volume
+
+    for mineral, volume_frac in zip(input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
+        entry = input_file.condition_blocks[condition].minerals[mineral]
+        entry[0] = volume_frac
+        input_file.condition_blocks[condition].minerals.update({mineral: entry})
+
 
 
 def generate_data_set(template, condition, number_of_files, mean_recip, name):
@@ -96,9 +132,10 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
     Each parameter in the randomised geochemical condition takes a random value on the interval [var_min, var_max].
     
-    The directory specified by tmp_dir must already exist and be populated with the required databases, and otherwise be empty.
+    The directory specified by tmp_dir must already exist and be populated with the required databases.
     """
-    file_dict = create_condition_series(template, condition, number_of_files, mean_recip)
+    # Get a dictionary of input files. Set the randomisation options here.
+    file_dict = create_condition_series(template, condition, number_of_files, mean_recip, primary_species=True, mineral_volumes=True, mineral_rates=False)
     for file_num, entry in enumerate(file_dict):
         # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
         file_name = name + str(file_num) + '.in'

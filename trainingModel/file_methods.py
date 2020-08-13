@@ -7,6 +7,7 @@ import os
 import glob
 import pickle
 
+
 def import_file(file_path):
     """Return a dictionary of lines in a file, with the values as the line numbers.
 
@@ -70,9 +71,10 @@ def read_tec_file(path_to_directory, output):
             names=headers)
 
         return df
-    
+
+
 def get_data_cats(directory):
-    #os.chdir(directory)
+    # os.chdir(directory)
     f_list = glob.glob(directory + '*.tec')
     f_list = [i.rstrip('.tec') for i in f_list]
     f_list = [i.rstrip('0123456789') for i in f_list]
@@ -80,10 +82,12 @@ def get_data_cats(directory):
     f_set = set(f_list)
     return f_set
 
+
 def pickle_data_set(data_set, file_name):
     with open('{}.pickle'.format(file_name), 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         pickle.dump(data_set, f, pickle.HIGHEST_PROTOCOL)
+
 
 def unpickle(file_name):
     with open(file_name, 'rb') as f:

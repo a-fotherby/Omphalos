@@ -8,6 +8,7 @@ import copy
 import subprocess
 import results
 
+
 def import_template(file_path):
     """Import the template import file. Returns an input_file object, fully populated with all available keyword blocks.
 
@@ -45,7 +46,7 @@ def import_template(file_path):
     for keyword in keyword_list:
         template.get_keyword_block(keyword)
 
-    template.get_isotope_block()    
+    template.get_isotope_block()
     template.get_condition_blocks()
 
     return template
@@ -60,7 +61,7 @@ def create_condition_series(
         primary_species=False,
         mineral_volumes=False,
         mineral_rates=False
-        ):
+):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
     template.sort_condition_block(condition)
@@ -73,91 +74,111 @@ def create_condition_series(
         file_dict.update({key: copy.deepcopy(template)})
 
     for file in file_dict:
-        if primary_species == True:
+        if primary_species:
             concentrations(file_dict[file], condition, mean_recip)
         else:
             pass
-        
-        if mineral_volumes == True:
+
+        if mineral_volumes:
             minerals_volumes(file_dict[file], condition, 0.9)
         else:
             pass
-        
+
     return file_dict
 
+
 def concentrations(input_file, condition, mean_recip):
-    for species in input_file.condition_blocks[condition].primary_species.keys():
+    for species in input_file.condition_blocks[condition].primary_species.keys(
+    ):
         if species == 'Ca++':
             ca_conc = round(rand.expovariate(mean_recip), 15)
             ca44_conc = ca_conc * 0.021226645
-            input_file.condition_blocks[condition].primary_species.update({species: [ca_conc]})
-            input_file.condition_blocks[condition].primary_species.update({'Ca44++': [ca44_conc]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {species: [ca_conc]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {'Ca44++': [ca44_conc]})
         elif species == 'Ca44++':
             pass
         elif species == 'SO4--':
             s_conc = round(rand.expovariate(mean_recip), 15)
             s34_conc = s_conc * 0.0450900146
-            input_file.condition_blocks[condition].primary_species.update({species: [s_conc]})
-            input_file.condition_blocks[condition].primary_species.update({'S34O4--': [s34_conc]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {species: [s_conc]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {'S34O4--': [s34_conc]})
         elif species == 'S34O4--':
             pass
         else:
-            input_file.condition_blocks[condition].primary_species.update({species: [round(rand.expovariate(mean_recip), 15)]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {species: [round(rand.expovariate(mean_recip), 15)]})
+
 
 def minerals_volumes(input_file, condition, total_volume):
     """Randomise mineral volume fractions in a data_set of InputFiles.
-    
+
     Total volume must be less than exactly 1 or CrunchTope wont run: 0.9999 is acceptable.
     """
     # First ensure that the sum total of mineral volume fractions is less than 1.
     # Use the Dirichlet function to provide a list of numbers that sum to 1 on the interval [0,1].
-    # The Dirichlet function is very flexible; in it's symmetric (i.e. all entries in input vectors the same - in which case we call that single value the concentration parameter) 
+    # The Dirichlet function is very flexible; in it's symmetric (i.e. all entries in input vectors the same - in which case we call that single value the concentration parameter)
     # case no returned value will be biased larger than the others, and in the case that the concentration parameter is 1, the entries will all be drawn from a uniform distribution.
-    # In the case that conc_param > 1, values returned will be more similar. If conc_param < 1 then the the values will be less similar.
+    # In the case that conc_param > 1, values returned will be more similar.
+    # If conc_param < 1 then the the values will be less similar.
     mineral_num = len(input_file.condition_blocks[condition].minerals)
-    alpha = np.ones(mineral_num)    
-    
+    alpha = np.ones(mineral_num)
+
     volume_fractions = np.random.dirichlet(alpha) * total_volume
 
-    for mineral, volume_frac in zip(input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
+    for mineral, volume_frac in zip(
+            input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
         entry = input_file.condition_blocks[condition].minerals[mineral]
         entry[0] = volume_frac
-        input_file.condition_blocks[condition].minerals.update({mineral: entry})
-
+        input_file.condition_blocks[condition].minerals.update(
+            {mineral: entry})
 
 
 def generate_data_set(template, condition, number_of_files, mean_recip, name):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
-    
+
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
     Each parameter in the randomised geochemical condition takes a random value on the interval [var_min, var_max].
-    
+
     The directory specified by tmp_dir must already exist and be populated with the required databases.
     """
     # Get a dictionary of input files. Set the randomisation options here.
-    file_dict = create_condition_series(template, condition, number_of_files, mean_recip, primary_species=True, mineral_volumes=True, mineral_rates=False)
+    # !!!
+    # !!! Randomisation options !!!
+    # !!!
+    file_dict = create_condition_series(
+        template,
+        condition,
+        number_of_files,
+        mean_recip,
+        primary_species=True,
+        mineral_volumes=True,
+        mineral_rates=False)
     for file_num, entry in enumerate(file_dict):
-        # Print the file. Run it in CT. Collect the results, and assign to a Results object in the InputFile object.
+        # Print the file. Run it in CT. Collect the results, and assign to a
+        # Results object in the InputFile object.
         file_name = name + str(file_num) + '.in'
         out_file_name = name + str(file_num) + '.out'
         tmp_dir = 'tmp/'
         file_dict[entry].path = tmp_dir + file_name
         file_dict[entry].print_input_file()
         # Have to invoke absolute path for CT, this might vary by installation.
-        subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd = tmp_dir)
-                
+        subprocess.run(
+            ['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
+
         # Make a results object that is an attribute of the InputFile object.
         file_dict[entry].results = results.Results()
-        
-        output_categories = fm.get_data_cats(tmp_dir)
-        for output in output_categories: 
-            file_dict[entry].results.get_output(tmp_dir, output)
-    
-        # Clean the temp directory ready the next input file.
-        subprocess.run(['rm', "*.tec"], cwd = tmp_dir)
-        subprocess.run(['rm', file_name], cwd = tmp_dir)
-        subprocess.run(['rm', out_file_name], cwd = tmp_dir)
 
+        output_categories = fm.get_data_cats(tmp_dir)
+        for output in output_categories:
+            file_dict[entry].results.get_output(tmp_dir, output)
+
+        # Clean the temp directory ready the next input file.
+        subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
+        subprocess.run(['rm', file_name], cwd=tmp_dir)
+        subprocess.run(['rm', out_file_name], cwd=tmp_dir)
 
     return file_dict
-        

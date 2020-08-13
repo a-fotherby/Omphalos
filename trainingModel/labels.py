@@ -16,7 +16,7 @@ def raw_labels(data_set, output):
 
     return labels
 
-def secondary_precip(data_set, condition, output):
+def secondary_precip(data_set, condition):
     """Calculate the total mineral volume evolution over the run.
 
     Currently only able to handle a single, uniform geochemical condition for the entire system.

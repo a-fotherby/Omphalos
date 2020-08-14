@@ -19,30 +19,32 @@ def get_condition(
     # randomisation.
     attributes = pd.DataFrame()
 
+    mineral_attrs = pd.DataFrame()
+    species_attrs = pd.DataFrame()
+    
     for i in data_set:
         # Check the condition blocks have been sorted and if not; sort them.
         data_set[i].check_condition_sort(condition)
 
         # Get the DataFrames containing attribute info for each condition block
-        # part and join them together to make attribute df describing the
+        # part and join them together to make an attributes df describing the
         # InputFile.
-        row = pd.DataFrame()
-        row_parts = []
-
         if mineral_volumes:
-            row_parts.append(mineral_volume(data_set[i], condition))
+            mineral_attrs = mineral_attrs.append(mineral_volume(data_set[i], condition), ignore_index=True)
+
         else:
             pass
+    
         if species_concs:
-            row_parts.append(primary_species(data_set[i], condition))
+            species_attrs = species_attrs.append(primary_species(data_set[i], condition), ignore_index=True)
+            
         else:
             pass
 
-        for df in row_parts:
-            row = row.join(df, how='outer')
-
-        # Append the attribute row to the attribute DataFrame and return it.
-        attributes = attributes.append(row, ignore_index=True)
+    attribute_dfs = [mineral_attrs, species_attrs]    
+        
+    for df in attribute_dfs:
+        attributes = attributes.join(df, how='outer')
 
     return attributes
 
@@ -65,3 +67,6 @@ def primary_species(input_file, condition):
         input_file.condition_blocks[condition].primary_species)
 
     return primary_species_df_row
+
+def normalise_by_frac(attributes):
+    pass

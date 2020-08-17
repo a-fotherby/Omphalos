@@ -41,7 +41,10 @@ def get_condition(
         else:
             pass
 
-    attribute_dfs = [mineral_attrs, species_attrs]    
+    attribute_dfs = [mineral_attrs, species_attrs]   
+    
+    attribute_dfs[0] = normalise_by_frac(attribute_dfs[0])
+    attribute_dfs[1] = normalise_by_frac(attribute_dfs[1])
         
     for df in attribute_dfs:
         attributes = attributes.join(df, how='outer')
@@ -68,5 +71,17 @@ def primary_species(input_file, condition):
 
     return primary_species_df_row
 
-def normalise_by_frac(attributes):
-    pass
+def normalise_by_frac(attribute_df):
+    """Normalise by fraction of sum of components in condition.
+    
+    For example, if it is species concentrations, express each initial species concentration as a fraction of the total molar concentration in solution.
+    
+    Arguments:
+    
+    attribute_df -- The DataFrame of attributes to normalize.
+    """
+    attribute_sum = attribute_df.sum(axis=1)
+    normed_attr_df = attribute_df.divide(attribute_sum, axis=0)
+        
+    return normed_attr_df
+                                    

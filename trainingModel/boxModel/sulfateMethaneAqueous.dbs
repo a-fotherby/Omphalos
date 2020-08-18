@@ -1,0 +1,113 @@
+! -------------------------------------------------------------------------------------------------
+!
+!  reaction stoichiometry
+!
+! -------------------------------------------------------------------------------------------------
+
+&Aqueous
+  name          = 'Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO4--'  0.25 'CO2(aq)'  -0.25 'Formaldehyde'  -0.25 'H+' 0.125 'H2S(aq)' 0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name     = 'Sulfate34_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'S34O4--'  0.25 'CO2(aq)'  -0.25 'Formaldehyde'  -0.25 'H+' 0.125 'H2S34(aq)' 0.25 'H2O'
+  keq      = 2.52725
+/
+
+&Aqueous
+  name          =  'AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'SO4--' -0.25 'H+' 0.125 'CO2(aq)'  0.125 'H2S(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  'AOM34'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'S34O4--' -0.25 'H+' 0.125 'CO2(aq)'  0.125 'H2S34(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name     = 'Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Formaldehyde' 0.0625 'Methane(aq)' 0.0625 'CO2(aq)'
+  keq      = 1.11911
+/
+
+! -------------------------------------------------------------------------------------------------
+!
+!  rate expressions
+!
+! -------------------------------------------------------------------------------------------------
+
+
+&AqueousKinetics
+  name     = 'Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500
+  monod_terms   = 'tot_Formaldehyde' 4.8E-04 'tot_SO4--' 4.8000E-04
+  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+!! Sulfate-34 reduction, written in terms of the transfer of one electron
+
+&AqueousKinetics
+  name     = 'Sulfate34_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'tot_Formaldehyde' 4.8E-04 'tot_S34O4--' 4.8000E-04
+  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1 
+/
+
+
+&AqueousKinetics
+  name          = 'AOM'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_SO4--' 4.8E-5 'tot_Methane(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name          = 'AOM34'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_S34O4--' 4.8E-5 'tot_Methane(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)' 
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = 'Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_Formaldehyde' 1.5E-05
+  inhibition = 'SO4--' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/

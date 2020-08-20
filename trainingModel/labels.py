@@ -3,19 +3,18 @@ import pandas as pd
 
 
 def raw_labels(data_set, output):
-    """Returns labels DataFrame containing raw CrunchTope output data."""
+    """Returns labels DataFrame containing raw CrunchTope output data.
+    
+    Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple row count.
+    Spatial data for each input file is stored in a tidy format (tidy taking it's technical meaning in this case).
+    """
     # Generate dataframe of requested labels.
     labels = pd.DataFrame()
-    label_names = data_set[0].results.results_dict[output]
-    for label in label_names:
-        label_list = pd.DataFrame()
-        for i in data_set:
-            label_list = label_list.append(
-                data_set[i].results.results_dict[output][label],
-                ignore_index=True)
-
-        label_list.columns = [label]
-        labels[label] = label_list[label]
+    for key in data_set:
+        data_set[key].results.results_dict[output]['File Num'] = key
+        labels = labels.append(data_set[key].results.results_dict[output])
+    
+    labels = labels.set_index(['File Num', labels.index])
 
     return labels
 

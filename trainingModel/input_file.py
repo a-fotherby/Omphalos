@@ -1,4 +1,5 @@
 import file_methods as fm
+import keyword_block as kb
 import numpy as np
 import pandas as pd
 import copy
@@ -40,7 +41,7 @@ class InputFile:
         block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
         # Set the block type using the keyword in question.
-        block = KeywordBlock(keyword)
+        block = kb.KeywordBlock(keyword)
         keyword_dict = {}
         try:
             for a in np.arange(block_start[0], block_end[0]):
@@ -79,7 +80,7 @@ class InputFile:
         for start, end in zip(block_start, block_end):
             # Set the block type using the keyword in question.
             condition_name = self.raw[start].split()[1]
-            condition = ConditionBlock()
+            condition = kb.ConditionBlock()
             keyword_dict = {}
             for a in np.arange(start, end):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
@@ -114,7 +115,7 @@ class InputFile:
         block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
         # Set the block type using the keyword in question.
-        block = KeywordBlock(keyword)
+        block = kb.KeywordBlock(keyword)
         keyword_dict = {}
         try:
             for a in np.arange(block_start[0], block_end[0]):
@@ -255,22 +256,3 @@ class InputFile:
         delta_mineral_vol = mineral_vol_init - mineral_vol_out
 
         return delta_mineral_vol
-
-
-class KeywordBlock:
-    """Object describing a CT input file keyword block. An input file is comprised of many of these."""
-
-    def __init__(self, block_type):
-        self.block_type = block_type
-        self.contents = {}
-
-
-class ConditionBlock(KeywordBlock):
-    """Object describing a CT input file keyword block. An input file is comprised of many of these."""
-
-    def __init__(self):
-        KeywordBlock.__init__(self, 'CONDITION')
-        self.gases = {}
-        self.minerals = {}
-        self.primary_species = {}
-        self.parameters = {}

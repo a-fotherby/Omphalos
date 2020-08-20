@@ -14,6 +14,7 @@ class ConditionBlock(KeywordBlock):
 
     def __init__(self):
         KeywordBlock.__init__(self, 'CONDITION')
+        self.region = []
         self.gases = {}
         self.minerals = {}
         self.primary_species = {}

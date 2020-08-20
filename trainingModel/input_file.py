@@ -3,6 +3,7 @@ import keyword_block as kb
 import numpy as np
 import pandas as pd
 import copy
+import re
 
 
 class InputFile:
@@ -95,6 +96,7 @@ class InputFile:
 
             condition.contents = keyword_dict
             self.condition_blocks.update({condition_name: condition})
+            
 
     def get_isotope_block(self):
         """Method to get the isotope block from the input file and encode it as a KeywordBlock object in the InputFile.
@@ -235,6 +237,11 @@ class InputFile:
             self.sort_condition_block(condition)
         else:
             pass
+        
+        if not self.condition_blocks[condition].region:
+            self.condition_regions()
+        else:
+            pass
 
     def calculate_mineral_diff(self, condition):
         """Calculate the total mineral volume evolution over the run.
@@ -256,3 +263,22 @@ class InputFile:
         delta_mineral_vol = mineral_vol_init - mineral_vol_out
 
         return delta_mineral_vol
+    
+    def condition_regions(self):
+        """Find the coordinates over which condition is initially applied and assign them to the region attribute of the ConditionBlock object.
+        
+        Condition region is an ordered array of arrays, corresponding to the range over which that condition is applied in X, Y, and Z.
+        """
+        for condition in self.condition_blocks:
+            
+            condition_region = []
+            try:
+                for coord in self.keyword_blocks['INITIAL_CONDITIONS'].contents[condition]:
+                    result = re.findall("\d+", coord)
+                    result = list(map(int, result))
+                    condition_region.append(result)
+            except KeyError:
+                print("Warning: The condition {} was not specified as a initial condition".format(condition))
+                            
+            self.condition_blocks[condition].region = condition_region
+

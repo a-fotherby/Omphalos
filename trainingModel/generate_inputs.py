@@ -7,6 +7,7 @@ import random as rand
 import copy
 import subprocess
 import results
+import signal
 
 
 def import_template(file_path):
@@ -165,10 +166,15 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         tmp_dir = 'tmp/'
         file_dict[entry].path = tmp_dir + file_name
         file_dict[entry].print_input_file()
-        # Have to invoke absolute path for CT, this might vary by installation.
-        subprocess.run(
-            ['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
-
+        
+        signal.signal(signal.SIGALRM, handler)
+        signal.alarm(60)
+        try:
+            run_crunchtope(file_name, tmp_dir)
+        except Exception: 
+            print('Input file timed out.')
+        signal.alarm(0)
+    
         # Make a results object that is an attribute of the InputFile object.
         file_dict[entry].results = results.Results()
 
@@ -182,3 +188,11 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         subprocess.run(['rm', out_file_name], cwd=tmp_dir)
 
     return file_dict
+
+def run_crunchtope(file_name, tmp_dir):
+    # Have to invoke absolute path for CT, this might vary by installation.
+    subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
+
+def handler(signum, frame):
+    print("Input file timed out.")
+    raise Exception("CrunchTimeOut")

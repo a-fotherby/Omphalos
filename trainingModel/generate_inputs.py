@@ -36,7 +36,6 @@ def import_template(file_path):
         'AQUEOUS_KINETICS',
         'ION_EXCHANGE',
         'SURFACE_COMPLEXATION',
-        'INITIAL_CONDITIONS',
         'BOUNDARY_CONDITIONS',
         'TRANSPORT',
         'FLOW',
@@ -47,6 +46,7 @@ def import_template(file_path):
     for keyword in keyword_list:
         template.get_keyword_block(keyword)
 
+    template.get_initial_conditions_block()
     template.get_isotope_block()
     template.get_condition_blocks()
 

@@ -5,7 +5,6 @@ import pandas as pd
 import copy
 import re
 
-
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
@@ -13,7 +12,8 @@ class InputFile:
         self.path = file_path
         self.raw = fm.import_file(self.path)
         self.keyword_blocks = {}
-        self.condition_blocks = {}
+        self.condition_blocks = {}    
+
 
     def get_keyword_block(self, keyword):
         """Method to get a keyword block from the input file, specified by keyword.
@@ -96,6 +96,9 @@ class InputFile:
 
             condition.contents = keyword_dict
             self.condition_blocks.update({condition_name: condition})
+        
+        # Get regions for each condition block.
+        self.condition_regions()
             
 
     def get_isotope_block(self):
@@ -142,6 +145,60 @@ class InputFile:
         except IndexError:
             print('The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your input file, check your spelling.')
 
+
+    def get_initial_conditions_block(self):
+        """Method to get the initial conditions block from the input file and encode it as a KeywordBlock object in the InputFile.
+
+        We have to do this in a seperate method because the initial conditions block is unique in CrunchTope as conditions can be repeated to form non-contiguous regions, so the left most word is not always unique.
+        This means that the dictionary keys can overwriting each other.
+        """
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'INITIAL_CONDITIONS'
+        print(keyword)
+        block_start = fm.search_input_file(self.raw, keyword)
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_input_file(self.raw, 'END')
+
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
+        # Set the block type using the keyword in question.
+        block = kb.KeywordBlock(keyword)
+        keyword_dict = {}
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as the dict key (in this specific context, the rare isotope)
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by missing
+                # line removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    # Regex extracts keys as unqiue coordinate sets.
+                    key = re.findall("\d+-\d+", self.raw[a])
+                    key = ' '.join(key)
+                    # Check to see if the fix keyword has been invoked.
+                    if line_list[-1] == 'fix':
+                        entry = [line_list[0]] + [line_list[-1]]
+                    else:
+                        entry = [line_list[0]]
+                    keyword_dict.update({key: entry})
+                except IndexError:
+                    # The block keyword is by itself, so there is no coordinate to use as a key.
+                    # This will raise an IndexError, so catch it and allocate
+                    # the dict entries accordingly.
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    print(
+                        'BaseException: this is normally due to a commented line in the input file. If it is not, something has gone really wrong!')
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print('The keyword "INITIAL_CONDITIONS" you searched for does not exist; check your input file for errors.')
+            
+            
     def sort_condition_block(self, condition):
         """Sort a conditon block dictionary into dictionaries for each types of species (mineral, gas, aqueous, parameter).
 
@@ -163,6 +220,7 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
+                print(entry, contents[entry])
                 self.condition_blocks[condition].minerals.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
@@ -186,7 +244,7 @@ class InputFile:
                 # Special treatment for the ISOTOPE block becuase of the way the dictionary is indexed.
                 # Ensure that the dictionary is unpacked in the right order so
                 # that the file has the right syntax.
-                if block == 'ISOTOPES':
+                if (block == 'ISOTOPES') or (block == 'INITIAL_CONDITIONS'):
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(
                             self.keyword_blocks[block].contents[entry])
@@ -237,11 +295,6 @@ class InputFile:
             self.sort_condition_block(condition)
         else:
             pass
-        
-        if not self.condition_blocks[condition].region:
-            self.condition_regions()
-        else:
-            pass
 
     def calculate_mineral_diff(self, condition):
         """Calculate the total mineral volume evolution over the run.
@@ -269,16 +322,28 @@ class InputFile:
         
         Condition region is an ordered array of arrays, corresponding to the range over which that condition is applied in X, Y, and Z.
         """
+        # Initialise all the region attributes to prevent infinitely appending lists.
         for condition in self.condition_blocks:
-            
-            condition_region = []
-            try:
-                for coord in self.keyword_blocks['INITIAL_CONDITIONS'].contents[condition]:
-                    result = re.findall("\d+", coord)
-                    result = list(map(int, result))
-                    condition_region.append(result)
-            except KeyError:
-                print("Warning: The condition {} was not specified as a initial condition".format(condition))
-                            
-            self.condition_blocks[condition].region = condition_region
+            self.condition_blocks[condition].region=[]
+        
+        for coord_string in self.keyword_blocks['INITIAL_CONDITIONS'].contents:
+            # Skip the block title line.
+            if not coord_string:
+                pass
+            else:
+                condition = self.keyword_blocks['INITIAL_CONDITIONS'].contents[coord_string][0]
+                condition_region = [[1,1],[1,1],[1,1]]
+                try:
+                    coord_pairs = coord_string.split()
+                    for i, coords in enumerate(coord_pairs):
+                        result = re.findall("\d+", coords)
+                        result = list(map(int, result))
+                        condition_region[i] = result
+                        print(condition_region)
+                        
+                except KeyError:
+                    condition_region = [[0,0], [0,0], [0,0]]
+                    print("Warning: The condition {} was not specified as a initial condition".format(condition))
+
+                self.condition_blocks[condition].region.append(condition_region)
 

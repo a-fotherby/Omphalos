@@ -22,6 +22,7 @@ def import_template(file_path):
     The lists of species and minerals, as well as the system geometry/discretization remain unchanged.
     For this reason we are primarily focussed on iterating over the CONDITION blocks.
     """
+    print('*** Importing template file ***')
     template = ipf.InputFile(file_path)
     # Proceed to iterate through each keyword block to import the whole file.
     keyword_list = [
@@ -164,6 +165,7 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
     # !!!
     # !!! Randomisation options !!!
     # !!!
+    print('*** Creating randomised input files ***')
     file_dict = create_condition_series(
         template,
         condition,
@@ -172,6 +174,9 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         primary_species=True,
         mineral_volumes=True,
         mineral_rates=False)
+    print('*** Begin running input files ***')
+    
+    timeout_list = []
     for file_num, entry in enumerate(file_dict):
         # Print the file. Run it in CT. Collect the results, and assign to a
         # Results object in the InputFile object.
@@ -181,12 +186,19 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         file_dict[entry].path = tmp_dir + file_name
         file_dict[entry].print_input_file()
         
-        signal.signal(signal.SIGALRM, handler)
+        signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(60)
         try:
             run_crunchtope(file_name, tmp_dir)
         except Exception: 
-            print('Input file timed out.')
+            print('File {} timed out.'.format(file_num))
+            timeout_list.append(file_num)
+            # Clean the temp directory ready the next input file.
+            subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
+            subprocess.run(['rm', file_name], cwd=tmp_dir)
+            subprocess.run(['rm', out_file_name], cwd=tmp_dir)
+            continue
+        
         signal.alarm(0)
     
         # Make a results object that is an attribute of the InputFile object.
@@ -200,6 +212,11 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
         subprocess.run(['rm', file_name], cwd=tmp_dir)
         subprocess.run(['rm', out_file_name], cwd=tmp_dir)
+        
+        print('File {} complete.'.format(file_num))
+
+    for file_num in timeout_list:
+        file_dict.pop(file_num)
 
     return file_dict
 
@@ -207,6 +224,5 @@ def run_crunchtope(file_name, tmp_dir):
     # Have to invoke absolute path for CT, this might vary by installation.
     subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
 
-def handler(signum, frame):
-    print("Input file timed out.")
-    raise Exception("CrunchTimeOut")
+def timeout_handler(signum, frame):
+    raise Exception("CrunchTimeout")

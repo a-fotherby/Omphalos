@@ -87,6 +87,7 @@ Methane(aq)                  1e-08
 Cl-                          charge
 NO3-                         3.9e-5
 Formaldehyde                 1.2e-01
+C5H7O2NSO4                   3.9281E-16
 !!!
 !! Solid phase.
 !!!
@@ -101,7 +102,6 @@ Sepiolite                    0.01     ssa 55.0
 K-Feldspar                   0.01     ssa 55.0
 Kaolinite                    0.05     ssa 55.0
 C5H7O2NSO4(s)                5.189E-6
-C5H7O2NSO4                   C5H7O2NSO4(s)
 Fluorapatite                 0.3E-10         1.0   
 Fluorapatite44               0.006360041E-10         1.0 
 END
@@ -158,7 +158,6 @@ Sepiolite                    0.01     ssa 55.0
 K-Feldspar                   0.01     ssa 55.0
 Kaolinite                    0.05     ssa 55.0
 C5H7O2NSO4(s)                5.189E-6
-C5H7O2NSO4                   C5H7O2NSO4(s)
 Fluorapatite                 0.3E-10         1.0   
 Fluorapatite44               0.006360041E-10         1.0 
 END
@@ -278,7 +277,7 @@ xzones                       10 1.0
 END
  
 INITIAL_CONDITIONS
-Seawater                     1-10
+Seawater                        1-10
 END
 
 BOUNDARY_CONDITIONS

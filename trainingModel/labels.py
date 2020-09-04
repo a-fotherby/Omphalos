@@ -1,5 +1,6 @@
 """Functions to generate label DataFrames."""
 import pandas as pd
+import numpy as np
 
 
 def raw_labels(data_set, output):
@@ -27,7 +28,7 @@ def secondary_precip(data_set):
     """
     
     # Get DataFrame of output volumes.
-    final_vols = lbls.raw_labels(data_set, 'volume')
+    final_vols = raw_labels(data_set, 'volume')
         
     # Create a new DataFrame with the same geometry as the labels by making a deep copy of the coordinate data.
     initial_vols = pd.DataFrame()
@@ -44,9 +45,9 @@ def secondary_precip(data_set):
         
         try:
             # We ensure discretization data is read in as floats.
-            disc[0] = [float(i) for i in test_set[0].keyword_blocks['DISCRETIZATION'].contents['xzones']]
-            disc[1] = [float(i) for i in test_set[0].keyword_blocks['DISCRETIZATION'].contents['yzones']]
-            disc[2] = [float(i) for i in test_set[0].keyword_blocks['DISCRETIZATION'].contents['zzones']]
+            disc[0] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['xzones']]
+            disc[1] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['yzones']]
+            disc[2] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['zzones']]
         except KeyError as error:
             print("The discretization in {} has not been specified.\nIf this is in error, check your input file.".format(error.args[0]))
             
@@ -58,7 +59,6 @@ def secondary_precip(data_set):
         
         # Construct an initial volume fraction field using initial conditions and the region attribute.
         for condition in data_set[file].condition_blocks:
-            print(condition)
             data_set[file].check_condition_sort(condition)
 
             # Get list of all minerals in the system and record the starting volume
@@ -87,8 +87,6 @@ def secondary_precip(data_set):
 
             for range_set in range_set_list:
 
-                print(range_set)
-
                 if range_set == [[0,0], [0,0], [0,0]]:
                     print("Unused condition '{}' detected. Skipping.".format(condition))
                     pass
@@ -98,7 +96,6 @@ def secondary_precip(data_set):
                     z_rows = np.arange((range_set[2][0]-1), range_set[2][1])
 
                     index_list_len = len(x_rows) * len(y_rows) * len(z_rows)
-                    print(index_list_len)
                     row_list = [0] * index_list_len
 
                     # Get a list of the row indicies corresponding to the region where the condition is applied.
@@ -109,7 +106,6 @@ def secondary_precip(data_set):
                                 row_list[n] = int(x + (y * len(x_rows)) + (z * len(y_rows) * len(z_rows)))
                                 n = n + 1
 
-                    print(row_list)
                     for row in row_list:
                         output_vols[row] = condition_vols
             
@@ -117,10 +113,7 @@ def secondary_precip(data_set):
         initial_vol_df.columns = mineral_dict.keys()
         initial_vols = initial_vols.reindex_like(final_vols)
         initial_vols.loc[file].update(initial_vol_df)
-    
-    
-    display(initial_vols)
-    display(final_vols)
+
     secondary_precip = initial_vols - final_vols
     # Recapture coordinate values, as they are destroyed by subtraction.
     # Somewhat easiers to code than indexing the right columns for subtraction.

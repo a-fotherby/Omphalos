@@ -154,7 +154,6 @@ class InputFile:
         """
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'INITIAL_CONDITIONS'
-        print(keyword)
         block_start = fm.search_input_file(self.raw, keyword)
 
         # Get array of line numbers for the END statements in the input file.
@@ -220,7 +219,6 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
-                print(entry, contents[entry])
                 self.condition_blocks[condition].minerals.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
@@ -339,7 +337,6 @@ class InputFile:
                         result = re.findall("\d+", coords)
                         result = list(map(int, result))
                         condition_region[i] = result
-                        print(condition_region)
                         
                 except KeyError:
                     condition_region = [[0,0], [0,0], [0,0]]

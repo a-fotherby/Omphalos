@@ -274,10 +274,12 @@ END
 
 DISCRETIZATION
 xzones                       10 1.0
+yzones                       1 1.0
+zzones                       1 1.0
 END
  
 INITIAL_CONDITIONS
-Seawater                        1-10
+Seawater                        1-10 1-1 1-1
 END
 
 BOUNDARY_CONDITIONS

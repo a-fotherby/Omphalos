@@ -1,6 +1,7 @@
 """Functions to generate label DataFrames."""
 import pandas as pd
 import numpy as np
+import spatial_constructor as sc
 
 
 def raw_labels(data_set, output):
@@ -37,26 +38,10 @@ def secondary_precip(data_set):
     secondary_precip = pd.DataFrame()
     mineral_vol_init = pd.DataFrame()
     # Ensure that all the condition blocks have been sorted.
-    for i, file in enumerate(data_set):
+    for file in data_set:
         
-        # Initialise discretization array as CrunchTope defaults.
-        # Could probably move this to be the default when input files are being read in/generated but will leave here for now.
-        disc = [[1, 1], [1, 1], [1,1]]
-        
-        try:
-            # We ensure discretization data is read in as floats.
-            disc[0] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['xzones']]
-            disc[1] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['yzones']]
-            disc[2] = [float(i) for i in data_set[0].keyword_blocks['DISCRETIZATION'].contents['zzones']]
-        except KeyError as error:
-            print("The discretization in {} has not been specified.\nIf this is in error, check your input file.".format(error.args[0]))
-            
-        row_count = int(disc[0][0] * disc[1][0] * disc[2][0])
-            
-        # Initialise output volume np.array and get the condition volume fractions.
+        output_vols = sc.initialise_array(data_set[file], len(data_set[file].keyword_blocks['MINERALS'].contents) - 1)
 
-        output_vols = np.zeros((row_count, len(data_set[file].keyword_blocks['MINERALS'].contents) - 1))    
-        
         # Construct an initial volume fraction field using initial conditions and the region attribute.
         for condition in data_set[file].condition_blocks:
             data_set[file].check_condition_sort(condition)
@@ -105,7 +90,7 @@ def secondary_precip(data_set):
                             for x in x_rows:
                                 row_list[n] = int(x + (y * len(x_rows)) + (z * len(y_rows) * len(z_rows)))
                                 n = n + 1
-
+                    
                     for row in row_list:
                         output_vols[row] = condition_vols
             
@@ -116,7 +101,7 @@ def secondary_precip(data_set):
 
     secondary_precip = initial_vols - final_vols
     # Recapture coordinate values, as they are destroyed by subtraction.
-    # Somewhat easiers to code than indexing the right columns for subtraction.
+    # Somewhat easier to code than indexing the right columns for subtraction.
     # Could be a source of issues but I doubt it.
     secondary_precip[['X', 'Y', 'Z']]= final_vols[['X', 'Y', 'Z']].copy() 
 

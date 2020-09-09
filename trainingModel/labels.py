@@ -40,62 +40,11 @@ def secondary_precip(data_set):
     # Ensure that all the condition blocks have been sorted.
     for file in data_set:
         
-        output_vols = sc.initialise_array(data_set[file], len(data_set[file].keyword_blocks['MINERALS'].contents) - 1)
+        output_vols = sc.populate_array(data_set[file], primary_species=False)
 
-        # Construct an initial volume fraction field using initial conditions and the region attribute.
-        for condition in data_set[file].condition_blocks:
-            data_set[file].check_condition_sort(condition)
-
-            # Get list of all minerals in the system and record the starting volume
-            # fraction for each.
-            mineral_dict = {}
-
-            for key in data_set[file].condition_blocks[condition].minerals:
-                mineral_dict.update({key: data_set[file].condition_blocks[condition].minerals[key][0]})
-
-
-            # Now initialise np.array() based on geometry of system contained in discretization info.
-            # CT cycles through coordinates x -> y -> z in TecPlot output format so we need an array with xboxes * yboxes * zboxes number of rows and minerals number of columns.
-
-            # Following on from this, any coord has a row number = [x + (y * x_len) + (z * x_len * y_len)] in this scheme. (Where coord counting starts from (0, 0, 0))
-            # Contiguous areas in real space are not necissarily contiguous in the row format.
-
-
-            condition_vols = np.fromiter(mineral_dict.values(), dtype=float)
-
-            # Need to get row numbers for each condition and each region specified to start with that condition.
-            # (Still need to amend file reading so that it can correctly interperate non-contiguous condition regions)
-            # Recall that range_set refers to block numbers not coordinates and that counting starts from 1, so must be adjusted at start, but not the end becuase np.arange doesn't include the final number.
-            # Lots of fence-post errors to keep track of here.
-            
-            range_set_list = data_set[file].condition_blocks[condition].region
-
-            for range_set in range_set_list:
-
-                if range_set == [[0,0], [0,0], [0,0]]:
-                    print("Unused condition '{}' detected. Skipping.".format(condition))
-                    pass
-                else:
-                    x_rows = np.arange((range_set[0][0]-1), range_set[0][1])
-                    y_rows = np.arange((range_set[1][0]-1), range_set[1][1])
-                    z_rows = np.arange((range_set[2][0]-1), range_set[2][1])
-
-                    index_list_len = len(x_rows) * len(y_rows) * len(z_rows)
-                    row_list = [0] * index_list_len
-
-                    # Get a list of the row indicies corresponding to the region where the condition is applied.
-                    n = 0
-                    for z in z_rows:
-                        for y in y_rows:
-                            for x in x_rows:
-                                row_list[n] = int(x + (y * len(x_rows)) + (z * len(y_rows) * len(z_rows)))
-                                n = n + 1
-                    
-                    for row in row_list:
-                        output_vols[row] = condition_vols
             
         initial_vol_df = pd.DataFrame(output_vols)
-        initial_vol_df.columns = mineral_dict.keys()
+        initial_vol_df.columns = data_set[file].condition_blocks['Seawater'].minerals.keys()
         initial_vols = initial_vols.reindex_like(final_vols)
         initial_vols.loc[file].update(initial_vol_df)
 

@@ -44,7 +44,8 @@ def secondary_precip(data_set):
 
             
         initial_vol_df = pd.DataFrame(output_vols)
-        initial_vol_df.columns = data_set[file].condition_blocks['Seawater'].minerals.keys()
+        # Can use any arbitrary dict entry for index here because all key lists for names will be the same.
+        initial_vol_df.columns = data_set[file].condition_blocks[next(iter(data_set[file].condition_blocks))].minerals.keys()
         initial_vols = initial_vols.reindex_like(final_vols)
         initial_vols.loc[file].update(initial_vol_df)
 

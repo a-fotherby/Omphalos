@@ -1,7 +1,4 @@
 """Functions for generating DataFrames of attributes."""
-import pandas as pd
-import copy
-
 
 def get_condition(
         data_set,
@@ -9,10 +6,13 @@ def get_condition(
         species_concs=False,
         mineral_volumes=False,
         mineral_rates=False):
-    """Takes a data set (a set of InputFile objects), a condition, and a target label and returns two dataframes; labels and attributes.
-
+    """Returns a normalised DataFrame of attributes based on an input file condition.
+    
+    Doesn't contain any spatial data, just the concentrations and volume fractions of the species in the condition.
     The attribute array will be of dimension (# of InputFile objects x # of primary species).
     """
+    import pandas as pd
+    
     # Put data into a dataframe for visualisation.
     # Currently only supports primary_species but can easily be extended to
     # other attributes of a ConditionBlocks once Omphalos supports their
@@ -53,6 +53,9 @@ def get_condition(
 
 
 def mineral_volume(input_file, condition):
+    """"""
+    import pandas as pd
+    import copy
     # Creat a deep copy of the mineral volume fraction dictionary so that the
     # data wrangling doesn't mangle the InputFile.
     minerals_dict = copy.deepcopy(
@@ -66,6 +69,7 @@ def mineral_volume(input_file, condition):
 
 
 def primary_species(input_file, condition):
+    import pandas as pd
     primary_species_df_row = pd.DataFrame.from_dict(
         input_file.condition_blocks[condition].primary_species)
 
@@ -120,6 +124,7 @@ def normalise_by_frac(attribute_df):
     
     attribute_df -- The DataFrame of attributes to normalize.
     """
+    import pandas as pd
     attribute_sum = attribute_df.sum(axis=1)
     normed_attr_df = attribute_df.divide(attribute_sum, axis=0)
         

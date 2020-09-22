@@ -71,6 +71,46 @@ def primary_species(input_file, condition):
 
     return primary_species_df_row
 
+def initial_conditions(data_set, primary_species=False, mineral_vols=False):
+    """Returns an attribute DataFrame containing the spatial initial condition for each InputFile in a data set.
+    
+    """ 
+    import labels as lbls
+    import pandas as pd
+    import numpy as np
+    import spatial_constructor as sc
+    
+    # Create a new DataFrame with the same geometry as the labels by making a deep copy of the coordinate data.
+    # Use totcon because it's always present 
+    initial_conditions = lbls.raw_labels(data_set, 'totcon')[['X', 'Y', 'Z']].copy()
+    
+    secondary_precip = pd.DataFrame()
+    mineral_vol_init = pd.DataFrame()
+    
+    primary_species_dict = {}
+    mineral_dict = {}
+    
+    if primary_species:
+        primary_species_dict = data_set[next(iter(data_set))].condition_blocks[next(iter(data_set[next(iter(data_set))].condition_blocks))].primary_species
+        
+    if mineral_vols:
+        mineral_dict = data_set[next(iter(data_set))].condition_blocks[next(iter(data_set[next(iter(data_set))].condition_blocks))].minerals
+    
+    condition_dict = {**primary_species_dict, **mineral_dict}
+    column_names = condition_dict.keys()
+    
+    initial_conditions[list(column_names)] = np.nan
+
+    for file in data_set:
+        condition_array = sc.populate_array(data_set[file])
+        condition_df = pd.DataFrame(condition_array)
+
+        condition_df.columns = column_names
+        
+        initial_conditions.loc[file].update(condition_df)
+
+    return initial_conditions
+
 def normalise_by_frac(attribute_df):
     """Normalise by fraction of sum of components in condition.
     

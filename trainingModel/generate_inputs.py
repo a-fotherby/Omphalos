@@ -58,7 +58,6 @@ def create_condition_series(
         template,
         condition,
         number_of_files,
-        mean_recip,
         *,
         primary_species=False,
         mineral_volumes=False,
@@ -77,7 +76,7 @@ def create_condition_series(
 
     for file in file_dict:
         if primary_species:
-            concentrations(file_dict[file], condition, mean_recip)
+            concentrations(file_dict[file], condition)
         else:
             pass
 
@@ -153,7 +152,7 @@ def minerals_volumes(input_file, condition, total_volume):
             {mineral: entry})
 
 
-def generate_data_set(template, condition, number_of_files, mean_recip, name):
+def generate_data_set(template, condition, number_of_files, name):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -170,7 +169,6 @@ def generate_data_set(template, condition, number_of_files, mean_recip, name):
         template,
         condition,
         number_of_files,
-        mean_recip,
         primary_species=True,
         mineral_volumes=True,
         mineral_rates=False)

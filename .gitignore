@@ -1,6 +1,11 @@
 # OSX file structure
 .DS_Store
 
+# Figures
+*.png
+*.jpg
+*.svg
+
 # Omphalos file structure
 trainingModel/tmp
 

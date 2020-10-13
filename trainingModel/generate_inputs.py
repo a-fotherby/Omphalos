@@ -141,16 +141,23 @@ def minerals_volumes(input_file, condition, total_volume):
     # If conc_param < 1 then the the values will be less similar.
     mineral_num = len(input_file.condition_blocks[condition].minerals)
     alpha = np.ones(mineral_num)
-
+    
     volume_fractions = np.random.dirichlet(alpha) * total_volume
+    
+    
+    for mineral, volume_frac in zip(input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
+        if mineral == 'Calcite':
+            entry = input_file.condition_blocks[condition].minerals[mineral]
+            entry[0] = volume_frac
+            input_file.condition_blocks[condition].minerals.update(
+                {mineral: entry})
+            entry_44 = input_file.condition_blocks[condition].minerals['Calcite44']
+            entry_44[0] = volume_frac * 0.02120014696
+            input_file.condition_blocks[condition].minerals.update({'Calcite44': entry_44})
 
-    for mineral, volume_frac in zip(
-            input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
-        entry = input_file.condition_blocks[condition].minerals[mineral]
-        entry[0] = volume_frac
-        input_file.condition_blocks[condition].minerals.update(
-            {mineral: entry})
-
+        else:
+            entry = input_file.condition_blocks[condition].minerals[mineral]
+            input_file.condition_blocks[condition].minerals.update({mineral: entry})
 
 def generate_data_set(template, condition, number_of_files, name):
     """Generates a dictionary of InputFile objects containing their results within a Results object.

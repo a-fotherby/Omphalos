@@ -49,10 +49,10 @@ def secondary_precip(data_set):
         initial_vols = initial_vols.reindex_like(final_vols)
         initial_vols.loc[file].update(initial_vol_df)
 
-    secondary_precip = initial_vols - final_vols
+    secondary_precip =  final_vols - initial_vols
     # Recapture coordinate values, as they are destroyed by subtraction.
     # Somewhat easier to code than indexing the right columns for subtraction.
     # Could be a source of issues but I doubt it.
-    secondary_precip[['X', 'Y', 'Z']]= final_vols[['X', 'Y', 'Z']].copy() 
+    secondary_precip[['X', 'Y', 'Z']] = final_vols[['X', 'Y', 'Z']].copy() 
 
     return secondary_precip

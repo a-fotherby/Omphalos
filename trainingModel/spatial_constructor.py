@@ -28,7 +28,18 @@ def populate_array(input_file, primary_species=True, minerals=True):
                 mineral_dict.update({key: input_file.condition_blocks[condition].minerals[key][0]})
     
         condition_dict = {**primary_species_dict, **mineral_dict}
-        initial_condition = np.fromiter(condition_dict.values(), dtype=float)
+        
+        # Convert values stored as strings in InputFile to floats.
+        # If it's a string that can't be converted, e.g. 'charge', then set to nan.
+        for i in condition_dict:
+            try:
+                condition_dict[i] = float(condition_dict[i])
+            except:
+                condition_dict[i] = np.nan
+        
+        initial_condition = np.fromiter(condition_dict.values(), dtype=float, count=len(condition_dict))
+
+        
         array = initialise_array(input_file, len(initial_condition))
 
         row_list = compute_rows(input_file, condition)

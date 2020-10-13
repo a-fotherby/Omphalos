@@ -88,22 +88,22 @@ def create_condition_series(
     return file_dict
 
 
-def concentrations(input_file, condition, mean_recip):
-    for species in input_file.condition_blocks[condition].primary_species.keys(
-    ):
+def concentrations(input_file, condition):
+    for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][0]
         # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
-        if default_conc == 'charge':
-            default_conc = input_file.condition_blocks[condition].primary_species['Na+'][0]
-        else:
+        # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
+        # then we write it back out immediately.
+        # Otherwise, we take the reciprical and pass it to the exponential distribution.
+        try:
             default_conc = float(default_conc)
-            
-        # Quick fix for mean recip parameter in exponential distribution.
-        default_conc = 1 / default_conc
+            recip_conc = 1 / default_conc
+        except:
+            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
+            continue
         
         if species == 'Ca++':
-            #ca_conc = round(rand.gauss(default_val, 1), 15)
-            ca_conc = round(rand.expovariate(default_conc), 15)
+            ca_conc = round(rand.expovariate(recip_conc), 15)
             ca44_conc = ca_conc * 0.021226645
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [ca_conc]})
@@ -112,8 +112,7 @@ def concentrations(input_file, condition, mean_recip):
         elif species == 'Ca44++':
             pass
         elif species == 'SO4--':
-            #s_conc = round(rand.gauss(default_val, 1), 15)
-            s_conc = round(rand.expovariate(default_conc), 15)
+            s_conc = round(rand.expovariate(recip_conc), 15)
             s34_conc = s_conc * 0.0450900146
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [s_conc]})
@@ -121,11 +120,13 @@ def concentrations(input_file, condition, mean_recip):
                 {'S34O4--': [s34_conc]})
         elif species == 'S34O4--':
             pass
-        else:
-            #input_file.condition_blocks[condition].primary_species.update(
-            #{species: [round(rand.gauss(default_val, 1), 15)]})
+        elif species == 'Formaldehyde':
+            conc = round(rand.expovariate(recip_conc), 15)
             input_file.condition_blocks[condition].primary_species.update(
-                {species: [round(rand.expovariate(default_conc), 15)]})
+                {species: [conc]})
+        else:
+            input_file.condition_blocks[condition].primary_species.update(
+                {species: [default_conc]})
 
 
 def minerals_volumes(input_file, condition, total_volume):

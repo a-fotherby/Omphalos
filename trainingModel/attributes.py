@@ -116,9 +116,18 @@ def mineral_volume(input_file, condition):
 
 
 def primary_species(input_file, condition):
+    import numpy as np
     import pandas as pd
-    primary_species_df_row = pd.DataFrame.from_dict(
-        input_file.condition_blocks[condition].primary_species)
+    
+    species_dict = input_file.condition_blocks[condition].primary_species
+    
+    for entry in species_dict:
+        if len(species_dict[entry]) > 1:
+            species_dict[entry] = species_dict[entry][-1]
+        else:
+            pass
+
+    primary_species_df_row = pd.DataFrame.from_dict(species_dict)
 
     return primary_species_df_row
 

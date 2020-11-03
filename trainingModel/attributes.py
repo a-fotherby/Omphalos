@@ -42,15 +42,62 @@ def get_condition(
             pass
 
     attribute_dfs = [mineral_attrs, species_attrs]   
-    
-    attribute_dfs[0] = normalise_by_frac(attribute_dfs[0])
-    attribute_dfs[1] = normalise_by_frac(attribute_dfs[1])
         
     for df in attribute_dfs:
         attributes = attributes.join(df, how='outer')
-
+        
     return attributes
 
+def boundary_condition(data_set, boundary='x_begin', species_concs=True, mineral_vols=False):
+    """Returns a DataFrame containing the boundary condition for an input file.
+    Can specify whether to return primary species, mineral volumes, or both.
+    By default returns primary species only.
+    
+    Arguments:
+    data_set -- The InputFile dictionary to return the boundary conditions for.
+    
+    Keyword Arguments:
+    boundary -- The boundary over which to return the condition. Takes the CrunchTope boundary specifier keyword as a string for an argument.
+    primary_species -- Bool. Whether or not to return primary species conditions.
+    mineral_vols -- Bool. Whether or not to return mineral volume fractions.
+    """
+    
+    import pandas as pd
+    
+    # Find out what condition keyword is indicicated by the boundary var.
+    # In theory this should be the same in all InputFiles (I haven't implement changing boundary condition keywords in between files yet).
+    # So we only check once, at the beginning.
+    # In theory, InputFile 0 could have timed out, so use iter to get first available entry.
+    condition = data_set[next(iter(data_set))].keyword_blocks['BOUNDARY_CONDITIONS'].contents[boundary][0]
+    
+    boundary_conditions = pd.DataFrame()
+    concs = pd.DataFrame()
+    vol_fracs = pd.DataFrame()
+    
+    for i in data_set:
+        # Check the condition blocks have been sorted and if not; sort them.
+        data_set[i].check_condition_sort(condition)
+
+        # Get the DataFrames containing attribute info for each condition block
+        # part and join them together to make an attributes df describing the
+        # InputFile.
+
+        if species_concs:
+            concs = concs.append(primary_species(data_set[i], condition), ignore_index=True)
+
+        if mineral_vols:
+            vol_fracs = vol_fracs.append(mineral_volume(data_set[i], condition), ignore_index=True)
+    
+    attribute_dfs = [concs, vol_fracs]   
+        
+    for df in attribute_dfs:
+        boundary_conditions = boundary_conditions.join(df, how='outer')
+    
+    file_index = pd.Index(data_set.keys())
+    
+    boundary_conditions.set_index(file_index, inplace=True)
+    return boundary_conditions
+    
 
 def mineral_volume(input_file, condition):
     """"""

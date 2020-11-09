@@ -75,6 +75,20 @@ def primary_species(input_file, condition):
 
     return primary_species_df_row
 
+def aqueous_rates(input_file, condition):
+    import pandas as pd
+    import copy
+    # Create a deep copy of the aqueous kinetics dictionary so that the
+    # data wrangling doesn't mangle the InputFile.
+    aqueous_rates_dict = copy.deepcopy(
+        input_file.condition_blocks[condition].aqueous_rates)
+    for reactions in aqueous_rates_dict:
+        aqueous_rates_dict[reactions] = [aqueous_rates_dict[reactions][0]]
+
+    aqueous_rates_df_row = pd.DataFrame.from_dict(aqueous_rates_dict, dtype='float')
+
+    return aqueous_rates_df_row
+
 def initial_conditions(data_set, primary_species=False, mineral_vols=False):
     """Returns an attribute DataFrame containing the spatial initial condition for each InputFile in a data set.
     

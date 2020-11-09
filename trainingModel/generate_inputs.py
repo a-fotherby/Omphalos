@@ -61,8 +61,9 @@ def create_condition_series(
         *,
         primary_species=False,
         mineral_volumes=False,
-        mineral_rates=False
-):
+        mineral_rates=False,
+        aqueous_rates=True,
+        data):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
     template.sort_condition_block(condition)
@@ -73,10 +74,11 @@ def create_condition_series(
 
     for key in keys:
         file_dict.update({key: copy.deepcopy(template)})
+        file_dict[key].file_num=key 
 
     for file in file_dict:
         if primary_species:
-            concentrations(file_dict[file], condition)
+            concentrations(file_dict[file], condition, data)
         else:
             pass
 
@@ -84,11 +86,16 @@ def create_condition_series(
             minerals_volumes(file_dict[file], condition, 0.9)
         else:
             pass
+        
+        if aqueous_rates:
+            aqueous_rate(file_dict[file], data)
+        else:
+            pass
 
     return file_dict
 
 
-def concentrations(input_file, condition):
+def concentrations(input_file, condition, data):
     for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][0]
         # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
@@ -102,31 +109,17 @@ def concentrations(input_file, condition):
             input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
             continue
         
-        if species == 'Ca++':
-            ca_conc = round(rand.expovariate(recip_conc), 15)
-            ca44_conc = ca_conc * 0.021226645
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [ca_conc]})
-            input_file.condition_blocks[condition].primary_species.update(
-                {'Ca44++': [ca44_conc]})
-        elif species == 'Ca44++':
-            pass
-        elif species == 'SO4--':
-            s_conc = round(rand.expovariate(recip_conc), 15)
-            s34_conc = s_conc * 0.0450900146
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [s_conc]})
-            input_file.condition_blocks[condition].primary_species.update(
-                {'S34O4--': [s34_conc]})
-        elif species == 'S34O4--':
-            pass
-        elif species == 'Formaldehyde':
-            conc = round(rand.expovariate(recip_conc), 15)
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [conc]})
-        else:
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [default_conc]})
+#         if species == 'Ca++':
+#             ca_conc = data.iloc[input_file.file_num,0]
+#             input_file.condition_blocks[condition].primary_species.update(
+#                 {species: [ca_conc]})
+#         elif species == 'SO4--':
+#             s_conc = data.iloc[input_file.file_num,1]
+#             input_file.condition_blocks[condition].primary_species.update(
+#                 {species: [s_conc]})
+#         else:
+#             input_file.condition_blocks[condition].primary_species.update(
+#                 {species: [default_conc]})
 
 
 def minerals_volumes(input_file, condition, total_volume):
@@ -159,8 +152,25 @@ def minerals_volumes(input_file, condition, total_volume):
         else:
             entry = input_file.condition_blocks[condition].minerals[mineral]
             input_file.condition_blocks[condition].minerals.update({mineral: entry})
+            
+def aqueous_rate(input_file, data):
+    """Set the aqueous rate parameters based upon rates in an InputFile.
+    
+    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
+    """
+    for reaction in input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.keys():
+        
+        if reaction in data:
+            react_rate = data.iloc[input_file.file_num].loc[reaction]
+            reaction_desc = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
+            reaction_desc[-1]=str(react_rate)
+            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: reaction_desc})
+        else:
+            entry = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
+            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: entry})
 
-def generate_data_set(template, condition, number_of_files, name):
+
+def generate_data_set(template, condition, number_of_files, name, data):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -172,14 +182,17 @@ def generate_data_set(template, condition, number_of_files, name):
     # !!!
     # !!! Randomisation options !!!
     # !!!
-    print('*** Creating randomised input files ***')
+    print('*** Creating input files ***')
+    
     file_dict = create_condition_series(
         template,
         condition,
         number_of_files,
-        primary_species=True,
-        mineral_volumes=True,
-        mineral_rates=False)
+        primary_species=False,
+        mineral_volumes=False,
+        mineral_rates=False,
+        aqueous_rates=True,
+        data=data)
     print('*** Begin running input files ***')
     
     timeout_list = []
@@ -193,7 +206,7 @@ def generate_data_set(template, condition, number_of_files, name):
         file_dict[entry].print_input_file()
         
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(60)
+        signal.alarm(3000)
         try:
             run_crunchtope(file_name, tmp_dir)
         except Exception: 
@@ -228,7 +241,7 @@ def generate_data_set(template, condition, number_of_files, name):
 
 def run_crunchtope(file_name, tmp_dir):
     # Have to invoke absolute path for CT, this might vary by installation.
-    subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
+    subprocess.run(['/Users/hjb62/CrunchTope-Mac/CrunchTope', file_name], cwd=tmp_dir)
 
 def timeout_handler(signum, frame):
     raise Exception("CrunchTimeout")

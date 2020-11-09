@@ -62,6 +62,7 @@ def read_tec_file(path_to_directory, output):
 
         df = pd.read_table(
             file_name,
+            mangle_dupe_cols=True,
             sep=r'\s+',
             skipinitialspace=True,
             skiprows=[

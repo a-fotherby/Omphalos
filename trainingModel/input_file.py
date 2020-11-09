@@ -9,6 +9,7 @@ class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
     def __init__(self, file_path):
+        self.file_num=None
         self.path = file_path
         self.raw = fm.import_file(self.path)
         self.keyword_blocks = {}
@@ -208,8 +209,7 @@ class InputFile:
         try:
             mineral_list = self.keyword_blocks['MINERALS'].contents.keys()
             gases_list = self.keyword_blocks['GASES'].contents.keys()
-            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
-            )
+            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys()
         except IndexError:
             print("You must populate your MINERAL, GASES, and PRIMARY_SPECIES keyword blocks before you can sort a condition block.\nTry running the get_keyword_blocks() method first.")
         # For each entry in the dictionary, compare with the PRIMARY_SPECIES,

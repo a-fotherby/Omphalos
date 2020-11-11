@@ -59,10 +59,10 @@ def create_condition_series(
         condition,
         number_of_files,
         *,
-        primary_species=False,
+        primary_species=True,
         mineral_volumes=False,
         mineral_rates=False,
-        aqueous_rates=True,
+        aqueous_rates=False,
         data):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
@@ -108,7 +108,15 @@ def concentrations(input_file, condition, data):
         except:
             input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
             continue
-        
+        if species in data:
+            species_conc = data.iloc[input_file.file_num].loc[species]
+            species_desc = input_file.condition_blocks[condition].primary_species[species]
+            species_desc[-1]=str(species_conc)
+            input_file.condition_blocks[condition].primary_species.update({species: species_desc})
+        else:
+            entry = input_file.condition_blocks[condition].primary_species[species]
+            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
+            
 #         if species == 'Ca++':
 #             ca_conc = data.iloc[input_file.file_num,0]
 #             input_file.condition_blocks[condition].primary_species.update(
@@ -188,9 +196,7 @@ def generate_data_set(template, condition, number_of_files, name, data):
         template,
         condition,
         number_of_files,
-        primary_species=False,
-        mineral_volumes=False,
-        mineral_rates=False,
+        primary_species=True,
         aqueous_rates=True,
         data=data)
     print('*** Begin running input files ***')

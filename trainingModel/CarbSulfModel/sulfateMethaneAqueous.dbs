@@ -1,0 +1,309 @@
+! -------------------------------------------------------------------------------------------------
+!
+!  reaction stoichiometry
+!
+! -------------------------------------------------------------------------------------------------
+
+&Aqueous
+  name          = 'Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO4--'  0.25 'CO2(aq)'  -0.25 'Form'  -0.25 'H+' 0.125 'H2S(aq)' 0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          = '13Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO4--'  0.25 'C13O2(aq)'  -0.25 'Form13'  -0.25 'H+' 0.125 'H2S(aq)' 0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name     = '34Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'S34O4--'  0.25 'CO2(aq)'  -0.25 'Form'  -0.25 'H+' 0.125 'H2S34(aq)' 0.25 'H2O'
+  keq      = 2.52725
+/
+
+&Aqueous
+  name     = '3413Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'S34O4--'  0.25 'C13O2(aq)'  -0.25 'Form13'  -0.25 'H+' 0.125 'H2S34(aq)' 0.25 'H2O'
+  keq      = 2.52725
+/
+
+&Aqueous
+  name          = '18Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO184--'  0.25 'CO182(aq)'  -0.25 'Form'  -0.25 'H+' 0.125 'H2SX(aq)' 0.25 'H2O18'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          = '16Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO164--'  0.25 'CO162(aq)'  -0.25 'Form'  -0.25 'H+' 0.125 'H2SX(aq)' 0.25 'H2O16'
+  keq           = 2.52725
+/
+
+
+&Aqueous
+  name          =  'AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'SO4--' -0.25 'H+' 0.125 'CO2(aq)'  0.125 'H2S(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  '13AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane13(aq)'  -0.125 'SO4--' -0.25 'H+' 0.125 'C13O2(aq)'  0.125 'H2S(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  '34AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'S34O4--' -0.25 'H+' 0.125 'CO2(aq)'  0.125 'H2S34(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  '3413AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane13(aq)'  -0.125 'S34O4--' -0.25 'H+' 0.125 'C13O2(aq)'  0.125 'H2S34(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  '18AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'SO184--' -0.25 'H+' 0.125 'CO182(aq)'  0.125 'H2S(aq)'  0.25 'H2O18'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          =  '16AOM'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Methane(aq)'  -0.125 'SO164--' -0.25 'H+' 0.125 'CO182(aq)'  0.125 'H2S(aq)'  0.25 'H2O18'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name     = 'S1Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Form' -0.125 'H2O' 0.125 'CO2(aq)' 0.25 'H2(aq)'
+  keq      = 1.11911
+/
+
+&Aqueous
+  name     = '13S1Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Form13' -0.125 'H2O' 0.125 'C13O2(aq)' 0.25 'H2(aq)'
+  keq      = 1.11911
+/
+
+&Aqueous
+  name     = 'S2Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.0625 'CO2(aq)' -0.25 'H2(aq)' 0.0625 'Methane(aq)' 0.125 'H2O'
+  keq      = 1.11911
+/
+
+&Aqueous
+  name     = '13S2Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.0625 'C13O2(aq)' -0.25 'H2(aq)' 0.0625 'Methane13(aq)' 0.125 'H2O'
+  keq      = 1.11911
+/
+
+&Aqueous
+  name     = '16->18EqEx'
+  stoichiometry = -1 'SO164--' -1 'H2O18' 1 'SO184--' 1 'H2O16'
+  keq      = 0
+/
+
+
+! -------------------------------------------------------------------------------------------------
+!
+!  rate expressions
+!
+! -------------------------------------------------------------------------------------------------
+
+&AqueousKinetics
+  name     = 'Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500
+  monod_terms   = 'tot_Form' 4.8E-04 'tot_SO4--' 4.8000E-04
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = '13Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500
+  monod_terms   = 'tot_Form13' 4.8E-04 'tot_SO4--' 4.8000E-04
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+!! Sulfate-34 reduction, written in terms of the transfer of one electron
+
+&AqueousKinetics
+  name     = '34Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'tot_Form' 4.8E-04 'tot_S34O4--' 4.8000E-04
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1 
+/
+
+&AqueousKinetics
+  name     = '3413Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'tot_Form13' 4.8E-04 'tot_S34O4--' 4.8000E-04
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1 
+/
+
+&AqueousKinetics
+  name          = 'AOM'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_SO4--' 4.8E-5 'tot_Methane(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name          = '13AOM'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_SO4--' 4.8E-5 'tot_Methane13(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name          = '34AOM'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_S34O4--' 4.8E-5 'tot_Methane(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)' 
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name          = '3413AOM'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 1.8e-8
+  monod_terms   = 'tot_S34O4--' 4.8E-5 'tot_Methane13(aq)' 4.8E-5
+  biomass = 'C5H7O2NSO4(s)' 
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = 'MethanogenesisComp'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_Form' 1.5E-05
+  inhibition = 'SO4--' 5E-8
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = 'Methanogenesis13Comp'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_Form' 1.5E-05
+  inhibition = 'SO4--' 5E-8
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = 'S1Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_Form' 1.5E-05
+  inhibition = 'SO4--' 5E-4
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = '13S1Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_Form13' 1.5E-05
+  inhibition = 'SO4--' 5E-4
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = 'S2Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_CO2(aq)' 1.5E-05 'tot_H2(aq)' 1.5E-05
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = '13S2Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500.0
+  monod_terms   ='tot_C13O2(aq)' 1.5E-05 'tot_H2(aq)' 1.5E-05
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/

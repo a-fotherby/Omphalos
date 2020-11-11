@@ -1,7 +1,4 @@
 """Functions to generate label DataFrames."""
-import pandas as pd
-import numpy as np
-import spatial_constructor as sc
 
 
 def raw_labels(data_set, output):
@@ -10,6 +7,8 @@ def raw_labels(data_set, output):
     Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple row count.
     Spatial data for each input file is stored in a tidy format (tidy taking it's technical meaning in this case).
     """
+    import pandas as pd
+    
     # Generate dataframe of requested labels.
     labels = pd.DataFrame()
     for key in data_set:
@@ -27,6 +26,10 @@ def secondary_precip(data_set):
     Keyword arguments:
     data_set -- The data set to calculate the secondary preciptation for.
     """
+    import numpy as np
+    import pandas as pd
+    import omphalos.spatial_constructor as sc
+    
     
     # Get DataFrame of output volumes.
     final_vols = raw_labels(data_set, 'volume')

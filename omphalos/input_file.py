@@ -1,5 +1,5 @@
-import file_methods as fm
-import keyword_block as kb
+import omphalos.file_methods as fm
+import omphalos.keyword_block as kb
 import numpy as np
 import pandas as pd
 import copy

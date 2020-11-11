@@ -1,12 +1,12 @@
 """Module for generating mutliple input files interatively, to make large data sets for testing."""
 import numpy as np
 import pandas as pd
-import input_file as ipf
-import file_methods as fm
+import omphalos.input_file as ipf
+import omphalos.file_methods as fm
+import omphalos.results as results
 import random as rand
 import copy
 import subprocess
-import results
 import signal
 import numpy.random as np_rand
 

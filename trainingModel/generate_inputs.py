@@ -63,6 +63,7 @@ def create_condition_series(
         mineral_volumes=False,
         mineral_rates=False,
         aqueous_rates=False,
+        transports=False,
         data):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
@@ -89,6 +90,11 @@ def create_condition_series(
         
         if aqueous_rates:
             aqueous_rate(file_dict[file], data)
+        else:
+            pass
+        
+        if transports:
+            transport(file_dict[file], data)
         else:
             pass
 
@@ -176,6 +182,22 @@ def aqueous_rate(input_file, data):
         else:
             entry = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
             input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: entry})
+            
+def transport(input_file, data):
+    """Set the transport parameters based upon keywords in an InputFile.
+    
+    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
+    """
+    for keyword in input_file.keyword_blocks['TRANSPORT'].contents.keys():
+        
+        if keyword in data:
+            keyword_val = data.iloc[input_file.file_num].loc[keyword]
+            keyword_desc = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
+            keyword_desc[-1]=str(keyword_val)
+            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: keyword_desc})
+        else:
+            entry = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
+            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: entry})
 
 
 def generate_data_set(template, condition, number_of_files, name, data):
@@ -198,6 +220,7 @@ def generate_data_set(template, condition, number_of_files, name, data):
         number_of_files,
         primary_species=True,
         aqueous_rates=True,
+        transports=True,
         data=data)
     print('*** Begin running input files ***')
     
@@ -212,7 +235,7 @@ def generate_data_set(template, condition, number_of_files, name, data):
         file_dict[entry].print_input_file()
         
         signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(3000)
+        signal.alarm(600000)
         try:
             run_crunchtope(file_name, tmp_dir)
         except Exception: 

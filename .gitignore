@@ -14,7 +14,7 @@ fitting/tmp
 
 # wandb file structure
 wandb/
-trainingModel/wandb
+fitting/wandb
 
 # Crunchtope files
 *.tec

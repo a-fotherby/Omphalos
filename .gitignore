@@ -10,7 +10,7 @@
 *.svg
 
 # Omphalos file structure
-trainingModel/tmp
+fitting/tmp
 
 # wandb file structure
 wandb/
@@ -23,6 +23,7 @@ trainingModel/wandb
 
 # Pickle module files
 *.pickle
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

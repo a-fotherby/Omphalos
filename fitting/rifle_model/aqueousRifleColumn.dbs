@@ -8,14 +8,14 @@
   name          = 'Sulfate_reduction'
   type          = 'catabolic'
   stoichiometry = -0.375 'H+'  -0.125 'SO4--'  0.125 'H2S(aq)'  0.25 'CO2(aq)'  -0.125 'Acetate'
-  keq           = 5.577425
+  keq           = 2.5198
 /
 
 &Aqueous
-  name     = 'Sulfate34_reduction'
+  name          = 'Sulfate34_reduction'
   type          = 'catabolic'
   stoichiometry = -0.375 'H+'  -0.125 'S34O4--'  0.125 'H2S34(aq)'  0.25 'CO2(aq)'  -0.125 'Acetate'
-  keq      = 5.577425
+  keq           = 2.5198
 /
 
 &Aqueous

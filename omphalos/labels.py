@@ -43,7 +43,7 @@ def secondary_precip(data_set):
     # Ensure that all the condition blocks have been sorted.
     for file in data_set:
         
-        output_vols = sc.populate_array(data_set[file], primary_species=False)
+        output_vols = sc.populate_array(data_set[file], primary_species=False, mineral_vols=True)
 
             
         initial_vol_df = pd.DataFrame(output_vols)

@@ -71,16 +71,14 @@ def create_condition_series(
     keys = np.arange(number_of_files)
 
     file_dict = {}
-
-    conc_range = np.linspace(0, 60, 500)
-
-
+    
+    
     for key in keys:
         file_dict.update({key: copy.deepcopy(template)})
 
     for file in file_dict:
         if primary_species:
-            concentrations(file_dict[file], condition, conc_range[file])
+            concentrations(file_dict[file], condition)
         else:
             pass
 
@@ -92,7 +90,7 @@ def create_condition_series(
     return file_dict
 
 
-def concentrations(input_file, condition, acetate):
+def concentrations(input_file, condition):
     for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][-1]
         # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
@@ -108,9 +106,8 @@ def concentrations(input_file, condition, acetate):
             continue
             
         if species == 'Ca++':
-            #ca_conc = round(rand.expovariate(recip_conc), 15)
-            ca_conc = 5
-            #ca44_conc = ca_conc * 0.021226645
+            ca_conc = round(rand.uniform(0, 0.05), 15)
+            ca44_conc = ca_conc * 0.021226645
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [ca_conc]})
             #input_file.condition_blocks[condition].primary_species.update(
@@ -118,8 +115,7 @@ def concentrations(input_file, condition, acetate):
         elif species == 'Ca44++':
             pass
         elif species == 'SO4--':
-            #s_conc = round(rand.expovariate(recip_conc), 15)
-            s_conc = acetate
+            s_conc = round(rand.uniform(0, 0.05), 15)
             s34_conc = s_conc * 0.04444082386
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [s_conc]})
@@ -133,7 +129,7 @@ def concentrations(input_file, condition, acetate):
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [conc]})
         elif species == 'NH4+':
-            #conc = round(rand.expovariate(recip_conc), 15)
+            conc = round(rand.uniform(0, 0.05), 15)
             conc = default_conc
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [conc]})
@@ -198,7 +194,7 @@ def generate_data_set(template, condition, number_of_files, name):
         condition,
         number_of_files,
         primary_species=True,
-        mineral_volumes=True,
+        mineral_volumes=False,
         mineral_rates=False)
     print('*** Begin running input files ***')
     

@@ -99,10 +99,7 @@ def concentrations(input_file, condition):
         # Otherwise, we take the reciprical and pass it to the exponential distribution.
         try:
             default_conc = float(default_conc)
-            recip_conc = 1 / default_conc
         except:
-            # dont do anything?
-            #input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
             continue
             
         if species == 'Ca++':
@@ -110,8 +107,8 @@ def concentrations(input_file, condition):
             ca44_conc = ca_conc * 0.021226645
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [ca_conc]})
-            #input_file.condition_blocks[condition].primary_species.update(
-            #    {'Ca44++': [ca44_conc]})
+            input_file.condition_blocks[condition].primary_species.update(
+                {'Ca44++': [ca44_conc]})
         elif species == 'Ca44++':
             pass
         elif species == 'SO4--':
@@ -124,8 +121,7 @@ def concentrations(input_file, condition):
         elif species == 'S34O4--':
             pass
         elif species == 'Acetate':
-            #conc = round(rand.expovariate(recip_conc), 15)
-            conc = default_conc
+            conc = round(rand.uniform(0, 0.05), 15)
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [conc]})
         elif species == 'NH4+':
@@ -136,10 +132,8 @@ def concentrations(input_file, condition):
         elif species == 'CO2(aq)':
             # Hardwire equilibreum with CO2(g) condition. 
             # Specify partial pressure of CO2(g).
-            #partial_pressure = np_rand.random_sample() * 10
-            partial_pressure = 0.0325
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: ['CO2(g)', partial_pressure]})
+            partial_pressure = round(rand.uniform(0, 0.05), 15)
+            input_file.condition_blocks[condition].primary_species.update({species: ['CO2(g)', partial_pressure]})
         else:
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [default_conc]})

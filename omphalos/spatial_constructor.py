@@ -1,6 +1,6 @@
 """Methods for constructing tidy DataFrames of CrunchTope data."""
 
-def populate_array(input_file, primary_species=True, minerals=True):
+def populate_array(input_file, primary_species=True, mineral_vols=False):
     """Populates an empty initial condition spatial array with species and mineral data.
     
     Arguments:
@@ -21,7 +21,7 @@ def populate_array(input_file, primary_species=True, minerals=True):
             for key in input_file.condition_blocks[condition].primary_species:
                 primary_species_dict.update({key: input_file.condition_blocks[condition].primary_species[key][0]})
 
-        if minerals:
+        if mineral_vols:
             # Get list of all minerals in the system and record the starting volume fraction for each. 
             # Populate a new mineral dict because the condition block entry contains surface area info.
             for key in input_file.condition_blocks[condition].minerals:

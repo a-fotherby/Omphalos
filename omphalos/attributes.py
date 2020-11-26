@@ -131,7 +131,7 @@ def primary_species(input_file, condition):
 
     return primary_species_df_row
 
-def initial_conditions(data_set, primary_species=False, mineral_vols=False):
+def initial_conditions(data_set, primary_species=True, mineral_vols=False):
     """Returns an attribute DataFrame containing the spatial initial condition for each InputFile in a data set.
     
     """ 
@@ -162,7 +162,7 @@ def initial_conditions(data_set, primary_species=False, mineral_vols=False):
     initial_conditions[list(column_names)] = np.nan
 
     for file in data_set:
-        condition_array = sc.populate_array(data_set[file])
+        condition_array = sc.populate_array(data_set[file], primary_species, mineral_vols)
         condition_df = pd.DataFrame(condition_array)
 
         condition_df.columns = column_names

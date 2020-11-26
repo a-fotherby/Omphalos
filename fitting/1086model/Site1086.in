@@ -89,12 +89,6 @@ END
 AQUEOUS_KINETICS
 Sulfate_reduction            -rate 75
 Sulfate34_reduction          -rate 71.8
-!AOM                          -rate 1200
-!AOM34                        -rate 1196
-!Methanogenesis               -rate 150
-AOM                          -rate 75
-AOM34                        -rate 74.75
-Methanogenesis               -rate 75
 END
 
 

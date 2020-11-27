@@ -60,6 +60,7 @@ def create_condition_series(
         condition,
         number_of_files,
         *,
+        grid_search = False,
         primary_species=True,
         mineral_volumes=False,
         mineral_rates=False,
@@ -80,7 +81,12 @@ def create_condition_series(
 
     for file in file_dict:
         if primary_species:
-            concentrations(file_dict[file], condition)
+            if grid_search:
+                if data = None:
+                    raise Exception("Data file not provided.")
+                import_concentrations(file_dict[file], condition, data)
+            else:
+                randomise_concentrations(file_dict[file], condition)
         else:
             pass
 

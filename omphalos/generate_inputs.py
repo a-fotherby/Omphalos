@@ -60,9 +60,12 @@ def create_condition_series(
         condition,
         number_of_files,
         *,
-        primary_species=False,
+        primary_species=True,
         mineral_volumes=False,
-        mineral_rates=False
+        mineral_rates=False,
+        aqueous_rates=False,
+        transports=False,
+        data
 ):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
@@ -71,7 +74,6 @@ def create_condition_series(
     keys = np.arange(number_of_files)
 
     file_dict = {}
-    
     
     for key in keys:
         file_dict.update({key: copy.deepcopy(template)})
@@ -86,11 +88,21 @@ def create_condition_series(
             minerals_volumes(file_dict[file], condition, 0.9)
         else:
             pass
+        
+        if aqueous_rates:
+            aqueous_rate(file_dict[file], data)
+        else:
+            pass
+        
+        if transports:
+            transport(file_dict[file], data)
+        else:
+            pass
 
     return file_dict
 
 
-def concentrations(input_file, condition):
+def randomise_concentrations(input_file, condition):
     for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][-1]
         # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
@@ -138,6 +150,27 @@ def concentrations(input_file, condition):
             input_file.condition_blocks[condition].primary_species.update(
                 {species: [default_conc]})
 
+def import_concentrations(input_file, condition, data):
+    for species in input_file.condition_blocks[condition].primary_species.keys():
+        default_conc = input_file.condition_blocks[condition].primary_species[species][0]
+        # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
+        # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
+        # then we write it back out immediately.
+        # Otherwise, we take the reciprical and pass it to the exponential distribution.
+        try:
+            default_conc = float(default_conc)
+            recip_conc = 1 / default_conc
+        except:
+            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
+            continue
+        if species in data:
+            species_conc = data.iloc[input_file.file_num].loc[species]
+            species_desc = input_file.condition_blocks[condition].primary_species[species]
+            species_desc[-1]=str(species_conc)
+            input_file.condition_blocks[condition].primary_species.update({species: species_desc})
+        else:
+            entry = input_file.condition_blocks[condition].primary_species[species]
+            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
 
 def minerals_volumes(input_file, condition, total_volume):
     """Randomise mineral volume fractions in a data_set of InputFiles.
@@ -170,7 +203,39 @@ def minerals_volumes(input_file, condition, total_volume):
             entry = input_file.condition_blocks[condition].minerals[mineral]
             input_file.condition_blocks[condition].minerals.update({mineral: entry})
 
-def generate_data_set(template, condition, number_of_files, name):
+def aqueous_rate(input_file, data):
+    """Set the aqueous rate parameters based upon rates in an InputFile.
+    
+    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
+    """
+    for reaction in input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.keys():
+        
+        if reaction in data:
+            react_rate = data.iloc[input_file.file_num].loc[reaction]
+            reaction_desc = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
+            reaction_desc[-1]=str(react_rate)
+            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: reaction_desc})
+        else:
+            entry = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
+            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: entry})
+            
+def transport(input_file, data):
+    """Set the transport parameters based upon keywords in an InputFile.
+    
+    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
+    """
+    for keyword in input_file.keyword_blocks['TRANSPORT'].contents.keys():
+        
+        if keyword in data:
+            keyword_val = data.iloc[input_file.file_num].loc[keyword]
+            keyword_desc = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
+            keyword_desc[-1]=str(keyword_val)
+            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: keyword_desc})
+        else:
+            entry = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
+            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: entry})
+
+def generate_data_set(template, condition, number_of_files, name, data):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -189,7 +254,11 @@ def generate_data_set(template, condition, number_of_files, name):
         number_of_files,
         primary_species=True,
         mineral_volumes=False,
-        mineral_rates=False)
+        mineral_rates=False
+        aqueous_rates=False,
+        transports=False,
+        data=data
+        )
     print('*** Begin running input files ***')
     
     timeout_list = []

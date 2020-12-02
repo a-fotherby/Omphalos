@@ -111,10 +111,8 @@ def create_condition_series(
 def randomise_concentrations(input_file, condition):
     for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][-1]
-        # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
         # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
         # then we write it back out immediately.
-        # Otherwise, we take the reciprical and pass it to the exponential distribution.
         try:
             default_conc = float(default_conc)
         except:
@@ -159,13 +157,10 @@ def randomise_concentrations(input_file, condition):
 def import_concentrations(input_file, condition, data):
     for species in input_file.condition_blocks[condition].primary_species.keys():
         default_conc = input_file.condition_blocks[condition].primary_species[species][0]
-        # Quick and dirty fix - can't have charge in DataFrame as is string, so need to approximate the calculated value. Na+ will do for now.
         # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
         # then we write it back out immediately.
-        # Otherwise, we take the reciprical and pass it to the exponential distribution.
         try:
             default_conc = float(default_conc)
-            recip_conc = 1 / default_conc
         except:
             input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
             continue

@@ -123,6 +123,26 @@
   keq      = 0
 /
 
+&Aqueous
+  name     = '12->13EqEx'
+  stoichiometry = -1 'Methane13(aq)' -1 'CO2(aq)' 1 'Methane(aq)' 1 'C13O2(aq)'
+  keq      = 0.029383778
+/
+
+&Aqueous
+  name          = 'Aerobic_respiration'
+  type          = 'catabolic'
+  stoichiometry = -0.25 'O2(aq)'  -0.25 'Form' 0.25 'CO2(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
+&Aqueous
+  name          = '13Aerobic_respiration'
+  type          = 'catabolic'
+  stoichiometry = -0.25 'O2(aq)'  -0.25 'Form13' 0.25 'C13O2(aq)'  0.25 'H2O'
+  keq           = 2.52725
+/
+
 
 ! -------------------------------------------------------------------------------------------------
 !
@@ -307,3 +327,39 @@
   bq       = -0.0
   direction = -1
 /
+
+
+&AqueousKinetics
+  name          = '12->13EqEx'
+  label         = 'default'
+  type          = 'tst'
+  rate25C       = 25000
+  dependence    = 'tot_Methane13(aq)' 1.0
+/
+
+&AqueousKinetics
+  name     = 'Aerobic_respiration'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500
+  monod_terms   = 'tot_Form' 4.8E-03 'tot_O2(aq)' 4.8000E-03
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+
+&AqueousKinetics
+  name     = '13Aerobic_respiration'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 2500
+  monod_terms   = 'tot_Form13' 4.8E-03 'tot_O2(aq)' 4.8000E-03
+!  inhibition = 'Methane(aq)' 5E-7
+  biomass  = 'C5H7O2NSO4(s)'
+  chi      = 1
+  bq       = -0.0
+  direction = -1
+/
+

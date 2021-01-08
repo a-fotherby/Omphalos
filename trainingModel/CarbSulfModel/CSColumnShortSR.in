@@ -13,7 +13,7 @@ speciate_only                false
 screen_output                100
 hindmarsh                    true
 BurchRateLaw                 false
-database                     reducedDatabase.dbs
+database                     reducedDatabaseCarbonIsotopes.dbs
 kinetic_database             sulfateMethaneAqueous.dbs
 steady_state                 false
 graphics                     tecplot
@@ -30,7 +30,7 @@ pH                           8.15
 H2(aq)                       1.0E-10
 CO2(aq)                      2.47223E-03
 C13O2(aq)                    2.77698E-05
-O2(aq)                       180.0e-06 
+O2(aq)                       300.0e-06 
 NH3(aq)                      1.480e-09
 Mg++                         5.110e-2
 Al+++                        0.037e-6   
@@ -59,6 +59,7 @@ C5H7O2NSO4(s)                5.189E-6
 END
 
 
+
 MINERALS
 Quartz                       -default      -rate  -30.0            
 C5H7O2NSO4(s)                -label  default -rate  -2.0
@@ -66,6 +67,8 @@ END
 
 
 AQUEOUS_KINETICS
+Aerobic_respiration          -rate 10000000
+13Aerobic_respiration        -rate 10000000
 Sulfate_reduction            -rate 500000
 13Sulfate_reduction          -rate 500000
 34Sulfate_reduction          -rate 482500
@@ -83,15 +86,15 @@ primary                      S34O4--       SO4--       0.0441626
 END
  
 POROSITY
-fix_porosity                 0.70
+fix_porosity                 0.80
 END
 
 ! Solid burial set at 54m/Myr (Site 1081)
-!EROSION/BURIAL
-!time_units                  years
-!distance_units              meters
-!erode_x                     0.000054
-!END  
+EROSION/BURIAL
+time_units                  years
+distance_units              centimeters
+erode_x                    0.11
+END  
 
 DISCRETIZATION
 distance_units                  centimeters
@@ -218,10 +221,10 @@ END
 
 ! Fluid flow set to match burial rate of 54m/Myr (Site 1081)
 ! The pump can be turned on with just the AOM reaction on to observe how AOM changes the pH and alkalinity
-!FLOW
-!distance_units     meters
-!time_units         years
-!constant_flow      0.000054
+FLOW
+distance_units     centimeters
+time_units         years
+constant_flow      0.11
 !pump               1e-8 Methane 399 1 1
-!END
+END
 

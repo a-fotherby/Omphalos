@@ -64,6 +64,7 @@ def create_condition_series(
         mineral_rates=False,
         aqueous_rates=False,
         transports=False,
+        flows=False,
         data):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
 
@@ -97,6 +98,11 @@ def create_condition_series(
             transport(file_dict[file], data)
         else:
             pass
+        
+        if flows:
+            flow(file_dict[file], data)
+        else:
+            pass
 
     return file_dict
 
@@ -114,8 +120,9 @@ def concentrations(input_file, condition, data):
         except:
             input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
             continue
-        if species in data:
-            species_conc = data.iloc[input_file.file_num].loc[species]
+
+        if species in data['concentrations']:
+            species_conc = data['concentrations'][species][input_file.file_num]
             species_desc = input_file.condition_blocks[condition].primary_species[species]
             species_desc[-1]=str(species_conc)
             input_file.condition_blocks[condition].primary_species.update({species: species_desc})
@@ -173,9 +180,9 @@ def aqueous_rate(input_file, data):
     This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
     """
     for reaction in input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.keys():
-        
-        if reaction in data:
-            react_rate = data.iloc[input_file.file_num].loc[reaction]
+
+        if reaction in data['reaction']:
+            react_rate = data['reaction'][reaction][input_file.file_num]        
             reaction_desc = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
             reaction_desc[-1]=str(react_rate)
             input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: reaction_desc})
@@ -190,8 +197,8 @@ def transport(input_file, data):
     """
     for keyword in input_file.keyword_blocks['TRANSPORT'].contents.keys():
         
-        if keyword in data:
-            keyword_val = data.iloc[input_file.file_num].loc[keyword]
+        if keyword in data['transport']:
+            keyword_val = data['transport'][keyword][input_file.file_num]    
             keyword_desc = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
             keyword_desc[-1]=str(keyword_val)
             input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: keyword_desc})
@@ -199,6 +206,21 @@ def transport(input_file, data):
             entry = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
             input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: entry})
 
+def flow(input_file, data):
+    """Set the transport parameters based upon keywords in an InputFile.
+    
+    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
+    """
+    for keyword in input_file.keyword_blocks['FLOW'].contents.keys():
+        
+        if keyword in data['flow']:
+            keyword_val = data['flow'][keyword][input_file.file_num]    
+            keyword_desc = input_file.keyword_blocks['FLOW'].contents[keyword]
+            keyword_desc[0]=str(keyword_val)
+            input_file.keyword_blocks['FLOW'].contents.update({keyword: keyword_desc})
+        else:
+            entry = input_file.keyword_blocks['FLOW'].contents[keyword]
+            input_file.keyword_blocks['FLOW'].contents.update({keyword: entry})
 
 def generate_data_set(template, condition, number_of_files, name, data):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
@@ -220,7 +242,8 @@ def generate_data_set(template, condition, number_of_files, name, data):
         number_of_files,
         primary_species=True,
         aqueous_rates=True,
-        transports=True,
+        transports=False,
+        flows=True,
         data=data)
     print('*** Begin running input files ***')
     

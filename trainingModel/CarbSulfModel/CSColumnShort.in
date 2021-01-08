@@ -1,19 +1,19 @@
 TITLE
-Site 1081
+AOM Column
 END
  
 RUNTIME
-timestep_max                 750.0
+timestep_max                 500.0
 timestep_init                1.e-12
 time_tolerance               0.0005
 correction_max               2.0
 debye-huckel                 true
 database_sweep               false
 speciate_only                false
-screen_output                100
+screen_output                250
 hindmarsh                    true
 BurchRateLaw                 false
-database                     reducedDatabase.dbs
+database                     reducedDatabaseCarbonIsotopes.dbs
 kinetic_database             sulfateMethaneAqueous.dbs
 steady_state                 false
 graphics                     tecplot
@@ -21,13 +21,8 @@ END
  
 OUTPUT
 spatial_profile              50000
-!250000 500000 750000 1000000
-!1000000 1500000 2000000 2500000 3000000
-!100000 250000 500000 750000
 END
 
-! Normal Seawater Condition
-! The surface area of calcite has been significantly reduced in order to observe the changes in calcium isotopes due to precipitation. This could potentially be explained away by the passivating effects of the clay...
 CONDITION                    Seawater  
 temperature                  4.0
 pH                           8.15  
@@ -54,97 +49,33 @@ Methane(aq)                  9.89E-14
 Methane13(aq)                1.08375E-15
 Cl-                          charge
 NO3-                         3.9e-5
-Form                         9.89118E-01
-Form13                       1.08815E-02
+Form                         0.989162469
+Form13                       0.010837531
 C5H7O2NSO4                   C5H7O2NSO4(s)
 ! Solid phase.
-!Pyrite                      0.00001       0.2
-!Pyrite34                    4.5090014600E-07       0.2
-!SiO2(am)                     0.00         0.2
 Quartz                       0.2         1.0
-!Siderite                     0.00         1.0
-!Calcite                      0.108778     1.0
-!Calcite13                    0.001222     1.0
-!Sepiolite                    0.02     ssa 55.0
-!K-Feldspar                   0.1     ssa 55.0
-!Kaolinite                    0.1     ssa 55.0
 C5H7O2NSO4(s)                5.189E-6
 END
-
-! Normal Seawater Condition
-! The surface area of calcite has been significantly reduced in order to observe the changes in calcium isotopes due to precipitation. This could potentially be explained away by the passivating effects of the clay...
-CONDITION                    SeawaterNoSulfate  
-temperature                  4.0
-pH                           8.15  
-H2(aq)                       1.0E-10
-CO2(aq)                      1.97778e-03
-C13O2(aq)                    2.22159E-05
-O2(aq)                       180.0e-06 
-NH3(aq)                      1.480e-09
-Mg++                         5.110e-2
-Al+++                        0.037e-6   
-Fe++                         2.600e-5
-Fe+++                        1.000e-13
-Ca++                         1.04e-02
-K+                           1.200e-02
-SO4--                        26.79609E-09
-S34O4--                      1.2082360893E-09
-B(OH)3(aq)                   0.400e-03
-HPO4--                       1.700e-06
-H2S(aq)                      1.000e-15
-H2S34(aq)                    1.000e-15
-SiO2(aq)                     1.57e-04     
-Na+                          4.740e-01
-Methane(aq)                  9.89E-14
-Methane13(aq)                1.08375E-15
-Cl-                          charge
-NO3-                         3.9e-5
-Form                         9.89075E-01
-Form13                       1.09255E-02
-C5H7O2NSO4                   C5H7O2NSO4(s)
-! Solid phase.
-!Pyrite                      0.00001       0.2
-!Pyrite34                    4.5090014600E-07       0.2
-!SiO2(am)                     0.00         0.2
-Quartz                       0.3         1.0
-!Siderite                     0.00         1.0
-!Calcite                      0.108778     1.0
-!Calcite13                    0.001222     1.0
-!Sepiolite                    0.02     ssa 55.0
-!K-Feldspar                   0.1     ssa 55.0
-!Kaolinite                    0.1     ssa 55.0
-C5H7O2NSO4(s)                5.189E-6
-END
-
 
 MINERALS
-!Pyrite                      -rate  -10.0
-!Pyrite34                    -rate  -10.0
-!Siderite                     -rate  -10.0
-!SiO2(am)                     -rate  -9.0  
 Quartz                       -default      -rate  -30.0          
-!Calcite                      -label default         -rate  -11.13  
-!Calcite13                    -label default         -rate  -11.13
-!Sepiolite                    -rate  -19.0  
-!K-Feldspar                   -rate  -19.0  
-!Kaolinite                    -rate  -19.2    
 C5H7O2NSO4(s)                -label  default -rate  -2.0
 END
 
-! Sulfate Reduction is inhibited by the presence of Methane, and Methanogenesis is inhibited by the presence of sulfate. 
 AQUEOUS_KINETICS
-Sulfate_reduction            -rate 500000
-13Sulfate_reduction          -rate 500000
-34Sulfate_reduction          -rate 482500
-3413Sulfate_reduction        -rate 482500
-AOM                          -rate 1000000
-13AOM                        -rate 1000000
-34AOM                        -rate 965000
-3413AOM                      -rate 965000
-S1Methanogenesis             -rate 250000
-13S1Methanogenesis           -rate 247500
-S2Methanogenesis             -rate 250000
-13S2Methanogenesis           -rate 233750
+Sulfate_reduction            -rate 50000
+13Sulfate_reduction          -rate 50000
+34Sulfate_reduction          -rate 48250
+3413Sulfate_reduction        -rate 48250
+AOM                          -rate 100000
+13AOM                        -rate 100000
+34AOM                        -rate 96500
+3413AOM                      -rate 96500
+S1Methanogenesis             -rate 25000
+13S1Methanogenesis           -rate 24750
+S2Methanogenesis             -rate 25000
+13S2Methanogenesis           -rate 23375
+12->13EqEx                   -rate 0.1
 END
 
 
@@ -152,18 +83,14 @@ ISOTOPES
 primary                      C13O2(aq)     CO2(aq)     0.0112372
 primary                      Methane13(aq) Methane(aq) 0.0112372
 primary                      Form13 Form 0.0112372
-!primary                      HC13O3-       HCO3-       0.0112372 
 primary                      H2S34(aq)     H2S(aq)     0.0441626
 primary                      S34O4--       SO4--       0.0441626
-!mineral                      Pyrite34     Pyrite     none
-!mineral                      Calcite13     Calcite    none
 END
  
 POROSITY
 fix_porosity                 0.70
 END
 
-! Solid burial set at 54m/Myr (Site 1081)
 !EROSION/BURIAL
 !time_units                  years
 !distance_units              meters
@@ -172,11 +99,11 @@ END
 
 DISCRETIZATION
 distance_units                  centimeters
-xzones                       500 1
+xzones                       100 50
 END
  
 INITIAL_CONDITIONS
-Seawater                     1-500
+Seawater                     1-100
 END
  
 TEMPERATURE
@@ -292,16 +219,12 @@ TRANSPORT
 distance_units centimeters
 time_units  seconds
 calculate_diffusion 0.919e-05
-!diffusion_activation  4.5
-!cementation_exponent  2.0
 END
 
-! Fluid flow set to match burial rate of 54m/Myr (Site 1081)
-! The pump can be turned on with just the AOM reaction on to observe how AOM changes the pH and alkalinity
+
 !FLOW
 !distance_units     meters
 !time_units         years
 !constant_flow      0.000054
-!pump               1e-8 Methane 399 1 1
 !END
 

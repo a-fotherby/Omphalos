@@ -83,8 +83,13 @@ def get_data_cats(directory):
     return f_set
 
 
-def pickle_data_set(data_set, file_name):
-    with open('{}.pickle'.format(file_name), 'wb') as f:
+def pickle_data_set(data_set, file_name, path_to_file='.'):
+    from pathlib import Path
+    
+    # Make subdirectory if it doesn't already exist.
+    path = Path(path_to_file)
+    path.mkdir(exist_ok=True)
+    with open(path / file_name, 'wb') as f:
         # Pickle the 'data' dictionary using the highest protocol available.
         pickle.dump(data_set, f, pickle.HIGHEST_PROTOCOL)
 

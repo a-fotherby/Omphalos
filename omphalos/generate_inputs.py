@@ -82,7 +82,7 @@ def create_condition_series(
     for file in file_dict:
         if primary_species:
             if grid_search:
-                if data = None:
+                if data == None:
                     raise Exception("Data file not provided.")
                 import_concentrations(file_dict[file], condition, data)
             else:

@@ -255,52 +255,25 @@ def generate_data_set(template, condition, number_of_files, name, data):
         number_of_files,
         primary_species=True,
         mineral_volumes=False,
-        mineral_rates=False
+        mineral_rates=False,
         aqueous_rates=False,
         transports=False,
         data=data
         )
     print('*** Begin running input files ***')
+    run_dataset(file_dict, name)
+    return file_dict
     
+def run_dataset(file_dict, tmp_dir):
     timeout_list = []
     for file_num, entry in enumerate(file_dict):
-        # Print the file. Run it in CT. Collect the results, and assign to a
-        # Results object in the InputFile object.
-        file_name = name + str(file_num) + '.in'
-        out_file_name = name + str(file_num) + '.out'
-        tmp_dir = 'tmp/'
-        file_dict[entry].path = tmp_dir + file_name
-        file_dict[entry].print_input_file()
+        file_dict[entry] = run_input_file(file_dict[entry], file_num, tmp_dir)
         
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(60)
-        try:
-            run_crunchtope(file_name, tmp_dir)
-        except Exception: 
-            print('File {} timed out.'.format(file_num))
-            timeout_list.append(file_num)
-            # Clean the temp directory ready the next input file.
-            subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
-            subprocess.run(['rm', file_name], cwd=tmp_dir)
-            subprocess.run(['rm', out_file_name], cwd=tmp_dir)
-            continue
-        
-        signal.alarm(0)
-    
-        # Make a results object that is an attribute of the InputFile object.
-        file_dict[entry].results = results.Results()
-
-        output_categories = fm.get_data_cats(tmp_dir)
-        for output in output_categories:
-            file_dict[entry].results.get_output(tmp_dir, output)
-
-        # Clean the temp directory ready the next input file.
-        subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
-        subprocess.run(['rm', file_name], cwd=tmp_dir)
-        subprocess.run(['rm', out_file_name], cwd=tmp_dir)
-        
-        print('File {} complete.'.format(file_num))
-
+    # Remove timed-out entries.
+    timeout_list = []
+    for file in file_dict:
+        if file_dict[file].timeout == True:
+            timeout_list.append(file)
     for file_num in timeout_list:
         file_dict.pop(file_num)
 
@@ -312,3 +285,44 @@ def run_crunchtope(file_name, tmp_dir):
 
 def timeout_handler(signum, frame):
     raise Exception("CrunchTimeout")
+
+def run_input_file(input_file, file_num, tmp_dir):
+    # Print the file. Run it in CT. Collect the results, and assign to a
+    # Results object in the InputFile object.
+    name = 'input'
+    file_name = name + str(file_num) + '.in'
+    out_file_name = name + str(file_num) + '.out'
+    input_file.path = tmp_dir + file_name
+    input_file.print_input_file()
+
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(10)
+    try:
+        run_crunchtope(file_name, tmp_dir)
+    except Exception: 
+        print('File {} timed out.'.format(file_num))
+        input_file.timeout = True
+        # Clean the temp directory ready the next input file.
+        subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
+        subprocess.run(['rm', file_name], cwd=tmp_dir)
+        subprocess.run(['rm', out_file_name], cwd=tmp_dir)
+        return input_file
+
+    signal.alarm(0)
+
+    # Make a results object that is an attribute of the InputFile object.
+    input_file.results = results.Results()
+
+    output_categories = fm.get_data_cats(tmp_dir)
+    for output in output_categories:
+        input_file.results.get_output(tmp_dir, output)
+
+    # Clean the temp directory ready the next input file.
+    subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
+    subprocess.run(['rm', file_name], cwd=tmp_dir)
+    subprocess.run(['rm', out_file_name], cwd=tmp_dir)
+
+    print('File {} complete.'.format(file_num))
+    
+    return input_file
+

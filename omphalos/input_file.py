@@ -13,6 +13,7 @@ class InputFile:
         self.raw = fm.import_file(self.path)
         self.keyword_blocks = {}
         self.condition_blocks = {}    
+        self.timeout = False
 
 
     def get_keyword_block(self, keyword):

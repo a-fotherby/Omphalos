@@ -6,7 +6,7 @@
 sleepsecs=$[ $RANDOM % 10 + 10 ]
 
 
-task="python3 slurm_exec.py $1"
+task="python3 /home/af606/Omphalos/omphalos_parallel/slurm_exec.py $1"
 $task 
 
 # $1 is arg1:{1} from GNU parallel.
@@ -15,7 +15,7 @@ $task
 # number of the job in the sequence.
 #
 # Here we print the sleep time, host name, and the date and time.
-echo $task $1 seq:$PARALLEL_SEQ sleep:$sleepsecs host:$(hostname) date:$(date)
+echo $task seq:$PARALLEL_SEQ sleep:$sleepsecs host:$(hostname) date:$(date)
 
 # Sleep a random amount of time.
 sleep $sleepsecs

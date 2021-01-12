@@ -11,6 +11,8 @@
 
 # Omphalos file structure
 fitting/tmp
+runtask.sh.*
+tmp*/
 
 # wandb file structure
 wandb/

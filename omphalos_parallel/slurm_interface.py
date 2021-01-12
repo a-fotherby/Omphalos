@@ -26,7 +26,7 @@ def submit(data_set, nodes):
     os.environ['DICT_END'] = str(len(data_set) - 1)
     os.environ['NODES'] = str(nodes)
     cwd = (os.path.dirname(__file__))
-    subprocess.run(['sbatch', '{}/parallel.sbatch'.format(cwd)])
+    subprocess.run(['sbatch','-n {}'.format(nodes), '{}/parallel.sbatch'.format(cwd)])
     
 def input_file():
     import omphalos.generate_inputs as gi

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-#SBATCH --ntasks=$NODES
 #SBATCH --mem-per-cpu=2G  # NOTE DO NOT USE THE --mem= OPTION
 
 # Load the default version of GNU parallel.

@@ -15,6 +15,7 @@ from context import omphalos
 import omphalos.generate_inputs as gi
 import omphalos.file_methods as fm
 import slurm_interface as si
+import subprocess
 
 parser = argparse.ArgumentParser()
 parser.add_argument("template", type=str, help="Input file template name.")
@@ -48,5 +49,8 @@ for file in file_dict:
     path_to_file = 'tmp{}'.format(file)
     file_name = '{}{}.pkl'.format(file_name_scheme, file)
     fm.pickle_data_set(file_dict[file], file_name, path_to_file)
+    subprocess.run(['cp', args.database, '{}/{}'.format(path_to_file, args.database)])
+    if args.aqueous_database:
+        subprocess.run(['cp', args.aqueous_database, '{}/{}'.format(path_to_file, args.aqueous_database)])
 
 si.submit(file_dict, args.nodes)

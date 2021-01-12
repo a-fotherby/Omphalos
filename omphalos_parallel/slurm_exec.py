@@ -6,6 +6,8 @@ tmp_dir -- temporary directory for running input files. Must be unique.
 
 """
 import argparse
+import os
+from context import omphalos
 import omphalos.file_methods as fm
 import omphalos.generate_inputs as gi
 
@@ -13,10 +15,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument("file_num", help="Input file dict key.")
 args = parser.parse_args()
 
-input_file = fm.unpickle('tmp{}/input_file{}.pkl'.format(file_num, file_num)
+print('Unpickle directory: tmp{}/input_file{}.pkl'.format(args.file_num, args.file_num))
 
-input_file = gi.run_input_file(input_file, file_num)
+input_file = fm.unpickle('tmp{}/input_file{}.pkl'.format(args.file_num, args.file_num))
 
-fm.pickle_data_set(input_file, 'tmp{}/input_file{}_complete.pkl'.format(file_num, file_num))
+print('Unpickle successful.')
+print(os.getcwd())
+
+input_file = gi.run_input_file(input_file, args.file_num, 'tmp{}/'.format(args.file_num))
+
+
+fm.pickle_data_set(input_file, 'tmp{}/input_file{}_complete.pkl'.format(args.file_num, args.file_num))
                          
-print("File #{} completeled".format(file_num))
+print("File #{} completed".format(args.file_num))

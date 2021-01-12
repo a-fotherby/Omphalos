@@ -281,7 +281,7 @@ def run_dataset(file_dict, tmp_dir):
 
 def run_crunchtope(file_name, tmp_dir):
     # Have to invoke absolute path for CT, this might vary by installation.
-    subprocess.run(['/Users/angus/soft/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
+    subprocess.run(['/home/af606/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
 
 def timeout_handler(signum, frame):
     raise Exception("CrunchTimeout")
@@ -289,14 +289,14 @@ def timeout_handler(signum, frame):
 def run_input_file(input_file, file_num, tmp_dir):
     # Print the file. Run it in CT. Collect the results, and assign to a
     # Results object in the InputFile object.
-    name = 'input'
+    name = 'input_file'
     file_name = name + str(file_num) + '.in'
     out_file_name = name + str(file_num) + '.out'
     input_file.path = tmp_dir + file_name
     input_file.print_input_file()
 
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(10)
+    signal.alarm(300)
     try:
         run_crunchtope(file_name, tmp_dir)
     except Exception: 

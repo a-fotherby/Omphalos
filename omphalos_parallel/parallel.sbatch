@@ -31,4 +31,4 @@ parallel="parallel --delay 1 -j $SLURM_NTASKS --joblog runtask.log --resume"
 #
 #   srun --exclusive -N1 -n1 ./runtask.sh arg1:1 > runtask.1
 #
-$parallel "$srun ./runtask.sh arg1:{1} > runtask.sh.{1}" ::: {0..$DICT_END}
+$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} > runtask.sh.{1}" ::: {0..9}

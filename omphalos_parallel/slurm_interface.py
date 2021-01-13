@@ -31,3 +31,15 @@ def submit(data_set, nodes):
 def input_file():
     import omphalos.generate_inputs as gi
     gi.run_input_file()
+
+def compile_results(dict_len):
+    from context import omphalos
+    import omphalos.file_methods as fm
+    import numpy as np
+    
+    results_dict=dict.fromkeys(np.arange(dict_len))
+    for i in results_dict:
+        input_file = fm.unpickle('input_file{}_complete.pkl'.format(i), 'tmp{}'.format(i))
+        results_dict[i]=input_file
+
+    fm.pickle_data_set(results_dict, 'completed_run.pkl')

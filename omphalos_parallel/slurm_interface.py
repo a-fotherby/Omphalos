@@ -23,10 +23,8 @@ def split_dict(dictionary, num):
 def submit(data_set, nodes):
     import subprocess
     import os
-    os.environ['DICT_END'] = str(len(data_set) - 1)
-    os.environ['NODES'] = str(nodes)
     cwd = (os.path.dirname(__file__))
-    subprocess.run(['sbatch','-n {}'.format(nodes), '{}/parallel.sbatch'.format(cwd)])
+    subprocess.run(['sbatch','-n {}'.format(nodes), '{}/parallel.sbatch'.format(cwd)], env=dict(DICT_LEN=str(len(data_set)-1)))
     
 def input_file():
     import omphalos.generate_inputs as gi

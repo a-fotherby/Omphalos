@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 #SBATCH --mem-per-cpu=2G  # NOTE DO NOT USE THE --mem= OPTION
+#SBATCH --mail-user=af606@cam.ac.uk
+
 
 # Load the default version of GNU parallel.
 # module load parallel
@@ -23,7 +25,9 @@ srun="srun --exclusive -N1 -n1"
 #   The combination of --joblog and --resume create a task log that
 #   can be used to monitor progress.
 #
-parallel="parallel --delay 1 -j $SLURM_NTASKS --joblog runtask.log --resume"
+parallel="parallel --delay 0.2 -j $SLURM_NTASKS --joblog runtask.log --resume"
+
+echo $DICT_LEN
 
 # Run a script, runtask.sh, using GNU parallel and srun. Parallel
 # will run the runtask script for the numbers 1 through 128. To
@@ -31,4 +35,4 @@ parallel="parallel --delay 1 -j $SLURM_NTASKS --joblog runtask.log --resume"
 #
 #   srun --exclusive -N1 -n1 ./runtask.sh arg1:1 > runtask.1
 #
-$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} > runtask.sh.{1}" ::: {0..9}
+$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} > runtask.sh.{1}" :::: <(seq 0 $DICT_LEN)

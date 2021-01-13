@@ -94,8 +94,12 @@ def pickle_data_set(data_set, file_name, path_to_file='.'):
         pickle.dump(data_set, f, pickle.HIGHEST_PROTOCOL)
 
 
-def unpickle(file_name):
-    with open(file_name, 'rb') as f:
+def unpickle(file_name, path_to_file='.'):
+    from pathlib import Path
+    import pandas as pd
+    
+    path = Path(path_to_file)
+    with open(path / file_name, 'rb') as f:
         # The protocol version used is detected automatically, so we do not
         # have to specify it.
         data = pickle.load(f)

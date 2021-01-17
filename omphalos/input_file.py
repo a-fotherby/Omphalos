@@ -226,7 +226,7 @@ class InputFile:
                 self.condition_blocks[condition].gases.update(
                     {entry: contents[entry]})
             elif entry in primary_species_list:
-                self.condition_blocks[condition].primary_species.update(
+                self.condition_blocks[condition].concentrations.update(
                     {entry: contents[entry]})
             else:
                 self.condition_blocks[condition].parameters.update(
@@ -271,7 +271,7 @@ class InputFile:
                     pass
                 for species_type in [
                     self.condition_blocks[block].parameters,
-                    self.condition_blocks[block].primary_species,
+                    self.condition_blocks[block].concentrations,
                     self.condition_blocks[block].gases,
                     self.condition_blocks[block].minerals,
                 ]:

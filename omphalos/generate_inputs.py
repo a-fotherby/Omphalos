@@ -7,8 +7,8 @@ import omphalos.results as results
 import random as rand
 import copy
 import subprocess
-import signal
 import numpy.random as np_rand
+import yaml
 
 
 def import_template(file_path):
@@ -220,27 +220,6 @@ def aqueous_rate(input_file, data):
             entry = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
             input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: entry})
             
-def transport(input_file, data):
-    """Set the transport parameters based upon keywords in an InputFile.
-    
-    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
-    """
-    for keyword in input_file.keyword_blocks['TRANSPORT'].contents.keys():
-        
-        if keyword in data:
-            keyword_val = data.iloc[input_file.file_num].loc[keyword]
-            keyword_desc = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
-            keyword_desc[-1]=str(keyword_val)
-            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: keyword_desc})
-        else:
-            entry = input_file.keyword_blocks['TRANSPORT'].contents[keyword]
-            input_file.keyword_blocks['TRANSPORT'].contents.update({keyword: entry})
-
-def generate_data_set(template, condition, number_of_files, name, data):
-    """Generates a dictionary of InputFile objects containing their results within a Results object.
-
-    The input files have randomised initial conditions in one geochemical condition, specified by "condition".
-    Each parameter in the randomised geochemical condition takes a random value on the interval [var_min, var_max].
 
     The directory specified by tmp_dir must already exist and be populated with the required databases.
     """
@@ -264,65 +243,6 @@ def generate_data_set(template, condition, number_of_files, name, data):
     run_dataset(file_dict, name)
     return file_dict
     
-def run_dataset(file_dict, tmp_dir):
-    timeout_list = []
-    for file_num, entry in enumerate(file_dict):
-        file_dict[entry] = run_input_file(file_dict[entry], file_num, tmp_dir)
-        
-    # Remove timed-out entries.
-    timeout_list = []
-    for file in file_dict:
-        if file_dict[file].timeout == True:
-            timeout_list.append(file)
-    for file_num in timeout_list:
-        file_dict.pop(file_num)
 
-    return file_dict
-
-def run_crunchtope(file_name, tmp_dir):
-    # Have to invoke absolute path for CT, this might vary by installation.
-    subprocess.run(['/home/af606/crunchtope/CrunchTope', file_name], cwd=tmp_dir)
-
-def timeout_handler(signum, frame):
-    raise Exception("CrunchTimeout")
-
-def run_input_file(input_file, file_num, tmp_dir):
-    # Print the file. Run it in CT. Collect the results, and assign to a
-    # Results object in the InputFile object.
-    name = 'input_file'
-    file_name = name + str(file_num) + '.in'
-    out_file_name = name + str(file_num) + '.out'
-    input_file.path = tmp_dir + file_name
-    input_file.print_input_file()
-
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(300)
-    try:
-        run_crunchtope(file_name, tmp_dir)
-    except Exception: 
-        print('File {} timed out.'.format(file_num))
-        input_file.timeout = True
-        # Clean the temp directory ready the next input file.
-        subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
-        subprocess.run(['rm', file_name], cwd=tmp_dir)
-        subprocess.run(['rm', out_file_name], cwd=tmp_dir)
-        return input_file
-
-    signal.alarm(0)
-
-    # Make a results object that is an attribute of the InputFile object.
-    input_file.results = results.Results()
-
-    output_categories = fm.get_data_cats(tmp_dir)
-    for output in output_categories:
-        input_file.results.get_output(tmp_dir, output)
-
-    # Clean the temp directory ready the next input file.
-    subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
-    subprocess.run(['rm', file_name], cwd=tmp_dir)
-    subprocess.run(['rm', out_file_name], cwd=tmp_dir)
-
-    print('File {} complete.'.format(file_num))
     
-    return input_file
 

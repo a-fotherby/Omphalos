@@ -16,6 +16,6 @@ class ConditionBlock(KeywordBlock):
         self.region = []
         self.gases = {}
         self.minerals = {}
-        self.primary_species = {}
+        self.concentrations = {}
         self.parameters = {}
 

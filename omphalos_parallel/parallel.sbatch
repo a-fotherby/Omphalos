@@ -35,4 +35,4 @@ echo $DICT_LEN
 #
 #   srun --exclusive -N1 -n1 ./runtask.sh arg1:1 > runtask.1
 #
-$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} > runtask.sh.{1}" :::: <(seq 0 $DICT_LEN)
+$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} {2} > runtask.sh.{1}" :::: <(seq 0 $DICT_LEN) ::: $TIMEOUT

@@ -10,6 +10,7 @@ import omphalos.generate_inputs as gi
 import omphalos.file_methods as fm
 import slurm_interface as si
 import subprocess
+import yaml
 
 parser = argparse.ArgumentParser()
 parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
@@ -33,4 +34,4 @@ for file in file_dict:
     if config['aqueous_database']:
         subprocess.run(['cp', config['aqueous_database'], '{}/{}'.format(path_to_file, config['aqueous_database'] )])
 
-si.submit(file_dict, config['nodes'])
+si.submit(file_dict, config['nodes'], config['timeout'])

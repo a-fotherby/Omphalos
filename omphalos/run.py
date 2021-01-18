@@ -23,6 +23,8 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     import omphalos.results as results
     import omphalos.file_methods as fm
     
+    print('checkpoint')
+    
     name = 'input_file'
     file_name = name + str(file_num) + '.in'
     out_file_name = name + str(file_num) + '.out'
@@ -30,7 +32,7 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     input_file.print_input_file()
 
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(timeout)
+    signal.alarm(int(timeout))
     try:
         crunchtope(file_name, tmp_dir)
     except Exception: 
@@ -64,6 +66,8 @@ def crunchtope(file_name, tmp_dir):
     import omphalos.settings as settings
     import subprocess 
     
+    print('checkpoint2')
+    print(settings.crunch_dir)
     # Get CT install directory from settings.py.
     subprocess.run([settings.crunch_dir, file_name], cwd=tmp_dir)
 

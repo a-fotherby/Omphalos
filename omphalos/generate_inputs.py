@@ -10,18 +10,48 @@ import subprocess
 import numpy.random as np_rand
 import yaml
 
+# Global var defining the realtionship between keyword blocks and YAML file entries.
+# Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
+CT_IDs = {'concentrations': ['geochemical condition', -1],
+          'mineral_volumes': ['geochemical condition', -1],
+          'gases': ['geochemical condition', -1],
+            'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
+            'flow': ['FLOW', 1],
+            'transport': ['TRANSPORT', -1]
+}
+
+
+def make_dataset(path_to_config):
+    """Generates a dictionary of InputFile objects containing their results within a Results object.
+
+    The input files have randomised initial conditions in one geochemical condition, specified by "condition".
+    Each parameter in the randomised geochemical condition takes a random value on the interval [var_min, var_max].
+
+    The directory specified by tmp_dir must already exist and be populated with the required databases.
+    """
+    import yaml
+    import omphalos.run as run
+    
+    tmp_dir='tmp/'
+    
+    # Import config file.
+    with open(path_to_config) as file:
+        config = yaml.full_load(file)
+        
+    # Import template file.
+    template = import_template(config['template'])
+    # Get a dictionary of input files.
+    print('*** Creating randomised input files ***')
+    file_dict = configure_input_files(template, config)
+    print('*** Begin running input files ***')
+    run.run_dataset(file_dict, tmp_dir, config['timeout'])
+    return file_dict
 
 def import_template(file_path):
     """Import the template import file. Returns an input_file object, fully populated with all available keyword blocks.
-
-    The template input file will define the mineral/species space of interest,
-    as well as the geometry of the system in question.
-
-    The child input files of the template will explore the mineral/species concentration space.
-    Other special parameters such as temperature, diffusion, and advective flux can also be explored.
-
-    The lists of species and minerals, as well as the system geometry/discretization remain unchanged.
-    For this reason we are primarily focussed on iterating over the CONDITION blocks.
+    
+    Args:
+    file_path -- path to the CrunchTope input file.
     """
     print('*** Importing template file ***')
     template = ipf.InputFile(file_path)
@@ -47,202 +77,116 @@ def import_template(file_path):
         'EROSION/BURIAL']
     for keyword in keyword_list:
         template.get_keyword_block(keyword)
-
+    
+    # Get=l keyword blocks that require unqiue handling due to format.
     template.get_initial_conditions_block()
     template.get_isotope_block()
     template.get_condition_blocks()
 
     return template
 
-
-def create_condition_series(
-        template,
-        condition,
-        number_of_files,
-        *,
-        grid_search = False,
-        primary_species=True,
-        mineral_volumes=False,
-        mineral_rates=False,
-        aqueous_rates=False,
-        transports=False,
-        data
-):
+def configure_input_files(template, config):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
+    for condition in config['conditions']:
+        template.sort_condition_block(condition)
 
-    template.sort_condition_block(condition)
+    file_dict = dict.fromkeys(np.arange(config['number_of_files']))
 
-    keys = np.arange(number_of_files)
-
-    file_dict = {}
-    
-    for key in keys:
-        file_dict.update({key: copy.deepcopy(template)})
+    for file_num in file_dict:
+        file_dict[file_num] = copy.deepcopy(template)
+        file_dict[file_num].file_num = file_num
 
     for file in file_dict:
-        if primary_species:
-            if grid_search:
-                if data == None:
-                    raise Exception("Data file not provided.")
-                import_concentrations(file_dict[file], condition, data)
-            else:
-                randomise_concentrations(file_dict[file], condition)
-        else:
-            pass
-
-        if mineral_volumes:
-            minerals_volumes(file_dict[file], condition, 0.9)
-        else:
-            pass
-        
-        if aqueous_rates:
-            aqueous_rate(file_dict[file], data)
-        else:
-            pass
-        
-        if transports:
-            transport(file_dict[file], data)
-        else:
-            pass
+        for condition in config['conditions']:
+            file_dict[file].sort_condition_block(condition)
+        if 'concentrations' in config:
+            modify_condition_block(file_dict[file], config, 'concentrations')
+        if 'mineral_volumes' in config:
+            modify_condition_block(file_dict[file], config, 'mineral_volumes')
+        if 'aqueous_kinetics' in config:
+            modify_keyword_block(file_dict[file], config, 'aqueous_kinetics')
+        if 'transport' in config:
+            modify_keyword_block(file_dict[file], config, 'transport')
+        if 'flow' in config:
+            modify_keyword_block(file_dict[file], config, 'flow')
 
     return file_dict
 
 
-def randomise_concentrations(input_file, condition):
-    for species in input_file.condition_blocks[condition].primary_species.keys():
-        default_conc = input_file.condition_blocks[condition].primary_species[species][-1]
-        # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
-        # then we write it back out immediately.
-        try:
-            default_conc = float(default_conc)
-        except:
-            continue
+def modify_condition_block(input_file, config, species_type):
+        """Modify concentration based on config file.
+        Requires its own method because multiple conditions may be specified."""
+        mod_pos = CT_IDs[species_type][1]
+    
+        for condition in config[species_type]:
+            condition_block_sec = {'concentrations': input_file.condition_blocks[condition].concentrations,
+                                    'mineral_volumes': input_file.condition_blocks[condition].minerals,
+                                    'gases': input_file.condition_blocks[condition].gases,
+                                    'parameters': input_file.condition_blocks[condition].parameters}
+            for species in condition_block_sec[species_type]:
+                value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num)
+                if value_to_assign == None:
+                    continue
+                file_value = condition_block_sec[species_type][species]
+                file_value[mod_pos] = str(value_to_assign)
+                condition_block_sec.update({species: file_value})
             
-        if species == 'Ca++':
-            ca_conc = round(rand.uniform(0, 0.05), 15)
-            ca44_conc = ca_conc * 0.021226645
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [ca_conc]})
-            input_file.condition_blocks[condition].primary_species.update(
-                {'Ca44++': [ca44_conc]})
-        elif species == 'Ca44++':
-            pass
-        elif species == 'SO4--':
-            s_conc = round(rand.uniform(0, 0.05), 15)
-            s34_conc = s_conc * 0.04444082386
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [s_conc]})
-            input_file.condition_blocks[condition].primary_species.update(
-                {'S34O4--': [s34_conc]})
-        elif species == 'S34O4--':
-            pass
-        elif species == 'Acetate':
-            conc = round(rand.uniform(0, 0.05), 15)
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [conc]})
-        elif species == 'NH4+':
-            conc = round(rand.uniform(0, 0.05), 15)
-            conc = default_conc
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [conc]})
-        elif species == 'CO2(aq)':
-            # Hardwire equilibreum with CO2(g) condition. 
-            # Specify partial pressure of CO2(g).
-            partial_pressure = round(rand.uniform(0, 0.05), 15)
-            input_file.condition_blocks[condition].primary_species.update({species: ['CO2(g)', partial_pressure]})
-        else:
-            input_file.condition_blocks[condition].primary_species.update(
-                {species: [default_conc]})
-
-def import_concentrations(input_file, condition, data):
-    for species in input_file.condition_blocks[condition].primary_species.keys():
-        default_conc = input_file.condition_blocks[condition].primary_species[species][0]
-        # If the argument for the primary species can not be interpreted as a float (i.e. is some kind of condition like charge, or equilibreum)
-        # then we write it back out immediately.
-        try:
-            default_conc = float(default_conc)
-        except:
-            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
+def modify_keyword_block(input_file, config, config_key, *, geochemical_condition=None):
+    """Change the parameters of a keyword block in an InputFile object.
+    
+    Args:
+    input_file -- The InputFile to be modified.
+    config --  The config file dict containing the modifications to be made.
+    config_key -- Key indexing which entry in the config file is in question.
+    """
+    import numpy as np
+    
+    # Extract corresponding input file block name and the position of the variable to be modified.
+    CT_block_name = CT_IDs[config_key][0]
+    mod_pos = CT_IDs[config_key][1]
+    
+    for file_key in input_file.keyword_blocks[CT_block_name].contents.keys():
+        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num)
+        if value_to_assign == None:
             continue
-        if species in data:
-            species_conc = data.iloc[input_file.file_num].loc[species]
-            species_desc = input_file.condition_blocks[condition].primary_species[species]
-            species_desc[-1]=str(species_conc)
-            input_file.condition_blocks[condition].primary_species.update({species: species_desc})
-        else:
-            entry = input_file.condition_blocks[condition].primary_species[species]
-            input_file.condition_blocks[condition].primary_species.update({species: [default_conc]})
-
-def minerals_volumes(input_file, condition, total_volume):
-    """Randomise mineral volume fractions in a data_set of InputFiles.
-
-    Total volume must be less than exactly 1 or CrunchTope wont run: 0.9999 is acceptable.
-    """
-    # First ensure that the sum total of mineral volume fractions is less than 1.
-    # Use the Dirichlet function to provide a list of numbers that sum to 1 on the interval [0,1].
-    # The Dirichlet function is very flexible; in it's symmetric (i.e. all entries in input vectors the same - in which case we call that single value the concentration parameter)
-    # case no returned value will be biased larger than the others, and in the case that the concentration parameter is 1, the entries will all be drawn from a uniform distribution.
-    # In the case that conc_param > 1, values returned will be more similar.
-    # If conc_param < 1 then the the values will be less similar.
-    mineral_num = len(input_file.condition_blocks[condition].minerals)
-    alpha = np.ones(mineral_num)
-    
-    volume_fractions = np.random.dirichlet(alpha) * total_volume
-    
-    
-    for mineral, volume_frac in zip(input_file.condition_blocks[condition].minerals.keys(), volume_fractions):
-        if mineral == 'Calcite':
-            entry = input_file.condition_blocks[condition].minerals[mineral]
-            entry[0] = volume_frac
-            input_file.condition_blocks[condition].minerals.update(
-                {mineral: entry})
-            entry_44 = input_file.condition_blocks[condition].minerals['Calcite44']
-            entry_44[0] = volume_frac * 0.02120014696
-            input_file.condition_blocks[condition].minerals.update({'Calcite44': entry_44})
-
-        else:
-            entry = input_file.condition_blocks[condition].minerals[mineral]
-            input_file.condition_blocks[condition].minerals.update({mineral: entry})
-
-def aqueous_rate(input_file, data):
-    """Set the aqueous rate parameters based upon rates in an InputFile.
-    
-    This function requires that data is a pandas dataframe containing columns which have the EXACT names of the reactions in the InputFile.
-    """
-    for reaction in input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.keys():
-        
-        if reaction in data:
-            react_rate = data.iloc[input_file.file_num].loc[reaction]
-            reaction_desc = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
-            reaction_desc[-1]=str(react_rate)
-            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: reaction_desc})
-        else:
-            entry = input_file.keyword_blocks['AQUEOUS_KINETICS'].contents[reaction]
-            input_file.keyword_blocks['AQUEOUS_KINETICS'].contents.update({reaction: entry})
+        file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
+        file_value[mod_pos] = str(value_to_assign)
+        input_file.keyword_blocks[CT_block_name].contents.update({file_key: file_value})
             
 
-    The directory specified by tmp_dir must already exist and be populated with the required databases.
-    """
-    # Get a dictionary of input files. Set the randomisation options here.
-    # !!!
-    # !!! Randomisation options !!!
-    # !!!
-    print('*** Creating randomised input files ***')
-    file_dict = create_condition_series(
-        template,
-        condition,
-        number_of_files,
-        primary_species=True,
-        mineral_volumes=False,
-        mineral_rates=False,
-        aqueous_rates=False,
-        transports=False,
-        data=data
-        )
-    print('*** Begin running input files ***')
-    run_dataset(file_dict, name)
-    return file_dict
+def get_config_value(file_key, config, config_entry, file_num):
+    """Extract a value to assign from the config file."""
+    import omphalos.parameter_methods as pm
     
+    if file_key in config_entry:
+        # Look at first entry to determine behaviour.
+        if config_entry[file_key][0] == 'linspace':
+            lower = config_entry[file_key][1][0]
+            upper = config_entry[file_key][1][1]
+            interval_to_step = config_entry[file_key][1][2]
+            value_to_assign = pm.linspace(lower, upper, config['number_of_files'], file_num, interval_to_step=interval_to_step)
+        elif config_entry[file_key][0] == 'random_uniform':
+            lower = config_entry[file_key][1][0]
+            upper = config_entry[file_key][1][1]
+            value_to_assign = np.random.uniform(lower, upper)
+        elif config_entry[file_key][0] == 'constant':
+            # Will overwrite default value from input file.
+            value_to_assign = config_entry[file_key][1]
+        elif config_entry[file_key][0] == 'custom':
+            # Manually entered value list in config file must be same length as file_dict.
+            # Index offset by 1 because entry 0 is the keyword determining behaviour.
+            value_to_assign = config_entry[file_key][file_num + 1]
+        elif config_entry[file_key][0] == 'fix_ratio':
+            reference_var = config_entry[file_key][1]
+            reference_value = get_config_value(reference_var, config, config_entry, file_num)
+            multiplier = config_entry[file_key][2]
+            value_to_assign = reference_value * multiplier
+        else:
+            raise Exception("ConfigError: Unknown Omphalos parameter setting.")
+        return value_to_assign
+    else:
+        # If the key in the input file is not in the list of species/reactions to be modified in the config file, do nothing.
+        return None
 
     
 

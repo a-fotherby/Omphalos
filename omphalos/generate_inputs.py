@@ -15,6 +15,7 @@ import yaml
 CT_IDs = {'concentrations': ['geochemical condition', -1],
           'mineral_volumes': ['geochemical condition', -1],
           'gases': ['geochemical condition', -1],
+            'mineral_rates': ['MINERALS', -1],
             'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
             'flow': ['FLOW', 1],
             'transport': ['TRANSPORT', -1]
@@ -103,6 +104,8 @@ def configure_input_files(template, config):
             modify_condition_block(file_dict[file], config, 'concentrations')
         if 'mineral_volumes' in config:
             modify_condition_block(file_dict[file], config, 'mineral_volumes')
+        if 'mineral_rates' in config:
+            modify_keyword_block(file_dict[file], config, 'mineral_rates')
         if 'aqueous_kinetics' in config:
             modify_keyword_block(file_dict[file], config, 'aqueous_kinetics')
         if 'transport' in config:

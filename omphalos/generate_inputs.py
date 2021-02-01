@@ -127,7 +127,7 @@ def modify_condition_block(input_file, config, species_type):
                                     'gases': input_file.condition_blocks[condition].gases,
                                     'parameters': input_file.condition_blocks[condition].parameters}
             for species in condition_block_sec[species_type]:
-                value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num)
+                value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num, condition_block_sec)
                 if value_to_assign == None:
                     continue
                 file_value = condition_block_sec[species_type][species]
@@ -149,7 +149,7 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
     mod_pos = CT_IDs[config_key][1]
     
     for file_key in input_file.keyword_blocks[CT_block_name].contents.keys():
-        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num)
+        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num, input_file.keyword_blocks[CT_block_name])
         if value_to_assign == None:
             continue
         file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
@@ -157,7 +157,7 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
         input_file.keyword_blocks[CT_block_name].contents.update({file_key: file_value})
             
 
-def get_config_value(file_key, config, config_entry, file_num):
+def get_config_value(file_key, config, config_entry, file_num, ref_vars):
     """Extract a value to assign from the config file."""
     import omphalos.parameter_methods as pm
     
@@ -181,7 +181,7 @@ def get_config_value(file_key, config, config_entry, file_num):
             value_to_assign = config_entry[file_key][file_num + 1]
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
-            reference_value = get_config_value(reference_var, config, config_entry, file_num)
+            reference_value = float(ref_vars[reference_var][-1])
             multiplier = config_entry[file_key][2]
             value_to_assign = reference_value * multiplier
         else:

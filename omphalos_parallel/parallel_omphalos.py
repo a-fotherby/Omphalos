@@ -33,5 +33,9 @@ for file in file_dict:
     subprocess.run(['cp', config['database'], '{}/{}'.format(path_to_file, config['database'])])
     if config['aqueous_database']:
         subprocess.run(['cp', config['aqueous_database'], '{}/{}'.format(path_to_file, config['aqueous_database'] )])
+    # Legacy options for old CT input files that require them.
+    if config['catabolic_control']:
+        subprocess.run(['cp', config['catabolic_control'], '{}/{}'.format(path_to_file, config['catabolic_control'] )])
+        subprocess.run(['cp', 'CatabolicControl.ant', '{}/{}'.format(path_to_file, 'CatabolicControl.ant')])
 
 si.submit(file_dict, config['nodes'], config['timeout'])

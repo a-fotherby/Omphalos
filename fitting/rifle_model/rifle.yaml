@@ -1,0 +1,43 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'RifleColumn.in'
+database: 'OldRifleDatabaseLiLi.dbs'
+aqueous_database: 'aqueousRifleColumn.dbs'
+catabolic_control: 'CatabolicPathways_RifleColumn.dbs'
+# Timeout in seconds for any one input file.
+timeout: 120
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'amendment'
+# Number of files in this run.
+number_of_files: 50000
+
+# Number of nodes to use if running in parallel. ESC Titan has 440 total (14-01-21)
+nodes: 220
+
+# Options for setting parameters:
+#     linspace
+#     random_uniform
+#     constant
+#     custom
+
+concentrations:
+    amendment:
+      Ca++:
+      - 'random_uniform'
+      - [0, 30]
+      Acetate:
+      - 'random_uniform'
+      - [0, 30]
+      SO4--:
+      - 'random_uniform'
+      - [0, 30]
+      S34O4--:
+      - 'fix_ratio'
+      - 'SO4--'
+      - 0.04444082386
+      CO2(aq):
+      - 'random_uniform'
+      - [0, 10]
+      NH4+:
+      - 'random_uniform'
+      - [0, 30]

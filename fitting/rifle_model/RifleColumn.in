@@ -15,6 +15,7 @@ speciate_only           false
 graphics                tecplot
 master                  H+
 database                OldRifleDatabaseLiLi.dbs
+kinetic_database        aqueousRifleColumn.dbs
 coordinates             rectangular
 gimrt                   true
 screen_output           10000
@@ -137,6 +138,22 @@ C5H7O2NSO4       0.00
 decay_b_so4      1.0E-12
 
 XRifle-      -cec    0.0
+
+! Mineral name <volume fraction m3/m3>
+Ferrihydrite_DIRB        0     specific_surface_area  79.8
+Goethite_DIRB            0 specific_surface_area  55.2
+Goethite                 0    specific_surface_area  55.2
+CalciteRifle             0  bulk_surface_area 1.333E-02
+MagnesiteRifle           0  1.0
+FeS(am)                  0  1.0
+FeS34(am)                0  1.0
+S32                      0.00  1.0
+S34                      0.00  1.0
+Fe(OH)3                  0  1.00
+C5H7O2NFe(s)             0
+C5H7O2NSO4(s)            0
+Quartz                   0
+decay_b_so4(s)           0        bulk_surface_area  1.0 
 END
 
 INITIAL_CONDITIONS

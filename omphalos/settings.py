@@ -1,3 +1,3 @@
 # Set global for use across Omphalos.
 
-crunch_dir = '/home/af606/crunchtope/CrunchTope'
+crunch_dir = '/Users/angus/soft/crunchtope/CrunchTope'

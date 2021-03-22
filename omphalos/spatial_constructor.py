@@ -18,8 +18,8 @@ def populate_array(input_file, primary_species=True, mineral_vols=False):
         
         if primary_species:
             # Have to iterate and update dict to stop values being read as single element arrays.
-            for key in input_file.condition_blocks[condition].primary_species:
-                primary_species_dict.update({key: input_file.condition_blocks[condition].primary_species[key][0]})
+            for key in input_file.condition_blocks[condition].concentrations:
+                primary_species_dict.update({key: input_file.condition_blocks[condition].concentrations[key][0]})
 
         if mineral_vols:
             # Get list of all minerals in the system and record the starting volume fraction for each. 

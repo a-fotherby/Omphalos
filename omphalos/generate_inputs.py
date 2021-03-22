@@ -14,6 +14,7 @@ import yaml
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
 CT_IDs = {'concentrations': ['geochemical condition', -1],
           'mineral_volumes': ['geochemical condition', -1],
+          'parameters': ['geochemical condition', -1],
           'gases': ['geochemical condition', -1],
             'mineral_rates': ['MINERALS', -1],
             'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
@@ -102,6 +103,8 @@ def configure_input_files(template, config):
             file_dict[file].sort_condition_block(condition)
         if 'concentrations' in config:
             modify_condition_block(file_dict[file], config, 'concentrations')
+        if 'parameters' in config:
+            modify_condition_block(file_dict[file], config, 'parameters')
         if 'mineral_volumes' in config:
             modify_condition_block(file_dict[file], config, 'mineral_volumes')
         if 'mineral_rates' in config:

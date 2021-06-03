@@ -34,7 +34,7 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     try:
         crunchtope(file_name, tmp_dir)
     except Exception: 
-        print('File {} timed out.'.format(file_num))
+        print(f'File {file_num} timed out.')
         input_file.timeout = True
         # Clean the temp directory ready the next input file.
         subprocess.run(['rm', "*.tec"], cwd=tmp_dir)

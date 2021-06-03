@@ -3,7 +3,6 @@
 #SBATCH --mem-per-cpu=2G  # NOTE DO NOT USE THE --mem= OPTION
 #SBATCH --mail-user=af606@cam.ac.uk
 
-
 # Load the default version of GNU parallel.
 # module load parallel
 
@@ -26,8 +25,6 @@ srun="srun --exclusive -N1 -n1"
 #   can be used to monitor progress.
 #
 parallel="parallel --delay 0.2 -j $SLURM_NTASKS --joblog runtask.log --resume"
-
-echo $DICT_LEN
 
 # Run a script, runtask.sh, using GNU parallel and srun. Parallel
 # will run the runtask script for the numbers 1 through 128. To

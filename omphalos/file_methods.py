@@ -97,6 +97,7 @@ def pickle_data_set(data_set, file_name, path_to_file='.'):
 def unpickle(file_name, path_to_file='.'):
     from pathlib import Path
     import pandas as pd
+    import pickle5 as pickle
     
     path = Path(path_to_file)
     with open(path / file_name, 'rb') as f:

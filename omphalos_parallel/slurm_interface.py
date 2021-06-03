@@ -20,11 +20,11 @@ def split_dict(dictionary, num):
     for i in range(0, len(dictionary), n):
         yield {k:dictionary[k] for k in islice(it, n)}
     
-def submit(data_set, nodes, timeout):
+def submit(datset_size, nodes, timeout):
     import subprocess
     import os
     cwd = (os.path.dirname(__file__))
-    subprocess.run(['sbatch','-n {}'.format(nodes), '{}/parallel.sbatch'.format(cwd)], env=dict(DICT_LEN=str(len(data_set)-1), TIMEOUT=str(timeout)))
+    subprocess.run(['sbatch','-n {}'.format(nodes), '{}/parallel.sbatch'.format(cwd)], env=dict(DICT_LEN=str(dataset_size-1), TIMEOUT=str(timeout)))
     
 def input_file():
     import omphalos.generate_inputs as gi

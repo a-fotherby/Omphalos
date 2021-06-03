@@ -118,8 +118,9 @@ def mineral_volume(input_file, condition):
 def primary_species(input_file, condition):
     import numpy as np
     import pandas as pd
+    import copy
     
-    species_dict = input_file.condition_blocks[condition].primary_species
+    species_dict = input_file.condition_blocks[condition].concentrations.copy()
     
     for entry in species_dict:
         if len(species_dict[entry]) > 1:
@@ -135,10 +136,10 @@ def initial_conditions(data_set, primary_species=True, mineral_vols=False):
     """Returns an attribute DataFrame containing the spatial initial condition for each InputFile in a data set.
     
     """ 
-    import labels as lbls
+    import omphalos.labels as lbls
     import pandas as pd
     import numpy as np
-    import spatial_constructor as sc
+    import omphalos.spatial_constructor as sc
     
     # Create a new DataFrame with the same geometry as the labels by making a deep copy of the coordinate data.
     # Use totcon because it's always present 
@@ -151,7 +152,7 @@ def initial_conditions(data_set, primary_species=True, mineral_vols=False):
     mineral_dict = {}
     
     if primary_species:
-        primary_species_dict = data_set[next(iter(data_set))].condition_blocks[next(iter(data_set[next(iter(data_set))].condition_blocks))].primary_species
+        primary_species_dict = data_set[next(iter(data_set))].condition_blocks[next(iter(data_set[next(iter(data_set))].condition_blocks))].concentrations
         
     if mineral_vols:
         mineral_dict = data_set[next(iter(data_set))].condition_blocks[next(iter(data_set[next(iter(data_set))].condition_blocks))].minerals

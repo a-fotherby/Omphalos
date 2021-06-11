@@ -11,6 +11,7 @@ import omphalos.file_methods as fm
 import slurm_interface as si
 import subprocess
 import yaml
+from time import time
 
 import numpy as np
 
@@ -31,20 +32,26 @@ file_dict = gi.configure_input_files(template, config)
 
 dict_size = len(file_dict)
 
-subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True)
-subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'], shell=True)
+t_start = time()
+
+subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
                 
 if 'aqueous_database' in config:
-    subprocess.run([f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'], shell=True)
+    subprocess.run([f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
 
 # Legacy options for old CT input files that require them.
 if 'catabolic_control' in config:
-    subprocess.run([f'parallel "cp {config["catabolic_control"]} {dir_name}{{1}}/{config["catabolic_control"]}" ::: {{0..{dict_size}}}'], shell=True)
-    subprocess.run([f'parallel "cp CatabolicControl.ant {dir_name}{{1}}/CatabolicControl.ant" ::: {{0..{dict_size}}}'], shell=True)
+    subprocess.run([f'parallel "cp {config["catabolic_control"]} {dir_name}{{1}}/{config["catabolic_control"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+    subprocess.run([f'parallel "cp CatabolicControl.ant {dir_name}{{1}}/CatabolicControl.ant" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     
     
 for file in file_dict:
     file_dict[file].path = f'{dir_name}{file}/{file_name_scheme}.in'
     file_dict[file].print_input_file()
+
+t_stop = time()
+
+print(f'All files generated and directories prepped. Time elapsed: {t_stop-t_start}')
 
 si.submit(dict_size, config['nodes'], config['timeout'])

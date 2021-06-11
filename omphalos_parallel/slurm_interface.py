@@ -20,7 +20,7 @@ def split_dict(dictionary, num):
     for i in range(0, len(dictionary), n):
         yield {k:dictionary[k] for k in islice(it, n)}
     
-def submit(datset_size, nodes, timeout):
+def submit(dataset_size, nodes, timeout):
     import subprocess
     import os
     cwd = (os.path.dirname(__file__))
@@ -37,7 +37,7 @@ def compile_results(dict_len):
     
     results_dict=dict.fromkeys(np.arange(dict_len))
     for i in results_dict:
-        input_file = fm.unpickle('input_file{}_complete.pkl'.format(i), 'tmp{}'.format(i))
+        input_file = fm.unpickle('input_file{}_complete.pkl'.format(i), 'run{}'.format(i))
         results_dict[i]=input_file
 
     fm.pickle_data_set(results_dict, 'completed_run.pkl')

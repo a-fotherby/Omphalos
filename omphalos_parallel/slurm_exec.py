@@ -18,11 +18,10 @@ def execute(file_num, timeout):
     
     # Hard coded for now...
     name = 'input_file'
-    tmp_dir = f'run{file_num}'
-    
+    tmp_dir = f'run{file_num}/'
     input_file = gi.import_template(f'{tmp_dir}/{name}.in')
     
-    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.signal(signal.SIGALRM, run.timeout_handler)
     signal.alarm(int(timeout))
     try:
         run.crunchtope(f'{name}.in', tmp_dir)
@@ -40,6 +39,7 @@ def execute(file_num, timeout):
 
     output_categories = fm.get_data_cats(tmp_dir)
     for output in output_categories:
+        print(output)
         input_file.results.get_output(tmp_dir, output)
 
     # Clean the temp directory.
@@ -47,7 +47,8 @@ def execute(file_num, timeout):
     
     return input_file
 
-if __name__ == __main__:
+
+if __name__ == '__main__':
     import argparse              
     import omphalos.file_methods as fm
     parser = argparse.ArgumentParser()
@@ -56,9 +57,10 @@ if __name__ == __main__:
     args = parser.parse_args()
     
     input_file = execute(args.file_num, args.timeout)
-    fm.pickle_data_set(input_file, 'tmp{}/input_file{}_complete.pkl'.format(args.file_num, args.file_num))
+    # Hotwired directory name for now as it hasn't been passed through for now.
+    fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')
 
     if input_file.timeout == True:
-        print(f'File #{args.file_num} timed-out'.)
+        print(f'File #{args.file_num} timed-out.')
     else:
-        print(f'File #{args.file_num} completed'.)
+        print(f'File #{args.file_num} completed.')

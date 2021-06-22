@@ -342,6 +342,5 @@ class InputFile:
                 except KeyError:
                     condition_region = [[0,0], [0,0], [0,0]]
                     print("Warning: The condition {} was not specified as a initial condition".format(condition))
-
+                
                 self.condition_blocks[condition].region.append(condition_region)
-

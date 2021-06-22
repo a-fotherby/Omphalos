@@ -3,6 +3,7 @@
 
 # Documents
 *.pdf
+*.docx
 
 # Figures
 *.png

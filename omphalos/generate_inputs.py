@@ -166,6 +166,7 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
 def get_config_value(file_key, config, config_entry, file_num, ref_vars):
     """Extract a value to assign from the config file."""
     import omphalos.parameter_methods as pm
+    import omphalos.keyword_block as kwb
     
     if file_key in config_entry:
         # Look at first entry to determine behaviour.
@@ -187,7 +188,13 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
             value_to_assign = config_entry[file_key][file_num + 1]
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
-            reference_value = float(ref_vars[reference_var][-1])
+            # Catch extra subscript indexing required for KeywordBlock.
+            if type(ref_vars) == kwb.ConditionBlock:
+                reference_value = float(ref_vars[reference_var][-1])
+            elif type(ref_vars) == kwb.KeywordBlock:
+                reference_value = float(ref_vars.contents[reference_var][-1])
+            else:
+                raise Exception("Error: Somehow you are editing an object that is neither a keyword nor a condition block. This shouldn't be possible.")
             multiplier = config_entry[file_key][2]
             value_to_assign = reference_value * multiplier
         else:
@@ -196,6 +203,3 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
     else:
         # If the key in the input file is not in the list of species/reactions to be modified in the config file, do nothing.
         return None
-
-    
-

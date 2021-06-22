@@ -13,10 +13,10 @@ import yaml
 # Global var defining the realtionship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
 CT_IDs = {'concentrations': ['geochemical condition', -1],
-          'mineral_volumes': ['geochemical condition', -1],
+          'mineral_volumes': ['geochemical condition', 0],
           'parameters': ['geochemical condition', -1],
           'gases': ['geochemical condition', -1],
-            'mineral_rates': ['MINERALS', 0],
+            'mineral_rates': ['MINERALS', -1],
             'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
             'flow': ['FLOW', 0],
             'transport': ['TRANSPORT', -1],

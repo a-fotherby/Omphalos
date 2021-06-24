@@ -97,7 +97,6 @@ def boundary_condition(data_set, boundary='x_begin', species_concs=True, mineral
     
     boundary_conditions.set_index(file_index, inplace=True)
     return boundary_conditions
-    
 
 def mineral_volume(input_file, condition):
     """"""
@@ -125,11 +124,11 @@ def primary_species(input_file, condition):
     
     for entry in species_dict:
         if len(species_dict[entry]) > 1:
-            species_dict[entry] = species_dict[entry][-1]
+            species_dict.update({entry: [float(species_dict[entry][-1])]})
         else:
             pass
 
-    primary_species_df_row = pd.DataFrame.from_dict(species_dict)
+    primary_species_df_row = pd.DataFrame.from_dict(species_dict, dtype='float')
 
     return primary_species_df_row
 
@@ -195,6 +194,29 @@ def mineral_rates(dataset):
     file_index = pd.Index(dataset.keys())
     rate_df.set_index(file_index, inplace=True)
     
+    return rate_df
+
+def aqueous_rates(dataset):
+    """Returns DataFrame of aqueous rates indexed by file."""
+    import pandas as pd
+    import copy
+
+    rate_df = pd.DataFrame()
+    rate_dict = {}
+    for i in dataset:
+        input_rates = copy.deepcopy(dataset[i].keyword_blocks['AQUEOUS_KINETICS'].contents)
+        for entry in input_rates:
+            if entry == 'AQUEOUS_KINETICS':
+                pass
+            else:
+                rate_dict.update({entry: [float(input_rates[entry][-1])]}) 
+
+        rate_df_row = pd.DataFrame.from_dict(rate_dict, dtype='float')
+        rate_df = rate_df.append(rate_df_row)
+
+    file_index = pd.Index(dataset.keys())
+    rate_df.set_index(file_index, inplace=True)
+
     return rate_df
 
 

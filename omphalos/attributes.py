@@ -107,13 +107,14 @@ def mineral_volume(input_file, condition):
     # data wrangling doesn't mangle the InputFile.
     minerals_dict = copy.deepcopy(
         input_file.condition_blocks[condition].minerals)
+
     for mineral in minerals_dict:
         minerals_dict[mineral] = [minerals_dict[mineral][0]]
+
 
     mineral_df_row = pd.DataFrame.from_dict(minerals_dict, dtype='float')
 
     return mineral_df_row
-
 
 def primary_species(input_file, condition):
     import numpy as np
@@ -172,6 +173,31 @@ def initial_conditions(data_set, primary_species=True, mineral_vols=False):
 
     return initial_conditions
 
+def mineral_rates(dataset):
+    """Returns DataFrame of mineral rates indexed by file."""
+    import pandas as pd
+    import copy
+
+    rate_df = pd.DataFrame()
+    rate_dict = {}
+    for i in dataset:
+        input_rates = copy.deepcopy(dataset[i].keyword_blocks['MINERALS'].contents)
+        for entry in input_rates:
+            for j in input_rates[entry]:
+                try:
+                    rate = float(j)
+                    rate_dict.update({entry: [rate]}) 
+                except:
+                    pass
+        rate_df_row = pd.DataFrame.from_dict(rate_dict, dtype='float')
+        rate_df = rate_df.append(rate_df_row)
+
+    file_index = pd.Index(dataset.keys())
+    rate_df.set_index(file_index, inplace=True)
+    
+    return rate_df
+
+
 def normalise_by_frac(attribute_df):
     """Normalise by fraction of sum of components in condition.
     
@@ -186,4 +212,3 @@ def normalise_by_frac(attribute_df):
     normed_attr_df = attribute_df.divide(attribute_sum, axis=0)
         
     return normed_attr_df
-                                    

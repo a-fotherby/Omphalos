@@ -50,7 +50,7 @@ def populate_array(input_file, primary_species=True, mineral_vols=False):
         return array
                     
 
-def initialise_array(input_file, variable_num):
+def initialise_array(input_file, variable_num, verbose=False):
     import numpy as np
     """Returns the empty numpy array representing the coordinate grid.
     
@@ -75,8 +75,10 @@ def initialise_array(input_file, variable_num):
             # We ensure discretization data is read in as floats.
             disc[i] = [float(j) for j in input_file.keyword_blocks['DISCRETIZATION'].contents[zone]]
     except KeyError as error:
-        print("The discretization in {} has not been specified.\nIf this is in error, check your input file.\nOtherwise, update your input file to suppress this error.".format(error.args[0]))
-
+        if verbose == True:
+            print("The discretization in {} has not been specified.\nIf this is in error, check your input file.\nOtherwise, update your input file to suppress this error.".format(error.args[0]))
+        else:
+            pass
     # Get the total number of rows required by the tidy data format for this geometry.    
     row_count = int(disc[0][0] * disc[1][0] * disc[2][0])
 

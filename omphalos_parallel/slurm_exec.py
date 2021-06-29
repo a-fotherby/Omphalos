@@ -39,7 +39,6 @@ def execute(file_num, timeout):
 
     output_categories = fm.get_data_cats(tmp_dir)
     for output in output_categories:
-        print(output)
         input_file.results.get_output(tmp_dir, output)
 
     # Clean the temp directory.

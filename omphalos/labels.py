@@ -4,8 +4,9 @@
 def raw_labels(data_set, output):
     """Returns labels DataFrame containing raw CrunchTope output data.
     
-    Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple row count.
-    Spatial data for each input file is stored in a tidy format (tidy taking it's technical meaning in this case).
+    Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple
+    row count. Spatial data for each input file is stored in a tidy format (tidy taking it's technical meaning in
+    this case).
     """
     import pandas as pd
     
@@ -21,10 +22,11 @@ def raw_labels(data_set, output):
 
 
 def secondary_precip(data_set):
-    """Calculate the total mineral volume evolution over the run by comparing the initial conditions to the final mineral volume output.
+    """Calculate the total mineral volume evolution over the run by comparing the initial conditions to the final
+    mineral volume output.
 
     Keyword arguments:
-    data_set -- The data set to calculate the secondary preciptation for.
+    data_set -- The data set to calculate the secondary precipitation for.
     """
     import numpy as np
     import pandas as pd

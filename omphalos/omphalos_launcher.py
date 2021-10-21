@@ -19,5 +19,5 @@ args = parser.parse_args()
 dataset = gi.make_dataset(args.path_to_config)
 
 # Pickle the data.
-fm.pickle_data_set(dataset, '~/Omphalos/fitting/data/{}'.format(args.output_name))
+fm.pickle_data_set(dataset, f'{args.output_name}')
 

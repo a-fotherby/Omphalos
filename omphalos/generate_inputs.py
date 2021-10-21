@@ -161,8 +161,7 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
     mod_pos = CT_IDs[config_key][1]
 
     for file_key in input_file.keyword_blocks[CT_block_name].contents.keys():
-        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num,
-                                           condition_block=False)
+        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num, input_file.keyword_blocks[CT_block_name])
         if value_to_assign == None:
             continue
         file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
@@ -170,7 +169,7 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
         input_file.keyword_blocks[CT_block_name].contents.update({file_key: file_value})
 
 
-def get_config_value(file_key, config, config_entry, file_num, condition_block=False):
+def get_config_value(file_key, config, config_entry, file_num, ref_vars):
     """Extract a value to assign from the config file."""
     import omphalos.parameter_methods as pm
     import omphalos.keyword_block as kwb
@@ -197,10 +196,12 @@ def get_config_value(file_key, config, config_entry, file_num, condition_block=F
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
             # Catch extra subscript indexing required for KeywordBlock.
-            if condition_block:
+            if type(ref_vars) == kwb.ConditionBlock:
                 reference_value = float(ref_vars[reference_var][-1])
-            else:
+            elif type(ref_vars) == kwb.KeywordBlock:
                 reference_value = float(ref_vars.contents[reference_var][-1])
+            else:
+                Exception("You have somehow referenced a block object of unknown type. Aborting.")
             multiplier = config_entry[file_key][2]
             value_to_assign = reference_value * multiplier
         else:

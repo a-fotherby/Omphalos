@@ -120,7 +120,7 @@ def primary_species(input_file, condition):
     import pandas as pd
     import copy
     
-    species_dict = input_file.condition_blocks[condition].concentrations.copy()
+    species_dict = copy.deepcopy(input_file.condition_blocks[condition].concentrations)
     
     for entry in species_dict:
         if len(species_dict[entry]) > 1:
@@ -163,6 +163,7 @@ def initial_conditions(data_set, primary_species=True, mineral_vols=False):
     initial_conditions[list(column_names)] = np.nan
 
     for file in data_set:
+        data_set[file].check_condition_sort(co)
         condition_array = sc.populate_array(data_set[file], primary_species, mineral_vols)
         condition_df = pd.DataFrame(condition_array)
 

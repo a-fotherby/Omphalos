@@ -35,11 +35,7 @@ def make_dataset(path_to_config):
     import yaml
     import omphalos.run as run
 
-<<<<<<< HEAD
     tmp_dir = 'tmp/'
-=======
-    tmp_dir='tmp/'
->>>>>>> e2124b1 (Fixed incorrect var being passed to get_config_value() in condition block case.)
 
     # Import config file.
     with open(path_to_config) as file:

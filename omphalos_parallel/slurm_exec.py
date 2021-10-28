@@ -33,16 +33,22 @@ def execute(file_num, timeout):
         return input_file
 
     signal.alarm(0)
+    print(f'File {file_num} alarm disarmed')
 
     # Make a results object that is an attribute of the InputFile object.
     input_file.results = results.Results()
+    print(f'File {file_num} results object created.')
 
     output_categories = fm.get_data_cats(tmp_dir)
     for output in output_categories:
         input_file.results.get_output(tmp_dir, output)
+    
+    print(f'File {file_num} outputs recorded.')
+    print(f'File {file_num} about to clean.')
 
     # Clean the temp directory.
     subprocess.run(['rm', '*.tec', '*.out', '*.in'], cwd=tmp_dir)
+    print(f'File {file_num} directory cleaned. Returning input file object to main thread.')
     
     return input_file
 
@@ -56,10 +62,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     input_file = execute(args.file_num, args.timeout)
+    print(f'File {args.file_num} returned to __main__.')
+
     # Hotwired directory name for now as it hasn't been passed through for now.
     fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')
+    
+    print(f'File {args.file_num} pickled.')
 
     if input_file.timeout == True:
-        print(f'File #{args.file_num} timed-out.')
+        print(f'File {args.file_num} timed-out.')
     else:
-        print(f'File #{args.file_num} completed.')
+        print(f'File {args.file_num} completed.')

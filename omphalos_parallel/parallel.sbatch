@@ -25,7 +25,7 @@ srun="srun --exclusive -N1 -n1"
 #   The combination of --joblog and --resume create a task log that
 #   can be used to monitor progress.
 #
-parallel="parallel --delay 0.2 -j $SLURM_NTASKS --joblog runtask.log --resume"
+parallel="parallel --delay 1.0 -j $SLURM_NTASKS --joblog runtask.log --resume"
 
 # Run a script, runtask.sh, using GNU parallel and srun. Parallel
 # will run the runtask script for the numbers 1 through 128. To

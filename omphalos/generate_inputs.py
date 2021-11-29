@@ -213,7 +213,8 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
             # Catch extra subscript indexing required for KeywordBlock.
-            if type(ref_vars) == kwb.ConditionBlock:
+            # This dict comparison is definately a bad hack. Fix later.
+            if type(ref_vars) == dict:
                 reference_value = float(ref_vars[reference_var][-1])
             elif type(ref_vars) == kwb.KeywordBlock:
                 reference_value = float(ref_vars.contents[reference_var][-1])

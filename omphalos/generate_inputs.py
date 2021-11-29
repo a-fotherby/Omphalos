@@ -1,16 +1,16 @@
-"""Module for generating mutliple input files interatively, to make large data sets for testing."""
+"""Module for generating multiple input files iteratively, to make large data sets for testing."""
 import numpy as np
-import pandas as pd
 import omphalos.input_file as ipf
-import omphalos.file_methods as fm
-import omphalos.results as results
-import random as rand
 import copy
-import subprocess
 import numpy.random as np_rand
-import yaml
 
-# Global var defining the realtionship between keyword blocks and YAML file entries.
+import logging
+
+logging.basicConfig(level=logging.DEBUG, filename='generate_inputs.log', filemode='a+',
+                    format="%(asctime)-15s %(levelname)-8s %(message)s")
+logging.info("Initialise.")
+
+# Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
 CT_IDs = {'concentrations': ['geochemical condition', -1],
           'mineral_volumes': ['geochemical condition', 0],
@@ -42,7 +42,7 @@ def make_dataset(path_to_config):
         config = yaml.full_load(file)
 
     # Import template file.
-    template = import_template(config['template'])
+    template = import_template(config)
     # Get a dictionary of input files.
     print('*** Creating randomised input files ***')
     file_dict = configure_input_files(template, config)
@@ -51,14 +51,16 @@ def make_dataset(path_to_config):
     return file_dict
 
 
-def import_template(file_path):
+def import_template(config):
     """Import the template import file. Returns an input_file object, fully populated with all available keyword blocks.
     
     Args:
-    file_path -- path to the CrunchTope input file.
+    path -- path to the CrunchTope input file.
     """
+    from namelists import read_namelist
+
     print('*** Importing template file ***')
-    template = ipf.InputFile(file_path)
+    template = ipf.InputFile(config['template'])
     # Proceed to iterate through each keyword block to import the whole file.
     keyword_list = [
         'TITLE',
@@ -82,16 +84,22 @@ def import_template(file_path):
     for keyword in keyword_list:
         template.get_keyword_block(keyword)
 
-    # Get=l keyword blocks that require unqiue handling due to format.
+    # Get=l keyword blocks that require unique handling due to format.
     template.get_initial_conditions_block()
     template.get_isotope_block()
     template.get_condition_blocks()
+
+    if config['aqueous_database']:
+        template.aqueous_database = read_namelist(config['aqueous_database'])
+    if config['catabolic_pathways']:
+        template.catabolic_pathways = read_namelist(config['catabolic_pathways'])
 
     return template
 
 
 def configure_input_files(template, config):
-    """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for the specified condition."""
+    """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
+    the specified condition. """
     for condition in config['conditions']:
         template.sort_condition_block(condition)
 
@@ -131,16 +139,18 @@ def modify_condition_block(input_file, config, species_type):
 
     for condition in config[species_type]:
         condition_block_sec = {'concentrations': input_file.condition_blocks[condition].concentrations,
-                                'mineral_volumes': input_file.condition_blocks[condition].minerals,
-                                'gases': input_file.condition_blocks[condition].gases,
-                                'parameters': input_file.condition_blocks[condition].parameters}
+                               'mineral_volumes': input_file.condition_blocks[condition].minerals,
+                               'gases': input_file.condition_blocks[condition].gases,
+                               'parameters': input_file.condition_blocks[condition].parameters}
         for species in condition_block_sec[species_type]:
-            value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num, condition_block_sec[species_type])
-            if value_to_assign == None:
+            value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num,
+                                               condition_block_sec[species_type])
+            if value_to_assign is None:
                 continue
             file_value = condition_block_sec[species_type][species]
             file_value[mod_pos] = str(value_to_assign)
             condition_block_sec.update({species: file_value})
+
 
 def modify_keyword_block(input_file, config, config_key, *, geochemical_condition=None):
     """Change the parameters of a keyword block in an InputFile object.
@@ -150,15 +160,16 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
     config --  The config file dict containing the modifications to be made.
     config_key -- Key indexing which entry in the config file is in question.
     """
-    import numpy as np
 
     # Extract corresponding input file block name and the position of the variable to be modified.
     CT_block_name = CT_IDs[config_key][0]
     mod_pos = CT_IDs[config_key][1]
 
     for file_key in input_file.keyword_blocks[CT_block_name].contents.keys():
-        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num, input_file.keyword_blocks[CT_block_name])
-        if value_to_assign == None:
+        # Iterate over the keywords in the keyword block.
+        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num,
+                                           input_file.keyword_blocks[CT_block_name])
+        if value_to_assign is None:
             continue
         file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
         file_value[mod_pos] = str(value_to_assign)
@@ -166,7 +177,18 @@ def modify_keyword_block(input_file, config, config_key, *, geochemical_conditio
 
 
 def get_config_value(file_key, config, config_entry, file_num, ref_vars):
-    """Extract a value to assign from the config file."""
+    """Extract a value to assign from the config file.
+
+    Args:
+    file_key -- A specific entry in a keyword block.
+    config -- The config yaml file, as a dict.
+    config_entry -- The index specifying the exact entry in the config file.
+    file_num -- The number identifying the InputFile being modified.
+    ref_vars -- The rest of the keyword block, in case it needs to be referred to. This is really just for the fix_ratio
+                case and is a bit of a hot fix, as it doesn't work globally over the InputFile; i.e. you can only
+                fix_ratio to other parameters in your KeywordBlock, or to species of the same type, e.g. an aqueous
+                species or mineral etc.
+    """
     import omphalos.parameter_methods as pm
     import omphalos.keyword_block as kwb
 
@@ -187,8 +209,7 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
             value_to_assign = config_entry[file_key][1]
         elif config_entry[file_key][0] == 'custom':
             # Manually entered value list in config file must be same length as file_dict.
-            # Index offset by 1 because entry 0 is the keyword determining behaviour.
-            value_to_assign = config_entry[file_key][file_num + 1]
+            value_to_assign = config_entry[file_key][1][file_num]
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
             # Catch extra subscript indexing required for KeywordBlock.
@@ -204,5 +225,6 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
             raise Exception("ConfigError: Unknown Omphalos parameter setting.")
         return value_to_assign
     else:
-        # If the key in the input file is not in the list of species/reactions to be modified in the config file, do nothing.
+        # If the key in the input file is not in the list of species/reactions to be modified in the config file,
+        # do nothing.
         return None

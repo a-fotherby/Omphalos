@@ -1,9 +1,6 @@
 import numpy as np
-import matplotlib as pyplot
 import pandas as pd
 import re
-import copy
-import os
 import glob
 import pickle
 
@@ -25,17 +22,17 @@ def import_file(file_path):
                 pass
             else:
                 input_file.update({line_num: line.rstrip('\n ')})
-        f.close
+
+        f.close()
     return input_file
 
 
 def search_input_file(dict, by_val):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
 
-    Will search for partial matches at the beginning of the line -
-    e.g. if you wanted to find all the CONDITION keywords by you didn't know the name of each keyword block
-    you could search by using 'CONDITON'.
-    You can't search from the back, however, so can't find a specific CONDITION block line num by searching for its name.
+    Will search for partial matches at the beginning of the line - e.g. if you wanted to find all the CONDITION
+    keywords by you didn't know the name of each keyword block you could search by using 'CONDITION'. You can't
+    search from the back, however, so can't find a specific CONDITION block line num by searching for its name.
     """
     keys_list = np.empty(0, dtype=int)
     items_list = dict.items()
@@ -46,12 +43,13 @@ def search_input_file(dict, by_val):
 
 
 def read_tec_file(path_to_directory, output):
-    """Import the spatial profile output file of the system at the target time specified in the input file. Takes files in the tecplot format."""
+    """Import the spatial profile output file of the system at the target time specified in the input file. Takes
+    files in the tecplot format. """
     file_name = '{}{}1.tec'.format(path_to_directory, output)
-    # Column headers are quite badly mangled by tecplot output format. Python csv sniffer will not correctly identify the column headers.
-    # So we manually create the correct list by opening the file and navigating to the second line (the header line for tecplot outputs)
-    # and perform some judicious stripping and a regex split to generate the correct list of column headers.
-    # We can then pass the header list straight to the read_table method as an
+    # Column headers are quite badly mangled by tecplot output format. Python csv sniffer will not correctly identify
+    # the column headers. So we manually create the correct list by opening the file and navigating to the second
+    # line (the header line for tecplot outputs) and perform some judicious stripping and a regex split to generate
+    # the correct list of column headers. We can then pass the header list straight to the read_table method as an
     # override.
     with open(file_name) as f:
         f.readline()
@@ -94,13 +92,11 @@ def pickle_data_set(data_set, file_name, path_to_file='.'):
         pickle.dump(data_set, f, pickle.HIGHEST_PROTOCOL)
 
 
-def unpickle(file_name, path_to_file='.'):
+def unpickle(file_path):
     from pathlib import Path
-    import pandas as pd
-    import pickle5 as pickle
-    
-    path = Path(path_to_file)
-    with open(path / file_name, 'rb') as f:
+
+    path = Path(file_path)
+    with open(path, 'rb') as f:
         # The protocol version used is detected automatically, so we do not
         # have to specify it.
         data = pickle.load(f)

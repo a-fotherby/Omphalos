@@ -1,0 +1,38 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'input_file.in'
+database: 'database.dbs'
+aqueous_database: 'aqueous_database.dbs'
+catabolic_pathways: 'CatabolicPathways.in'
+# Timeout in seconds for any given input file.
+timeout: 20
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'initial'
+# Number of files in this run.
+number_of_files: 7
+
+# Options for setting parameters:
+#     linspace
+#       Takes an array of length 3, [x, y, z] where x and y are the upper and lower bounds of the range.
+#       z is the number of times a given value is repeated. E.g. 1 1 1 2 2 2 3 3 3  for z = 3.
+#     random_uniform
+#       Takes an array of length two, [lower, upper] for the upper and lower bounds on the uniform random sample.
+#     constant
+#       Takes a float. Will be held constant over all runs.
+#     custom
+#       Allows for a manually specified list of input values. Takes an array of length number_of_files.
+#     fix_ratio
+#       Fixes the value of an input as a fixed multiple of another input parameter. Useful for keeping isotope ratios
+#       fixed when the major isotope concentration is being varied.
+#
+# Parameter setting takes the form
+# keyword_section
+#   condition_name
+#     condition_entry (e.g. species concentration, pH, temperature etc.)
+#       - parameter option
+#       - parameter option args
+parameters:
+  initial:
+    pH:
+      - 'linspace'
+      - [4,11,1]

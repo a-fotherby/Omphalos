@@ -41,8 +41,8 @@ if 'aqueous_database' in config:
     subprocess.run([f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
 
 # Legacy options for old CT input files that require them.
-if 'catabolic_control' in config:
-    subprocess.run([f'parallel "cp {config["catabolic_control"]} {dir_name}{{1}}/{config["catabolic_control"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+if 'catabolic_pathways' in config:
+    subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     subprocess.run([f'parallel "cp CatabolicControl.ant {dir_name}{{1}}/CatabolicControl.ant" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     
     

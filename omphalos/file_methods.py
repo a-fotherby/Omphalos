@@ -4,29 +4,6 @@ import re
 import glob
 import pickle
 
-
-def import_file(file_path):
-    """Return a dictionary of lines in a file, with the values as the line numbers.
-
-    Will ignore any commented lines in the CT input file, but will still count their line number,
-    so line numbers in dictionary will map to the true line number in the file.
-    """
-    input_file = {}
-
-    with open(file_path, 'r') as f:
-        for line_num, line in enumerate(f):
-            # Crunchfiles edited on UNIX systems have newline characters that must be stripped.
-            # Also strip any trailing whitespace.
-            if line.startswith('!'):
-                # It's a commented line, so don't import.
-                pass
-            else:
-                input_file.update({line_num: line.rstrip('\n ')})
-
-        f.close()
-    return input_file
-
-
 def search_input_file(dict, by_val):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
 

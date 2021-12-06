@@ -1,13 +1,8 @@
 """Module for generating multiple input files iteratively, to make large data sets for testing."""
 import copy
-import logging
 
 import numpy as np
 import numpy.random as np_rand
-
-logging.basicConfig(level=logging.DEBUG, filename='generate_inputs.log', filemode='a+',
-                    format="%(asctime)-15s %(levelname)-8s %(message)s")
-logging.info("Initialise.")
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
@@ -23,7 +18,7 @@ CT_IDs = {'concentrations': ['geochemical condition', -1],
           }
 
 
-def make_dataset(path_to_config):
+def make_dataset(config_path):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -37,14 +32,14 @@ def make_dataset(path_to_config):
     tmp_dir = 'tmp/'
 
     # Import config file.
-    with open(path_to_config) as file:
+    with open(config_path) as file:
         config = yaml.full_load(file)
 
     # Import template file.
     template = import_template(config)
     # Get a dictionary of input files.
     print('*** Creating randomised input files ***')
-    file_dict = configure_input_files(template, config)
+    file_dict = configure_input_files(template)
     print('*** Begin running input files ***')
     run.run_dataset(file_dict, tmp_dir, config['timeout'])
     return file_dict
@@ -57,50 +52,47 @@ def import_template(config):
     path -- path to the CrunchTope input file.
     """
     from omphalos.template import Template
-    from namelists import read_namelist
 
     print('*** Importing template file ***')
-    template = Template(config['template'])
-
-    if config['aqueous_database']:
-        template.aqueous_database = read_namelist(config['aqueous_database'])
-    if config['catabolic_pathways']:
-        template.catabolic_pathways = read_namelist(config['catabolic_pathways'])
+    template = Template(config)
 
     return template
 
 
-def configure_input_files(template, config):
+def configure_input_files(template):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
-    for condition in config['conditions']:
+    for condition in template.config['conditions']:
         template.sort_condition_block(condition)
 
-    file_dict = dict.fromkeys(np.arange(config['number_of_files']))
+    file_dict = dict.fromkeys(np.arange(template.config['number_of_files']))
 
     for file_num in file_dict:
         file_dict[file_num] = copy.deepcopy(template)
         file_dict[file_num].file_num = file_num
 
     for file in file_dict:
-        for condition in config['conditions']:
+        for condition in template.config['conditions']:
             file_dict[file].sort_condition_block(condition)
-        if 'concentrations' in config:
-            modify_condition_block(file_dict[file], config, 'concentrations')
-        if 'parameters' in config:
-            modify_condition_block(file_dict[file], config, 'parameters')
-        if 'mineral_volumes' in config:
-            modify_condition_block(file_dict[file], config, 'mineral_volumes')
-        if 'mineral_rates' in config:
-            modify_keyword_block(file_dict[file], config, 'mineral_rates')
-        if 'aqueous_kinetics' in config:
-            modify_keyword_block(file_dict[file], config, 'aqueous_kinetics')
-        if 'transport' in config:
-            modify_keyword_block(file_dict[file], config, 'transport')
-        if 'flow' in config:
-            modify_keyword_block(file_dict[file], config, 'flow')
-        if 'erosion/burial' in config:
-            modify_keyword_block(file_dict[file], config, 'erosion/burial')
+
+        if 'concentrations' in template.config:
+            modify_condition_block(file_dict[file], template.config, 'concentrations')
+        if 'parameters' in template.config:
+            modify_condition_block(file_dict[file], template.config, 'parameters')
+        if 'gases' in template.config:
+            modify_condition_block(file_dict[file], template.config, 'gases')
+        if 'mineral_volumes' in template.config:
+            modify_condition_block(file_dict[file], template.config, 'mineral_volumes')
+        if 'mineral_rates' in template.config:
+            modify_keyword_block(file_dict[file], template.config, 'mineral_rates')
+        if 'aqueous_kinetics' in template.config:
+            modify_keyword_block(file_dict[file], template.config, 'aqueous_kinetics')
+        if 'transport' in template.config:
+            modify_keyword_block(file_dict[file], template.config, 'transport')
+        if 'flow' in template.config:
+            modify_keyword_block(file_dict[file], template.config, 'flow')
+        if 'erosion/burial' in template.config:
+            modify_keyword_block(file_dict[file], template.config, 'erosion/burial')
 
     return file_dict
 

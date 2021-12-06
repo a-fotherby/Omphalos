@@ -1,10 +1,9 @@
 """Module for generating multiple input files iteratively, to make large data sets for testing."""
-import numpy as np
-import omphalos.input_file as ipf
 import copy
-import numpy.random as np_rand
-
 import logging
+
+import numpy as np
+import numpy.random as np_rand
 
 logging.basicConfig(level=logging.DEBUG, filename='generate_inputs.log', filemode='a+',
                     format="%(asctime)-15s %(levelname)-8s %(message)s")
@@ -57,37 +56,11 @@ def import_template(config):
     Args:
     path -- path to the CrunchTope input file.
     """
+    from omphalos.template import Template
     from namelists import read_namelist
 
     print('*** Importing template file ***')
-    template = ipf.InputFile(config['template'])
-    # Proceed to iterate through each keyword block to import the whole file.
-    keyword_list = [
-        'TITLE',
-        'RUNTIME',
-        'OUTPUT',
-        'DISCRETIZATION',
-        'PRIMARY_SPECIES',
-        'SECONDARY_SPECIES',
-        'GASES',
-        'MINERALS',
-        'AQUEOUS_KINETICS',
-        'ION_EXCHANGE',
-        'SURFACE_COMPLEXATION',
-        'BOUNDARY_CONDITIONS',
-        'TRANSPORT',
-        'FLOW',
-        'TEMPERATURE',
-        'POROSITY',
-        'PEST',
-        'EROSION/BURIAL']
-    for keyword in keyword_list:
-        template.get_keyword_block(keyword)
-
-    # Get=l keyword blocks that require unique handling due to format.
-    template.get_initial_conditions_block()
-    template.get_isotope_block()
-    template.get_condition_blocks()
+    template = Template(config['template'])
 
     if config['aqueous_database']:
         template.aqueous_database = read_namelist(config['aqueous_database'])
@@ -213,7 +186,7 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
         elif config_entry[file_key][0] == 'fix_ratio':
             reference_var = config_entry[file_key][1]
             # Catch extra subscript indexing required for KeywordBlock.
-            # This dict comparison is definately a bad hack. Fix later.
+            # This dict comparison is definitely a bad hack. Fix later.
             if type(ref_vars) == dict:
                 reference_value = float(ref_vars[reference_var][-1])
             elif type(ref_vars) == kwb.KeywordBlock:

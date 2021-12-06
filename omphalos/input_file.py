@@ -308,26 +308,6 @@ class InputFile:
         else:
             pass
 
-    def calculate_mineral_diff(self, condition):
-        """Calculate the total mineral volume evolution over the run.
-
-        Currently only able to handle a single, uniform geochemical condition for the entire system.
-        Keyword arguments:
-        condition -- the dictionary entry key for the condition in question.
-        """
-        if not bool(self.condition_blocks[condition].parameters):
-            self.sort_condition_block(condition)
-        else:
-            pass
-        mineral_dict = self.condition_blocks[condition].minerals
-        for key in mineral_dict:
-            mineral_dict.update({key: mineral_dict[key][0]})
-
-        mineral_vol_init = pd.DataFrame(mineral_dict, index=[0], dtype=float)
-        mineral_vol_out = self.results.results_dict['volume'].iloc[:, 3:]
-        delta_mineral_vol = mineral_vol_init - mineral_vol_out
-
-        return delta_mineral_vol
 
     def condition_regions(self):
         """Find the coordinates over which condition is initially applied and assign them to the region attribute of

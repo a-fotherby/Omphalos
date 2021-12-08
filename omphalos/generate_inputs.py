@@ -75,24 +75,13 @@ def configure_input_files(template):
         for condition in template.config['conditions']:
             file_dict[file].sort_condition_block(condition)
 
-        if 'concentrations' in template.config:
-            modify_condition_block(file_dict[file], template.config, 'concentrations')
-        if 'parameters' in template.config:
-            modify_condition_block(file_dict[file], template.config, 'parameters')
-        if 'gases' in template.config:
-            modify_condition_block(file_dict[file], template.config, 'gases')
-        if 'mineral_volumes' in template.config:
-            modify_condition_block(file_dict[file], template.config, 'mineral_volumes')
-        if 'mineral_rates' in template.config:
-            modify_keyword_block(file_dict[file], template.config, 'mineral_rates')
-        if 'aqueous_kinetics' in template.config:
-            modify_keyword_block(file_dict[file], template.config, 'aqueous_kinetics')
-        if 'transport' in template.config:
-            modify_keyword_block(file_dict[file], template.config, 'transport')
-        if 'flow' in template.config:
-            modify_keyword_block(file_dict[file], template.config, 'flow')
-        if 'erosion/burial' in template.config:
-            modify_keyword_block(file_dict[file], template.config, 'erosion/burial')
+        for config_param in ('concentrations', 'parameters', 'gases', 'mineral_volumes'):
+            if config_param in template.config:
+                modify_condition_block(file_dict[file], template.config, config_param)
+
+        for config_param in ('mineral_rates', 'aqueous_kinetics', 'transport', 'flow', 'erosion/burial'):
+            if config_param in template.config:
+                modify_keyword_block(file_dict[file], template.config, config_param)
 
     return file_dict
 

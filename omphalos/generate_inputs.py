@@ -62,13 +62,13 @@ def configure_input_files(template):
         for condition in template.config['conditions']:
             file_dict[file].sort_condition_block(condition)
 
-        for config_param in ('concentrations', 'parameters', 'gases', 'mineral_volumes'):
-            if config_param in template.config:
-                modify_condition_block(file_dict[file], template.config, config_param)
-
-        for config_param in ('mineral_rates', 'aqueous_kinetics', 'transport', 'flow', 'erosion/burial'):
-            if config_param in template.config:
-                modify_keyword_block(file_dict[file], template.config, config_param)
+        for config_param in CT_IDs:
+            if CT_IDs[config_param][0] == 'geochemical_condition':
+                if config_param in template.config:
+                    modify_condition_block(file_dict[file], template.config, config_param)
+            else:
+                if config_param in template.config:
+                    modify_keyword_block(file_dict[file], template.config, config_param)
 
     return file_dict
 

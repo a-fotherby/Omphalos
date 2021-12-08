@@ -1,8 +1,4 @@
 """Module for generating multiple input files iteratively, to make large data sets for testing."""
-import copy
-
-import numpy as np
-import numpy.random as np_rand
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
@@ -16,7 +12,6 @@ CT_IDs = {'concentrations': ['geochemical condition', -1],
           'transport': ['TRANSPORT', -1],
           'erosion/burial': ['EROSION/BURIAL', -1]
           }
-
 
 def make_dataset(config_path):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
@@ -62,6 +57,9 @@ def import_template(config):
 def configure_input_files(template):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
+    import copy
+    import numpy as np
+
     for condition in template.config['conditions']:
         template.sort_condition_block(condition)
 
@@ -145,6 +143,7 @@ def get_config_value(file_key, config, config_entry, file_num, ref_vars):
     """
     import omphalos.parameter_methods as pm
     import omphalos.keyword_block as kwb
+    import numpy as np
 
     if file_key in config_entry:
         # Look at first entry to determine behaviour.

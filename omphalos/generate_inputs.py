@@ -13,6 +13,7 @@ CT_IDs = {'concentrations': ['geochemical condition', -1],
           'erosion/burial': ['EROSION/BURIAL', -1]
           }
 
+
 def make_dataset(config_path):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
@@ -23,6 +24,7 @@ def make_dataset(config_path):
     """
     import yaml
     import omphalos.run as run
+    from omphalos.template import Template
 
     tmp_dir = 'tmp/'
 
@@ -31,27 +33,14 @@ def make_dataset(config_path):
         config = yaml.full_load(file)
 
     # Import template file.
-    template = import_template(config)
+    print('*** Importing template file ***')
+    template = Template(config)
     # Get a dictionary of input files.
     print('*** Creating randomised input files ***')
     file_dict = configure_input_files(template)
     print('*** Begin running input files ***')
     run.run_dataset(file_dict, tmp_dir, config['timeout'])
     return file_dict
-
-
-def import_template(config):
-    """Import the template import file. Returns an input_file object, fully populated with all available keyword blocks.
-    
-    Args:
-    path -- path to the CrunchTope input file.
-    """
-    from omphalos.template import Template
-
-    print('*** Importing template file ***')
-    template = Template(config)
-
-    return template
 
 
 def configure_input_files(template):

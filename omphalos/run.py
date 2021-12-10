@@ -1,7 +1,6 @@
 """Methods to handle invoking CrunchTope on an InputFile object."""
 
 def run_dataset(file_dict, tmp_dir, timeout):
-    timeout_list = []
     for file_num, entry in enumerate(file_dict):
         file_dict[entry] = run_input_file(file_dict[entry], file_num, tmp_dir, timeout)
     # Remove timed-out entries.
@@ -19,7 +18,6 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     # Results object in the InputFile object.
     import signal
     import subprocess
-    import time
     import omphalos.results as results
     import omphalos.file_methods as fm
     
@@ -62,10 +60,9 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
 
 def crunchtope(file_name, tmp_dir):
     import omphalos.settings as settings
-    import subprocess 
-    
+    import subprocess
     # Get CT install directory from settings.py.
     subprocess.run([settings.crunch_dir, file_name], cwd=tmp_dir)
 
 def timeout_handler(signum, frame):
-    raise Exception("CrunchTimeout")
+    raise Exception(f"CrunchTimeout")

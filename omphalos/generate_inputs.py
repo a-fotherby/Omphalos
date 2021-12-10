@@ -14,39 +14,6 @@ CT_IDs = {'concentrations': ['geochemical condition', -1],
           }
 
 
-def make_dataset(config_path, debug):
-    """Generates a dictionary of InputFile objects containing their results within a Results object.
-
-    The input files have randomised initial conditions in one geochemical condition, specified by "condition".
-    Each parameter in the randomised geochemical condition takes a random value on the interval [var_min, var_max].
-
-    The directory specified by tmp_dir must already exist and be populated with the required databases.
-    """
-    import yaml
-    import omphalos.run as run
-    from omphalos.template import Template
-
-    tmp_dir = 'tmp/'
-
-    # Import config file.
-    with open(config_path) as file:
-        config = yaml.full_load(file)
-
-    # Import template file.
-    print('*** Importing template file ***')
-    template = Template(config)
-    # Get a dictionary of input files.
-    print('*** Generating input files ***')
-    file_dict = configure_input_files(template)
-
-    if debug:
-        print("*** DEBUG MODE: FILES NOT RUN ***")
-    else:
-        print('*** Begin running input files... ***')
-        run.run_dataset(file_dict, tmp_dir, config['timeout'])
-    return file_dict
-
-
 def configure_input_files(template):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """

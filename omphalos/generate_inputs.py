@@ -14,7 +14,7 @@ CT_IDs = {'concentrations': ['geochemical condition', -1],
           }
 
 
-def make_dataset(config_path):
+def make_dataset(config_path, debug):
     """Generates a dictionary of InputFile objects containing their results within a Results object.
 
     The input files have randomised initial conditions in one geochemical condition, specified by "condition".
@@ -36,40 +36,37 @@ def make_dataset(config_path):
     print('*** Importing template file ***')
     template = Template(config)
     # Get a dictionary of input files.
-    print('*** Creating randomised input files ***')
+    print('*** Generating input files ***')
     file_dict = configure_input_files(template)
-    print('*** Begin running input files ***')
-    run.run_dataset(file_dict, tmp_dir, config['timeout'])
+
+    if debug:
+        print("*** DEBUG MODE: FILES NOT RUN ***")
+    else:
+        print('*** Begin running input files... ***')
+        run.run_dataset(file_dict, tmp_dir, config['timeout'])
     return file_dict
 
 
 def configure_input_files(template):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
-    import copy
-    import numpy as np
 
     for condition in template.config['conditions']:
         template.sort_condition_block(condition)
 
-    file_dict = dict.fromkeys(np.arange(template.config['number_of_files']))
-
-    for file_num in file_dict:
-        file_dict[file_num] = copy.deepcopy(template)
-        file_dict[file_num].file_num = file_num
+    file_dict = template.make_dict()
 
     for file in file_dict:
         for condition in template.config['conditions']:
             file_dict[file].sort_condition_block(condition)
 
         for config_param in CT_IDs:
-            if CT_IDs[config_param][0] == 'geochemical_condition':
+            if CT_IDs[config_param][0] == 'geochemical condition':
                 if config_param in template.config:
                     modify_condition_block(file_dict[file], template.config, config_param)
             else:
                 if config_param in template.config:
                     modify_keyword_block(file_dict[file], template.config, config_param)
-
     return file_dict
 
 
@@ -90,7 +87,7 @@ def modify_condition_block(input_file, config, species_type):
                 continue
             file_value = condition_block_sec[species_type][species]
             file_value[mod_pos] = str(value_to_assign)
-            condition_block_sec.update({species: file_value})
+            condition_block_sec[species_type].update({species: file_value})
 
 
 def modify_keyword_block(input_file, config, config_key, *, geochemical_condition=None):

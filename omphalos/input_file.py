@@ -1,12 +1,12 @@
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, path):
+    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways):
         self.path = path
-        self.keyword_blocks = {}
-        self.condition_blocks = {}
-        self.catabolic_pathways = {}
-        self.aqueous_database = {}
+        self.keyword_blocks = keyword_blocks
+        self.condition_blocks = condition_blocks
+        self.aqueous_database = aqueous_database
+        self.catabolic_pathways = catabolic_pathways
         self.timeout = False
 
     def sort_condition_block(self, condition):

@@ -7,7 +7,7 @@ class Template(InputFile):
     def __init__(self, config):
         from namelists import read_namelist
 
-        super().__init__(config['template'])
+        super().__init__(config['template'], {}, {}, {}, {})
         # Proceed to iterate through each keyword block to import the whole file.
         keyword_list = [
             'TITLE',
@@ -54,7 +54,7 @@ class Template(InputFile):
 
         with open(path, 'r') as f:
             for line_num, line in enumerate(f):
-                # Crunchfiles edited on UNIX systems have newline characters that must be stripped.
+                # Input files edited on UNIX systems have newline characters that must be stripped.
                 # Also strip any trailing whitespace.
                 if line.startswith('!'):
                     # It's a commented line, so don't import.
@@ -64,6 +64,20 @@ class Template(InputFile):
 
             f.close()
         return input_file
+
+    def make_dict(self):
+        """Returns a dict of InputFile objects, based on the Template."""
+        import numpy as np
+        import copy
+
+        file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
+        for file in file_dict:
+            file_dict[file] = InputFile(f'input_file{file}', copy.deepcopy(self.keyword_blocks),
+                                        copy.deepcopy(self.condition_blocks), copy.deepcopy(self.aqueous_database),
+                                        copy.deepcopy(self.catabolic_pathways))
+            file_dict[file].file_num = file
+
+        return file_dict
 
     def get_keyword_block(self, keyword):
         """Method to get a keyword block from the input file, specified by keyword.

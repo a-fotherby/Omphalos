@@ -27,7 +27,7 @@ number_of_files: 7
 #
 # Parameter setting takes the form
 # keyword_section
-#   condition_name
+#   geochemical_condition_name
 #     condition_entry (e.g. species concentration, pH, temperature etc.)
 #       - parameter option
 #       - parameter option args
@@ -36,3 +36,16 @@ parameters:
     pH:
       - 'linspace'
       - [4,11,1]
+
+namelists:
+  aqueous:
+    reaction_name:
+      parameter_name:
+        - 'random_uniform'
+        - [0,1]
+  aqueous_kinetics:
+    reaction_name:
+      parameter_name:
+        - 'random_uniform'
+        - [0,1]
+  catabolic_pathways:

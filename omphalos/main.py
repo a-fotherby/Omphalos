@@ -34,4 +34,6 @@ if __name__ == '__main__':
         run.run_dataset(file_dict, tmp_dir, config['timeout'])
 
     # Pickle the data.
+    print(f"*** Writing data to {args.output_name} ***")
     fm.pickle_data_set(file_dict, f'{args.output_name}')
+    print("*** Run complete ***")

@@ -5,7 +5,7 @@ class Template(InputFile):
     """Subclass of InputFile with special __init__ method for importing the template input file."""
 
     def __init__(self, config):
-        from namelists import read_namelist
+        from omphalos.namelist import CrunchNameList
 
         super().__init__(config['template'], {}, {}, {}, {})
         # Proceed to iterate through each keyword block to import the whole file.
@@ -39,9 +39,9 @@ class Template(InputFile):
         get_condition_blocks(self)
 
         if config['aqueous_database']:
-            self.aqueous_database = read_namelist(config['aqueous_database'])
+            self.aqueous_database = CrunchNameList(config['aqueous_database'])
         if config['catabolic_pathways']:
-            self.catabolic_pathways = read_namelist(config['catabolic_pathways'])
+            self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
 
     @staticmethod
     def read_input_file(path):

@@ -41,7 +41,8 @@ def configure_input_files(template):
 
         for nml_type in CT_NMLs:
             if nml_type in template.config['namelists']:
-                modify_namelist(file_dict[file], template.config, nml_type)
+                getattr(file_dict[file], CT_NMLs[nml_type][0]).modify_namelist(file_dict[file], template.config,
+                                                                               nml_type)
     return file_dict
 
 
@@ -87,40 +88,6 @@ def modify_keyword_block(input_file, config, config_key):
         file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
         file_value[mod_pos] = str(value_to_assign)
         input_file.keyword_blocks[CT_block_name].contents.update({file_key: file_value})
-
-
-def modify_namelist(input_file, config, nml_type):
-    """Change the parameters of a namelist associated with an InputFile.
-
-    Args:
-    nml -- the namelist attribute of the InputFile
-    config -- the run configuration file, stored in the Template
-    """
-
-    # Get the attribute corresponding to the namelist file in the InputFile.
-    nml = getattr(input_file, CT_NMLs[nml_type][0])
-    # This NameList will be composed of a list of NameLists, each referring to one reaction. In the case of the
-    # aqueous_database, there will be two NameLists of reactions, each reaction having an entry in each.
-    for list in nml:
-        # We then iterate over the reaction NameLists inside.
-        for reaction in nml[list]:
-            # We extract the reaction name for indexing in the config.
-            reaction_name = reaction['name']
-            # Then iterate over each parameter inside the reaction NameList and try to get a value to assign for each
-            # parameter. Only those with a valid entry in the config will return non-None values and be assigned. We
-            # need the extra try-except statement to catch indexing errors due to indexing reaction names that aren't
-            # in the config.
-            for parameter in reaction:
-                try:
-                    value_to_assign = get_config_value(parameter, config, config['namelists'][nml_type][reaction_name],
-                                                       input_file.file_num, config['namelists'][nml_type])
-                except:
-                    value_to_assign = None
-
-                if value_to_assign is None:
-                    continue
-
-                reaction[parameter] = value_to_assign
 
 
 def get_config_value(file_key, config, config_entry, file_num, ref_vars):

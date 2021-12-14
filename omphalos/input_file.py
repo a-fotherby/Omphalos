@@ -47,7 +47,6 @@ class InputFile:
 
     def print_input_file(self):
         """Writes out a populated input file to a CrunchTope readable *.in file.
-
         """
         import copy
         with open(self.path, 'x') as f:

@@ -34,36 +34,20 @@ def configure_input_files(template):
         for config_param in CT_IDs:
             if CT_IDs[config_param][0] == 'geochemical condition':
                 if config_param in template.config:
-                    modify_condition_block(file_dict[file], template.config, config_param)
+                    for condition in template.config[config_param]:
+                        file_dict[file].condition_blocks[condition].modify(template.config, config_param, file_dict[file].file_num, CT_IDs[config_param][1])
             else:
                 if config_param in template.config:
                     modify_keyword_block(file_dict[file], template.config, config_param)
-
-        for nml_type in CT_NMLs:
-            if nml_type in template.config['namelists']:
-                getattr(file_dict[file], CT_NMLs[nml_type][0]).modify_namelist(file_dict[file], template.config,
-                                                                               nml_type)
+        if 'namelist' in template.config:
+            for nml_type in CT_NMLs:
+                if nml_type in template.config['namelists']:
+                    getattr(file_dict[file], CT_NMLs[nml_type][0]).modify_namelist(file_dict[file], template.config, nml_type)
+                else:
+                    pass
+        else:
+            pass
     return file_dict
-
-
-def modify_condition_block(input_file, config, species_type):
-    """Modify concentration based on config file.
-    Requires its own method because multiple conditions may be specified."""
-    mod_pos = CT_IDs[species_type][1]
-
-    for condition in config[species_type]:
-        condition_block_sec = {'concentrations': input_file.condition_blocks[condition].concentrations,
-                               'mineral_volumes': input_file.condition_blocks[condition].minerals,
-                               'gases': input_file.condition_blocks[condition].gases,
-                               'parameters': input_file.condition_blocks[condition].parameters}
-        for species in condition_block_sec[species_type]:
-            value_to_assign = get_config_value(species, config, config[species_type][condition], input_file.file_num,
-                                               condition_block_sec[species_type])
-            if value_to_assign is None:
-                continue
-            file_value = condition_block_sec[species_type][species]
-            file_value[mod_pos] = str(value_to_assign)
-            condition_block_sec[species_type].update({species: file_value})
 
 
 def modify_keyword_block(input_file, config, config_key):

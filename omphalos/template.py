@@ -34,9 +34,9 @@ class Template(InputFile):
             self.get_keyword_block(keyword)
 
         # Get=l keyword blocks that require unique handling due to format.
-        get_initial_conditions_block(self)
-        get_isotope_block(self)
-        get_condition_blocks(self)
+        self.get_initial_conditions_block()
+        self.get_isotope_block()
+        self.get_condition_blocks()
 
         if config['aqueous_database']:
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
@@ -131,156 +131,153 @@ class Template(InputFile):
                 'The keyword "{}" you searched for does not exist. If you are sure that this keyword is in your input '
                 'file, check your spelling.'.format(keyword))
 
+    def get_condition_blocks(self):
+        """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
 
-def get_condition_blocks(self):
-    """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
+        Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
+        The key for each dictionary entry is the condition name specified in the CrunchTope input file.
+        """
+        from omphalos import file_methods as fm
+        from omphalos.keyword_block import ConditionBlock
+        import numpy as np
 
-    Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
-    The key for each dictionary entry is the condition name specified in the CrunchTope input file.
-    """
-    from omphalos import file_methods as fm
-    from omphalos import keyword_block as kb
-    import numpy as np
+        # Get all instances of the keyword in question, in a numpy array.
+        block_start = fm.search_input_file(self.raw, 'CONDITION')
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_input_file(self.raw, 'END')
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
-    # Get all instances of the keyword in question, in a numpy array.
-    block_start = fm.search_input_file(self.raw, 'CONDITION')
-    # Get array of line numbers for the END statements in the input file.
-    # All CT input file keyword blocks end with 'END'.
-    ending_array = fm.search_input_file(self.raw, 'END')
-    # Find the index for the END line corresponding to the block of
-    # interest.
-    block_end = ending_array[np.searchsorted(ending_array, block_start)]
+        for start, end in zip(block_start, block_end):
+            # Set the block type using the keyword in question.
+            condition_name = self.raw[start].split()[1]
+            condition = ConditionBlock()
+            keyword_dict = {}
+            for a in np.arange(start, end):
+                # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by
+                # missing line removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    pass
 
-    for start, end in zip(block_start, block_end):
+            condition.contents = keyword_dict
+            self.condition_blocks.update({condition_name: condition})
+
+        # Get regions for each condition block.
+        self.condition_regions()
+
+    def get_isotope_block(self):
+        """Method to get the isotope block from the input file and encode it as a KeywordBlock object in the InputFile.
+
+        We have to do this in a separate method because the isotope block is unique in CrunchTope because it has
+        non-unique left-most words (either 'primary' or 'mineral'). This means that the dictionary keys keep
+        overwriting each other, so we use the rare mineral entry as the dict key instead.
+        """
+        from omphalos import file_methods as fm
+        from omphalos import keyword_block as kb
+        import numpy as np
+
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'ISOTOPES'
+        block_start = fm.search_input_file(self.raw, keyword)
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_input_file(self.raw, 'END')
+
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
         # Set the block type using the keyword in question.
-        condition_name = self.raw[start].split()[1]
-        condition = kb.ConditionBlock()
+        block = kb.KeywordBlock(keyword)
         keyword_dict = {}
-        for a in np.arange(start, end):
-            # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-            # Commented lines are removed but line number index is preserved.
-            # So put in try-except statement to ignore error thrown by
-            # missing line removed due to commenting.
-            try:
-                line_list = self.raw[a].split()
-                keyword_dict.update({line_list[0]: line_list[1:]})
-            except BaseException:
-                pass
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
+                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
+                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
+                # removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    reordered_list = [line_list[0]] + line_list[2:]
+                    keyword_dict.update({line_list[1]: reordered_list})
+                except IndexError:
+                    # The block keyword is by itself, so there is no rare isotope keyword to use as a key.
+                    # This will raise an IndexError, so catch it and allocate
+                    # the dict entries accordingly.
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    print(
+                        'BaseException: this is normally due to a commented line in the input file. If it is not, '
+                        'something has gone really wrong!')
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print(
+                'The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your '
+                'input file, check your spelling.')
 
-        condition.contents = keyword_dict
-        self.condition_blocks.update({condition_name: condition})
+    def get_initial_conditions_block(self):
+        """Method to get the initial conditions block from the input file and encode it as a KeywordBlock object in
+        the InputFile.
 
-    # Get regions for each condition block.
-    self.condition_regions()
+        We have to do this in a separate method because the initial conditions block is unique in CrunchTope as
+        conditions can be repeated to form non-contiguous regions, so the left most word is not always unique. This
+        means that the dictionary keys are overwriting each other.
+        """
+        from omphalos import file_methods as fm
+        from omphalos import keyword_block as kb
+        import numpy as np
+        import re
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'INITIAL_CONDITIONS'
+        block_start = fm.search_input_file(self.raw, keyword)
 
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_input_file(self.raw, 'END')
 
-def get_isotope_block(self):
-    """Method to get the isotope block from the input file and encode it as a KeywordBlock object in the InputFile.
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
 
-    We have to do this in a separate method because the isotope block is unique in CrunchTope because it has
-    non-unique left-most words (either 'primary' or 'mineral'). This means that the dictionary keys keep
-    overwriting each other, so we use the rare mineral entry as the dict key instead.
-    """
-    from omphalos import file_methods as fm
-    from omphalos import keyword_block as kb
-    import numpy as np
-
-    # Get all instances of the keyword in question, in a numpy array.
-    keyword = 'ISOTOPES'
-    block_start = fm.search_input_file(self.raw, keyword)
-
-    # Get array of line numbers for the END statements in the input file.
-    # All CT input file keyword blocks end with 'END'.
-    ending_array = fm.search_input_file(self.raw, 'END')
-
-    # Find the index for the END line corresponding to the block of
-    # interest.
-    block_end = ending_array[np.searchsorted(ending_array, block_start)]
-
-    # Set the block type using the keyword in question.
-    block = kb.KeywordBlock(keyword)
-    keyword_dict = {}
-    try:
-        for a in np.arange(block_start[0], block_end[0]):
-            # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
-            # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
-            # number index is preserved. So put in try-except statement to ignore error thrown by missing line
-            # removed due to commenting.
-            try:
-                line_list = self.raw[a].split()
-                reordered_list = [line_list[0]] + line_list[2:]
-                keyword_dict.update({line_list[1]: reordered_list})
-            except IndexError:
-                # The block keyword is by itself, so there is no rare isotope keyword to use as a key.
-                # This will raise an IndexError, so catch it and allocate
-                # the dict entries accordingly.
-                keyword_dict.update({line_list[0]: line_list[1:]})
-            except BaseException:
-                print(
-                    'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                    'something has gone really wrong!')
-            block.contents = keyword_dict
-            self.keyword_blocks.update({keyword: block})
-    except IndexError:
-        print(
-            'The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your '
-            'input file, check your spelling.')
-
-
-def get_initial_conditions_block(self):
-    """Method to get the initial conditions block from the input file and encode it as a KeywordBlock object in
-    the InputFile.
-
-    We have to do this in a separate method because the initial conditions block is unique in CrunchTope as
-    conditions can be repeated to form non-contiguous regions, so the left most word is not always unique. This
-    means that the dictionary keys are overwriting each other.
-    """
-    from omphalos import file_methods as fm
-    from omphalos import keyword_block as kb
-    import numpy as np
-    import re
-    # Get all instances of the keyword in question, in a numpy array.
-    keyword = 'INITIAL_CONDITIONS'
-    block_start = fm.search_input_file(self.raw, keyword)
-
-    # Get array of line numbers for the END statements in the input file.
-    # All CT input file keyword blocks end with 'END'.
-    ending_array = fm.search_input_file(self.raw, 'END')
-
-    # Find the index for the END line corresponding to the block of
-    # interest.
-    block_end = ending_array[np.searchsorted(ending_array, block_start)]
-
-    # Set the block type using the keyword in question.
-    block = kb.KeywordBlock(keyword)
-    keyword_dict = {}
-    try:
-        for a in np.arange(block_start[0], block_end[0]):
-            # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
-            # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
-            # number index is preserved. So put in try-except statement to ignore error thrown by missing line
-            # removed due to commenting.
-            try:
-                line_list = self.raw[a].split()
-                # Regex extracts keys as unique coordinate sets.
-                key = re.findall("\d+-\d+", self.raw[a])
-                key = ' '.join(key)
-                # Check to see if the fix keyword has been invoked.
-                if line_list[-1] == 'fix':
-                    entry = [line_list[0]] + [line_list[-1]]
-                else:
-                    entry = [line_list[0]]
-                keyword_dict.update({key: entry})
-            except IndexError:
-                # The block keyword is by itself, so there is no coordinate to use as a key.
-                # This will raise an IndexError, so catch it and allocate
-                # the dict entries accordingly.
-                keyword_dict.update({line_list[0]: line_list[1:]})
-            except BaseException:
-                print(
-                    'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                    'something has gone really wrong!')
-            block.contents = keyword_dict
-            self.keyword_blocks.update({keyword: block})
-    except IndexError:
-        print('The keyword "INITIAL_CONDITIONS" you searched for does not exist; check your input file for errors.')
+        # Set the block type using the keyword in question.
+        block = kb.KeywordBlock(keyword)
+        keyword_dict = {}
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
+                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
+                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
+                # removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    # Regex extracts keys as unique coordinate sets.
+                    key = re.findall("\d+-\d+", self.raw[a])
+                    key = ' '.join(key)
+                    # Check to see if the fix keyword has been invoked.
+                    if line_list[-1] == 'fix':
+                        entry = [line_list[0]] + [line_list[-1]]
+                    else:
+                        entry = [line_list[0]]
+                    keyword_dict.update({key: entry})
+                except IndexError:
+                    # The block keyword is by itself, so there is no coordinate to use as a key.
+                    # This will raise an IndexError, so catch it and allocate
+                    # the dict entries accordingly.
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+                except BaseException:
+                    print(
+                        'BaseException: this is normally due to a commented line in the input file. If it is not, '
+                        'something has gone really wrong!')
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print('The keyword "INITIAL_CONDITIONS" you searched for does not exist; check your input file for errors.')

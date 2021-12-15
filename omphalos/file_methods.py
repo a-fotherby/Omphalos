@@ -4,7 +4,8 @@ import re
 import glob
 import pickle
 
-def search_input_file(dict, by_val):
+
+def search_input_file(dictionary, by_val):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
 
     Will search for partial matches at the beginning of the line - e.g. if you wanted to find all the CONDITION
@@ -12,20 +13,21 @@ def search_input_file(dict, by_val):
     search from the back, however, so can't find a specific CONDITION block line num by searching for its name.
     """
     keys_list = np.empty(0, dtype=int)
-    items_list = dict.items()
+    items_list = dictionary.items()
     for item in items_list:
-        if item[1].startswith(by_val):
+        # Allow CONDITION or condition since either work in an input file.
+        if item[1].startswith(by_val.upper()) or item[1].startswith(by_val.lower()):
             keys_list = np.append(keys_list, item[0])
     return keys_list
 
 
 def read_tec_file(path_to_directory, output):
-    """Import the spatial profile output file of the system at the target time specified in the input file. Takes
-    files in the tecplot format. """
+    """Import the spatial profile output file of the system at the target time specified in the input file. Require
+    files to be in the TecPlot format. """
     file_name = '{}{}1.tec'.format(path_to_directory, output)
-    # Column headers are quite badly mangled by tecplot output format. Python csv sniffer will not correctly identify
+    # Column headers are quite badly mangled by TecPlot output format. Python csv sniffer will not correctly identify
     # the column headers. So we manually create the correct list by opening the file and navigating to the second
-    # line (the header line for tecplot outputs) and perform some judicious stripping and a regex split to generate
+    # line (the header line for TecPlot outputs) and perform some judicious stripping and a regex split to generate
     # the correct list of column headers. We can then pass the header list straight to the read_table method as an
     # override.
     with open(file_name) as f:
@@ -60,7 +62,7 @@ def get_data_cats(directory):
 
 def pickle_data_set(data_set, file_name, path_to_file='.'):
     from pathlib import Path
-    
+
     # Make subdirectory if it doesn't already exist.
     path = Path(path_to_file)
     path.mkdir(exist_ok=True)

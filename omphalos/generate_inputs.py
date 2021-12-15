@@ -32,13 +32,15 @@ def configure_input_files(template):
             file_dict[file].sort_condition_block(condition)
 
         for config_param in CT_IDs:
-            if CT_IDs[config_param][0] == 'geochemical condition':
+            keyword = CT_IDs[config_param][0]
+            mod_pos = CT_IDs[config_param][1]
+            if keyword == 'geochemical condition':
                 if config_param in template.config:
                     for condition in template.config[config_param]:
-                        file_dict[file].condition_blocks[condition].modify(template.config, config_param, file_dict[file].file_num, CT_IDs[config_param][1])
+                        file_dict[file].condition_blocks[condition].modify(template.config, config_param, file_dict[file].file_num, mod_pos)
             else:
                 if config_param in template.config:
-                    modify_keyword_block(file_dict[file], template.config, config_param)
+                    file_dict[file].keyword_blocks[keyword].modify(file_dict[file].file_num, template.config, config_param, mod_pos)
         if 'namelist' in template.config:
             for nml_type in CT_NMLs:
                 if nml_type in template.config['namelists']:
@@ -48,30 +50,6 @@ def configure_input_files(template):
         else:
             pass
     return file_dict
-
-
-def modify_keyword_block(input_file, config, config_key):
-    """Change the parameters of a keyword block in an InputFile object.
-    
-    Args:
-    input_file -- The InputFile to be modified.
-    config --  The config file dict containing the modifications to be made.
-    config_key -- Key indexing which entry in the config file is in question.
-    """
-
-    # Extract corresponding input file block name and the position of the variable to be modified.
-    CT_block_name = CT_IDs[config_key][0]
-    mod_pos = CT_IDs[config_key][1]
-
-    for file_key in input_file.keyword_blocks[CT_block_name].contents.keys():
-        # Iterate over the keywords in the keyword block.
-        value_to_assign = get_config_value(file_key, config, config[config_key], input_file.file_num,
-                                           input_file.keyword_blocks[CT_block_name])
-        if value_to_assign is None:
-            continue
-        file_value = input_file.keyword_blocks[CT_block_name].contents[file_key]
-        file_value[mod_pos] = str(value_to_assign)
-        input_file.keyword_blocks[CT_block_name].contents.update({file_key: file_value})
 
 
 def get_config_value(file_key, config, config_entry, file_num, ref_vars):

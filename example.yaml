@@ -11,6 +11,9 @@ conditions:
 # Number of files in this run.
 number_of_files: 7
 
+# For parallel Omphalos only...
+nodes: 100
+
 # Options for setting parameters:
 #     linspace
 #       Takes an array of length 3, [x, y, z] where x and y are the upper and lower bounds of the range.

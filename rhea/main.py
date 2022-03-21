@@ -42,4 +42,4 @@ t_stop = time()
 
 print(f'All files generated and directories prepped. Time elapsed: {t_stop-t_start}')
 
-si.submit(dict_size, config['nodes'], config['timeout'])
+si.submit(args.path_to_config, config['nodes'], dict_size)

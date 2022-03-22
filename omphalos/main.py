@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     # Import config file.
     with open(args.config_path) as file:
-        config = yaml.full_load(file)
+        config = yaml.safe_load(file)
 
     # Import template file.
     print('*** Importing template file ***')

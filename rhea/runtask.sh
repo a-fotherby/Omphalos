@@ -5,7 +5,9 @@
 
 sleepsecs=$[ $RANDOM % 10 + 10 ]
 
-task="python3 /home/af606/Omphalos/omphalos_parallel/slurm_exec.py $1 $2"
+export PYTHONPATH="/home/af606/.local/lib/python3.7/site-packages"
+
+task="python3 /home/af606/Omphalos/rhea/slurm_exec.py $1 $2"
 $task 
 
 # $1 is arg1:{1} from GNU parallel.

@@ -16,14 +16,20 @@ def execute(file_num, config):
     from omphalos.template import Template
     import omphalos.run as run
 
-    name = f'{config["template"]}{file_num}'
+    name = 'input_file.in'
+    aqueous_database = config['aqueous_database']
+    catabolic_pathways = config['catabolic_pathways']
     tmp_dir = f'run{file_num}'
-    input_file = Template(f'tmp_dir/{name}')
-
+    # overwrite config['template'] entry to fix file reading
+    # same for other files that must be read in
+    config.update({'template': f'{tmp_dir}/{name}'}) 
+    config.update({'aqueous_database': f'{tmp_dir}/{aqueous_database}'}) 
+    config.update({'catabolic_pathways': f'{tmp_dir}/{catabolic_pathways}'}) 
+    input_file = Template(config)
     signal.signal(signal.SIGALRM, run.timeout_handler)
     signal.alarm(int(config['timeout']))
     try:
-        run.crunchtope(f'{name}.in', tmp_dir)
+        run.crunchtope(f'{name}', tmp_dir)
     except Exception:
         print(f'File {file_num} timed out.')
         input_file.timeout = True
@@ -39,6 +45,7 @@ def execute(file_num, config):
     print(f'File {file_num} results object created.')
 
     output_categories = fm.get_data_cats(tmp_dir)
+    print(f'Output cats found: {output_categories}')
     for output in output_categories:
         input_file.results.get_output(tmp_dir, output)
 
@@ -63,7 +70,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     with open(args.config_path) as file:
-        config = yaml.full_load(file)
+        config = yaml.safe_load(file)
 
     input_file = execute(args.file_num, config)
     print(f'File {args.file_num} returned to __main__.')

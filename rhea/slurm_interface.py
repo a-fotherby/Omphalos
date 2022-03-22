@@ -37,9 +37,9 @@ def compile_results(dict_len):
 
     results_dict = dict.fromkeys(np.arange(dict_len))
     for i in results_dict:
-        try:
-            input_file = fm.unpickle('input_file{}_complete.pkl'.format(i), 'run{}'.format(i))
-            results_dict[i] = input_file
-        except:
-            continue
+#        try:
+        input_file = fm.unpickle(f'run{i}/input_file{i}_complete.pkl')
+        results_dict[i] = input_file
+#        except:
+#            continue
     fm.pickle_data_set(results_dict, 'completed_run.pkl')

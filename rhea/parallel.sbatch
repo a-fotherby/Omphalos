@@ -32,4 +32,4 @@ parallel="parallel --delay 1.0 -j $SLURM_NTASKS --joblog runtask.log --resume"
 # illustrate, the first job will run like this:
 #
 #   srun --exclusive -N1 -n1 ./runtask.sh arg1:1 > runtask.1
-$parallel "$srun /home/af606/Omphalos/omphalos_parallel/runtask.sh {1} {2} > runtask.sh.{1}" :::: <(seq 0 $DICT_LEN) ::: $PATH_TO_CONFIG
+$parallel "$srun /home/af606/Omphalos/rhea/runtask.sh {1} {2} > runtask.sh.{1}" :::: <(seq 0 $DICT_LEN) ::: $PATH_TO_CONFIG

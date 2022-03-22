@@ -24,7 +24,7 @@ dir_name = 'run'
 with open(args.path_to_config) as file:
     config = yaml.full_load(file)
 
-template = Template(config['template'])
+template = Template(config)
 file_dict = template.make_dict()
 
 dict_size = len(file_dict)
@@ -33,6 +33,10 @@ t_start = time()
 
 subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
 subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+if config['aqueous_database']:
+    subprocess.run([f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+if config['catabolic_pathways']:
+    subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
                 
 for file in file_dict:
     file_dict[file].path = f'{dir_name}{file}/{file_name_scheme}.in'

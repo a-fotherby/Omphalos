@@ -24,7 +24,7 @@ def search_input_file(dictionary, by_val):
 def read_tec_file(path_to_directory, output):
     """Import the spatial profile output file of the system at the target time specified in the input file. Require
     files to be in the TecPlot format. """
-    file_name = '{}{}1.tec'.format(path_to_directory, output)
+    file_name = f'{path_to_directory}/{output}1.tec'
     # Column headers are quite badly mangled by TecPlot output format. Python csv sniffer will not correctly identify
     # the column headers. So we manually create the correct list by opening the file and navigating to the second
     # line (the header line for TecPlot outputs) and perform some judicious stripping and a regex split to generate
@@ -51,7 +51,7 @@ def read_tec_file(path_to_directory, output):
 
 
 def get_data_cats(directory):
-    # os.chdir(directory)
+    directory = f'{directory}/'
     f_list = glob.glob(directory + '*.tec')
     f_list = [i.rstrip('.tec') for i in f_list]
     f_list = [i.rstrip('0123456789') for i in f_list]

@@ -7,6 +7,7 @@ config -- new option, specifies YAML file containing template modification optio
 import argparse
 from context import omphalos
 from omphalos.template import Template
+from omphalos import generate_inputs as gi
 import slurm_interface as si
 import subprocess
 import yaml
@@ -25,7 +26,7 @@ with open(args.path_to_config) as file:
     config = yaml.full_load(file)
 
 template = Template(config)
-file_dict = template.make_dict()
+file_dict = gi.configure_input_files(template)
 
 dict_size = len(file_dict)
 

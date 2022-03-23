@@ -16,7 +16,8 @@ def search_input_file(dictionary, by_val):
     items_list = dictionary.items()
     for item in items_list:
         # Allow CONDITION or condition since either work in an input file.
-        if item[1].startswith(by_val.upper()) or item[1].startswith(by_val.lower()):
+        # Can't use by_val.lower() as will erroneously think keywords like 'temperature' are keyword block delimiters.
+        if item[1].startswith(by_val.upper()) or item[1].startswith('condition'):
             keys_list = np.append(keys_list, item[0])
     return keys_list
 

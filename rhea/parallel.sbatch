@@ -3,6 +3,7 @@
 #SBATCH --mem-per-cpu=2G  # NOTE DO NOT USE THE --mem= OPTION
 #SBATCH --mail-type=END
 #SBATCH --mail-user=af606@cam.ac.uk
+#SBATCH --job-name="rhea"
 
 # Load the default version of GNU parallel.
 # module load parallel

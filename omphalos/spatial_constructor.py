@@ -101,7 +101,7 @@ def compute_rows(input_file, condition):
     import numpy as np
 
     # Any coord has a row number = [x + (y * x_len) + (z * x_len * y_len)] in this scheme. (Where coord counting
-    # starts from (0, 0, 0)) Contiguous areas in real space are not necissarily contiguous in the row format. Need to
+    # starts from (0, 0, 0)) Contiguous areas in real space are not necessarily contiguous in the row format. Need to
     # get row numbers for each condition and each region specified to start with that condition.
 
     condition_regions = input_file.condition_blocks[condition].region

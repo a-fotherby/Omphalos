@@ -5,7 +5,7 @@ def split_dict(dictionary, num):
     """Split a data into n smaller dictionaries to be passed to individual nodes on the cluster.
     Arguments:
     dictionary -- Dictionary to be split.
-    num -- number of smaller dictionationaries required.
+    num -- number of smaller dictionaries required.
     
     """
     import numpy as np

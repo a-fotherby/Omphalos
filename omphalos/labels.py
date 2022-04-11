@@ -1,27 +1,25 @@
 """Functions to generate label DataFrames."""
 
 
-def raw_labels(data_set, output):
+def raw(data_set, output_key):
     """Returns labels DataFrame containing raw CrunchTope output data.
     
     Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple
     row count. Spatial data for each input file is stored in a tidy format (tidy taking its technical meaning in
     this case).
     """
-    import pandas as pd
+    import xarray as xr
 
     # Generate dataframe of requested labels.
-    labels = pd.DataFrame()
-    for key in data_set:
-        data_set[key].results.results_dict[output]['File Num'] = key
-        labels = pd.concat([labels, data_set[key].results.results_dict[output]])
+    set_list = []
+    for i in data_set:
+        set_list.append(data_set[i].results.results_dict[output_key])
+    array = xr.concat(set_list, dim='file_num')
 
-    labels = labels.set_index(['File Num', labels.index])
-
-    return labels
+    return array
 
 
-def secondary_precip(data_set):
+def secondary_precip(dataset):
     """Calculate the total mineral volume evolution over the run by comparing the initial conditions to the final
     mineral volume output.
 
@@ -30,30 +28,34 @@ def secondary_precip(data_set):
     """
     import numpy as np
     import pandas as pd
+    import xarray as xr
     import omphalos.spatial_constructor as sc
 
     # Get DataFrame of output volumes.
-    final_vols = raw_labels(data_set, 'volume')
+    final_vols = raw(dataset, 'volume')
+    min_vars = list(final_vols.data_vars)
+
+    coords_array = final_vols.stack(index=('X', 'Y', 'Z'))
+    coords_array = coords_array.reset_index(('X', 'Y', 'Z'))
+    coords_array = coords_array.reset_coords(('X', 'Y', 'Z'))
 
     # Create a new DataFrame with the same geometry as the labels by making a deep copy of the coordinate data.
-    initial_vols = pd.DataFrame()
-    initial_vols = final_vols[['X', 'Y', 'Z']].copy()
-
-    secondary_precip = pd.DataFrame()
-    mineral_vol_init = pd.DataFrame()
     # Ensure that all the condition blocks have been sorted.
-    for file in data_set:
-        output_vols = sc.populate_array(data_set[file], primary_species=False, mineral_vols=True)
-        initial_vol_df = pd.DataFrame(output_vols)
-        # Can use any arbitrary dict entry for index here because all key lists for names will be the same.
-        initial_vol_df.columns = data_set[file].condition_blocks[next(iter(data_set[file].condition_blocks))].minerals.keys()
-        initial_vols = initial_vols.reindex_like(final_vols)
-        initial_vols.loc[file].update(initial_vol_df)
+    for i, file in enumerate(dataset):
+        file_vols = sc.populate_array(dataset[file], primary_species=False, mineral_vols=True)
+        if i == 0:
+            shape = tuple((len(dataset), np.shape(file_vols)[0], np.shape(file_vols)[1]))
+            initial_vol_array = np.empty(shape)
+        initial_vol_array[i, :, :] = file_vols
 
-    secondary_precip = final_vols - initial_vols
-    # Recapture coordinate values, as they are destroyed by subtraction.
-    # Somewhat easier to code than indexing the right columns for subtraction.
-    # Could be a source of issues but I doubt it.
-    secondary_precip[['X', 'Y', 'Z']] = final_vols[['X', 'Y', 'Z']].copy()
+    fill_value = {var: initial_vol_array[:, :, i] for i, var in enumerate(min_vars)}
+    for var in fill_value:
+        fill_value.update({var: (['file_num', 'index'], fill_value[var])})
+    initial_vols = xr.Dataset(fill_value)
+    initial_vols = initial_vols.assign({var: coords_array[var] for var in ('X', 'Y', 'Z')})
+    initial_vols = initial_vols.set_index(index=('X', 'Y', 'Z'))
+    initial_vols = initial_vols.unstack('index')
 
-    return secondary_precip
+    precipitation = final_vols - initial_vols
+
+    return precipitation

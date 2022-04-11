@@ -16,7 +16,6 @@ class Results():
         This is justified because we are only interested in the final state of the system in this project.
         """
         import omphalos.file_methods as fm
-        
-        
+
         df = fm.read_tec_file(path_to_directory, output)
         self.results_dict.update({output: df})

@@ -49,7 +49,7 @@ class InputFile:
         """Writes out a populated input file to a CrunchTope readable *.in file.
         """
         import copy
-        with open(self.path, 'x') as f:
+        with open(self.path, 'w') as f:
             # Print out each keyword block, not condition blocks: they require
             # special treatment.
             for block in self.keyword_blocks:

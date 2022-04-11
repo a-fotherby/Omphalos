@@ -47,8 +47,11 @@ def read_tec_file(path_to_directory, output):
                 1,
                 2],
             names=headers)
+        ds = df.to_xarray()
+        ds = ds.set_index(index=('X','Y','Z'))
+        ds = ds.unstack('index')
 
-        return df
+        return ds
 
 
 def get_data_cats(directory):

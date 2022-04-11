@@ -3,6 +3,7 @@ template: 'input_file.in'
 database: 'database.dbs'
 aqueous_database: 'aqueous_database.dbs'
 catabolic_pathways: 'CatabolicPathways.in'
+
 # Timeout in seconds for any given input file.
 timeout: 20
 # conditions must match geochemical condition names in concentration dict

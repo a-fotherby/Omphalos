@@ -25,7 +25,7 @@ if __name__ == '__main__':
     template = Template(config)
     # Get a dictionary of input files.
     print('*** Generating input files ***')
-    file_dict = gi.configure_input_files(template)
+    file_dict = gi.configure_input_files(template, tmp_dir)
 
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")

@@ -18,9 +18,10 @@ CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
 
 
-def configure_input_files(template):
+def configure_input_files(template, tmp_dir):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
+    import subprocess
 
     for condition in template.config['conditions']:
         template.sort_condition_block(condition)
@@ -49,6 +50,8 @@ def configure_input_files(template):
                     pass
         else:
             pass
+    subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
+
     return file_dict
 
 

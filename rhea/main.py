@@ -32,7 +32,7 @@ if __name__ == '__main__':
         config = yaml.full_load(file)
 
     template = Template(config)
-    file_dict = gi.configure_input_files(template, 'foo')
+    file_dict = gi.configure_input_files(template, 'foo', rhea=True)
 
     dict_size = len(file_dict)
 

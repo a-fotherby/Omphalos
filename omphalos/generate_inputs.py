@@ -18,7 +18,7 @@ CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
 
 
-def configure_input_files(template, tmp_dir):
+def configure_input_files(template, tmp_dir, rhea=False):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
     import subprocess
@@ -50,7 +50,9 @@ def configure_input_files(template, tmp_dir):
                     pass
         else:
             pass
-    subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
+
+    if not rhea:
+        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
 
     return file_dict
 

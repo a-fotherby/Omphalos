@@ -5,10 +5,12 @@ config -- new option, specifies YAML file containing template modification optio
 
 """
 
-if __name__ == '__name__':
-    tmp_dir    import os, sys
+if __name__ == '__main__':
+    import os, sys
 
-    sys.path.insert(0, os.path.abspath(f'../omphalos'))
+    path = os.path.dirname(__file__)
+    path = os.path.dirname(path)
+    sys.path.insert(0, os.path.abspath(f'{path}'))
     import argparse
     from omphalos.template import Template
     from omphalos import generate_inputs as gi

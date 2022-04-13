@@ -9,3 +9,7 @@ Machine learning approaches for predicting the behaviour of geochemical systems 
 2. <code> conda activate omphalos </code>
 3. Open settings_defaults.py and fill in the paths to your CrunchTope and Omphalos directories respectively.
 4. Rename settings_defaults.py to settings.py. This won't be tracked when you pull newer versions of Omphalos.
+
+### About
+
+&copy; Angus Fotherby (2019 - 2022)

@@ -12,4 +12,4 @@ Machine learning approaches for predicting the behaviour of geochemical systems 
 
 ### About
 
-&copy; Angus Fotherby (2019 - 2022)
+&copy; Angus Fotherby (2019 - 2022). All rights reserved.

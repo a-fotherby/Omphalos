@@ -50,7 +50,7 @@ def get_condition(
     return attributes
 
 
-def boundary_condition(data_set, boundary='x_begin', species_concs=True, mineral_vols=False):
+def boundary_condition(dataset, boundary='x_begin', species_concs=True, mineral_vols=False):
     """Returns a DataFrame containing the boundary condition for an input file.
     Can specify whether to return primary species, mineral volumes, or both.
     By default returns primary species only.
@@ -70,32 +70,32 @@ def boundary_condition(data_set, boundary='x_begin', species_concs=True, mineral
     # In theory this should be the same in all InputFiles (I haven't implement changing boundary condition keywords in between files yet).
     # So we only check once, at the beginning.
     # In theory, InputFile 0 could have timed out, so use iter to get first available entry.
-    condition = data_set[next(iter(data_set))].keyword_blocks['BOUNDARY_CONDITIONS'].contents[boundary][0]
+    condition = dataset[next(iter(dataset))].keyword_blocks['BOUNDARY_CONDITIONS'].contents[boundary][0]
 
     boundary_conditions = pd.DataFrame()
     concs = pd.DataFrame()
     vol_fracs = pd.DataFrame()
 
-    for i in data_set:
+    for i in dataset:
         # Check the condition blocks have been sorted and if not; sort them.
-        data_set[i].check_condition_sort(condition)
+        dataset[i].check_condition_sort(condition)
 
         # Get the DataFrames containing attribute info for each condition block
         # part and join them together to make an attributes df describing the
         # InputFile.
 
         if species_concs:
-            concs = pd.concat([concs, primary_species(data_set[i], condition)])
+            concs = pd.concat([concs, primary_species(dataset[i], condition)])
 
         if mineral_vols:
-            vol_fracs = pd.concat([vol_fracs, mineral_volume(data_set[i], condition)])
+            vol_fracs = pd.concat([vol_fracs, mineral_volume(dataset[i], condition)])
 
     attribute_dfs = [concs, vol_fracs]
 
     for df in attribute_dfs:
         boundary_conditions = boundary_conditions.join(df, how='outer')
 
-    file_index = pd.Index(data_set.keys())
+    file_index = pd.Index(dataset.keys())
 
     boundary_conditions.set_index(file_index, inplace=True)
     return boundary_conditions

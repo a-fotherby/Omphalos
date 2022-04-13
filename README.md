@@ -5,5 +5,5 @@ Machine learning approaches for predicting the behaviour of geochemical systems 
 
 ## Installation
 
-Open settings_defaults.py and fill in the paths to your CrunchTope and Omphalos directories respectively.
-Rename settings_defaults.py to settings.py.
+1. Open settings_defaults.py and fill in the paths to your CrunchTope and Omphalos directories respectively.
+2. Rename settings_defaults.py to settings.py. This won't be tracked when you pull newer versions of Omphalos.

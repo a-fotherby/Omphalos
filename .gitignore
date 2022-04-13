@@ -1,6 +1,9 @@
 # OSX file structure
 .DS_Store
 
+# Ignore local settings.py
+settings.py
+
 # Documents
 *.pdf
 *.docx

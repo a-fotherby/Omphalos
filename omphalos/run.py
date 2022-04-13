@@ -20,7 +20,6 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     # Results object in the InputFile object.
     import signal
     import subprocess
-    import omphalos.results as results
     import omphalos.file_methods as fm
 
     name = 'input_file'

@@ -1,10 +1,13 @@
-from context import omphalos
 
 if __name__ == '__main__':
+    import sys
+    import os
     import file_methods as fm
     import generate_inputs as gi
     import argparse
     import yaml
+    from settings import omphalos_path
+    sys.path.insert(0, os.path.abspath(f'{omphalos_path}'))
     import omphalos.run as run
     from omphalos.template import Template
 

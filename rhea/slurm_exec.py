@@ -11,7 +11,6 @@ from context import omphalos
 def execute(file_num, config):
     import signal
     import subprocess
-    import omphalos.results as results
     import omphalos.file_methods as fm
     from omphalos.template import Template
     import omphalos.run as run

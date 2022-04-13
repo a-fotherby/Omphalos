@@ -7,6 +7,7 @@ class InputFile:
         self.condition_blocks = condition_blocks
         self.aqueous_database = aqueous_database
         self.catabolic_pathways = catabolic_pathways
+        self.results = dict()
         self.timeout = False
 
     def sort_condition_block(self, condition):
@@ -45,7 +46,7 @@ class InputFile:
                 self.condition_blocks[condition].parameters.update(
                     {entry: contents[entry]})
 
-    def print_input_file(self):
+    def print(self):
         """Writes out a populated input file to a CrunchTope readable *.in file.
         """
         import copy
@@ -139,3 +140,28 @@ class InputFile:
                     print(f'Warning: The condition {condition} was not specified as a initial condition')
 
                 self.condition_blocks[condition].region.append(condition_region)
+
+    def get_results(self, tmp_dir):
+        import pandas as pd
+        import xarray as xr
+        from omphalos import file_methods as fm
+
+        times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
+        times = [float(a) for a in times]
+        times = pd.Index(data=times, name='time')
+
+        categories = fm.data_cats(tmp_dir)
+
+        for category in categories:
+
+            ds_list = list()
+
+            for i, time in enumerate(times):
+                ds = fm.parse_output(tmp_dir, category, i+1)
+                ds_list.append(ds)
+
+            ds = xr.concat(ds_list, dim=times)
+
+            self.results.update({category: ds})
+
+

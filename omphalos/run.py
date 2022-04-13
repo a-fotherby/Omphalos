@@ -26,7 +26,7 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     name = 'input_file'
     file_name = name + str(file_num) + '.in'
     input_file.path = tmp_dir + file_name
-    input_file.print_input_file()
+    input_file.print()
     if input_file.aqueous_database:
         input_file.aqueous_database.print(tmp_dir + input_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0])
     if input_file.catabolic_pathways:
@@ -48,11 +48,7 @@ def run_input_file(input_file, file_num, tmp_dir, timeout):
     signal.alarm(0)
 
     # Make a results object that is an attribute of the InputFile object.
-    input_file.results = results.Results()
-
-    output_categories = fm.get_data_cats(tmp_dir)
-    for output in output_categories:
-        input_file.results.get_output(tmp_dir, output)
+    input_file.get_results(tmp_dir)
 
     # Clean the temp directory ready the next input file.
     subprocess.run(['rm', '*.tec'], cwd=tmp_dir)

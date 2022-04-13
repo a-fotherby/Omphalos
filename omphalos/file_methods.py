@@ -5,7 +5,7 @@ import glob
 import pickle
 
 
-def search_input_file(dictionary, by_val):
+def search_file(dictionary, by_val):
     """Search for CT input file line nums by string. Returns a numpy array of matching line numbers.
 
     Will search for partial matches at the beginning of the line - e.g. if you wanted to find all the CONDITION
@@ -22,10 +22,10 @@ def search_input_file(dictionary, by_val):
     return keys_list
 
 
-def read_tec_file(path_to_directory, output):
+def parse_output(path, output, time_ref):
     """Import the spatial profile output file of the system at the target time specified in the input file. Require
     files to be in the TecPlot format. """
-    file_name = f'{path_to_directory}/{output}1.tec'
+    file_name = f'{path}{output}{time_ref}.tec'
     # Column headers are quite badly mangled by TecPlot output format. Python csv sniffer will not correctly identify
     # the column headers. So we manually create the correct list by opening the file and navigating to the second
     # line (the header line for TecPlot outputs) and perform some judicious stripping and a regex split to generate
@@ -54,9 +54,9 @@ def read_tec_file(path_to_directory, output):
         return ds
 
 
-def get_data_cats(directory):
-    directory = f'{directory}/'
-    f_list = glob.glob(directory + '*.tec')
+def data_cats(path):
+    path = f'{path}'
+    f_list = glob.glob(path + '*.tec')
     f_list = [i.rstrip('.tec') for i in f_list]
     f_list = [i.rstrip('0123456789') for i in f_list]
     f_list = [i.split('/', 1)[-1] for i in f_list]

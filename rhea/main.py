@@ -41,7 +41,7 @@ if config['catabolic_pathways']:
                 
 for file in file_dict:
     file_dict[file].path = f'{dir_name}{file}/{file_name_scheme}.in'
-    file_dict[file].print_input_file()
+    file_dict[file].print()
 
 t_stop = time()
 

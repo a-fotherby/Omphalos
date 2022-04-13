@@ -41,13 +41,7 @@ def execute(file_num, config):
     print(f'File {file_num} alarm disarmed')
 
     # Make a results object that is an attribute of the InputFile object.
-    input_file.results = results.Results()
-    print(f'File {file_num} results object created.')
-
-    output_categories = fm.get_data_cats(tmp_dir)
-    print(f'Output cats found: {output_categories}')
-    for output in output_categories:
-        input_file.results.get_output(tmp_dir, output)
+    input_file.get_results(tmp_dir)
 
     print(f'File {file_num} outputs recorded.')
     print(f'File {file_num} about to clean.')

@@ -29,7 +29,7 @@ class Template(InputFile):
             'PEST',
             'EROSION/BURIAL']
         self.config = config
-        self.raw = self.read_input_file(self.path)
+        self.raw = self.read_file(self.path)
         for keyword in keyword_list:
             self.get_keyword_block(keyword)
 
@@ -44,7 +44,7 @@ class Template(InputFile):
             self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
 
     @staticmethod
-    def read_input_file(path):
+    def read_file(path):
         """Return a dictionary of lines in a file, with the values as the line numbers.
 
         Will ignore any commented lines in the CT input file, but will still count their line number,
@@ -100,10 +100,10 @@ class Template(InputFile):
         from omphalos import keyword_block as kb
 
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = fm.search_input_file(self.raw, keyword)
+        block_start = fm.search_file(self.raw, keyword)
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(self.raw, 'END')
+        ending_array = fm.search_file(self.raw, 'END')
         # Find the index for the END line corresponding to the block of
         # interest.
         block_end = ending_array[np.searchsorted(ending_array, block_start)]
@@ -142,10 +142,10 @@ class Template(InputFile):
         import numpy as np
 
         # Get all instances of the keyword in question, in a numpy array.
-        block_start = fm.search_input_file(self.raw, 'CONDITION')
+        block_start = fm.search_file(self.raw, 'CONDITION')
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(self.raw, 'END')
+        ending_array = fm.search_file(self.raw, 'END')
         # Find the index for the END line corresponding to the block of
         # interest.
         block_end = ending_array[np.searchsorted(ending_array, block_start)]
@@ -185,11 +185,11 @@ class Template(InputFile):
 
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'ISOTOPES'
-        block_start = fm.search_input_file(self.raw, keyword)
+        block_start = fm.search_file(self.raw, keyword)
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(self.raw, 'END')
+        ending_array = fm.search_file(self.raw, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.
@@ -238,11 +238,11 @@ class Template(InputFile):
         import re
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'INITIAL_CONDITIONS'
-        block_start = fm.search_input_file(self.raw, keyword)
+        block_start = fm.search_file(self.raw, keyword)
 
         # Get array of line numbers for the END statements in the input file.
         # All CT input file keyword blocks end with 'END'.
-        ending_array = fm.search_input_file(self.raw, 'END')
+        ending_array = fm.search_file(self.raw, 'END')
 
         # Find the index for the END line corresponding to the block of
         # interest.

@@ -18,7 +18,7 @@ def execute(file_num, config):
     name = 'input_file.in'
     aqueous_database = config['aqueous_database']
     catabolic_pathways = config['catabolic_pathways']
-    tmp_dir = f'run{file_num}'
+    tmp_dir = f'run{file_num}/'
     # overwrite config['template'] entry to fix file reading
     # same for other files that must be read in
     config.update({'template': f'{tmp_dir}/{name}'}) 

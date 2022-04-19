@@ -30,6 +30,7 @@ class Template(InputFile):
             'EROSION/BURIAL']
         self.config = config
         self.raw = self.read_file(self.path)
+        self.error_code = 0
         for keyword in keyword_list:
             self.get_keyword_block(keyword)
 

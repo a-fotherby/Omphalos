@@ -12,7 +12,7 @@ class InputFile:
         # 1 = timeout
         # 2 = condition speciation error
         # 3 = charge balance error
-        self.error_code = None
+        self.error_code = 0
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,

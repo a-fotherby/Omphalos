@@ -8,7 +8,11 @@ class InputFile:
         self.aqueous_database = aqueous_database
         self.catabolic_pathways = catabolic_pathways
         self.results = dict()
-        self.timeout = False
+        # 0 = successful run
+        # 1 = timeout
+        # 2 = condition speciation error
+        # 3 = charge balance error
+        self.error_code = None
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,

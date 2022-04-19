@@ -25,29 +25,8 @@ def execute(file_num, config):
     config.update({'aqueous_database': f'{tmp_dir}/{aqueous_database}'}) 
     config.update({'catabolic_pathways': f'{tmp_dir}/{catabolic_pathways}'}) 
     input_file = Template(config)
-    signal.signal(signal.SIGALRM, run.timeout_handler)
-    signal.alarm(int(config['timeout']))
-    try:
-        run.crunchtope(f'{name}', tmp_dir)
-    except Exception:
-        print(f'File {file_num} timed out.')
-        input_file.timeout = True
-        # Leave faulty input file behind for inspection.
-        subprocess.run(['rm', "*.tec", '*.out'], cwd=tmp_dir)
-        return input_file
 
-    signal.alarm(0)
-    print(f'File {file_num} alarm disarmed')
-
-    # Make a results object that is an attribute of the InputFile object.
-    input_file.get_results(tmp_dir)
-
-    print(f'File {file_num} outputs recorded.')
-    print(f'File {file_num} about to clean.')
-
-    # Clean the temp directory.
-    subprocess.run(['rm', '*.tec', '*.out', '*.in'], cwd=tmp_dir)
-    print(f'File {file_num} directory cleaned. Returning input file object to main thread.')
+    run.crunchtope(input_file, name, file_num, config['timeout'], tmp_dir)
 
     return input_file
 
@@ -72,8 +51,3 @@ if __name__ == '__main__':
     fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')
 
     print(f'File {args.file_num} pickled.')
-
-    if input_file.timeout:
-        print(f'File {args.file_num} timed-out.')
-    else:
-        print(f'File {args.file_num} completed.')

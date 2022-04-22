@@ -34,14 +34,16 @@ class Template(InputFile):
         for keyword in keyword_list:
             self.get_keyword_block(keyword)
 
-        # Get=l keyword blocks that require unique handling due to format.
+        # Get keyword blocks that require unique handling due to format.
         self.get_initial_conditions_block()
         self.get_isotope_block()
         self.get_condition_blocks()
 
-        if config['aqueous_database']:
+        if config['aqueous_database'] is not None:
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
-        if config['catabolic_pathways']:
+        if config['catabolic_pathways'] is not None:
+            print('DIING')
+            print(config['catabolic_pathways'])
             self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
 
     @staticmethod

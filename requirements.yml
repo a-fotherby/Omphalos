@@ -1,0 +1,11 @@
+name: tsts
+dependencies:
+  - xarray=0.20.0
+  - pandas
+  - numpy
+  - jupyter
+  - nb_conda_kernels
+  - f90nml
+  - pyyaml
+  - ipywidgets
+  - ipykernel

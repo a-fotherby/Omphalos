@@ -1,4 +1,4 @@
-name: tsts
+name: omphalos
 dependencies:
   - xarray=0.20.0
   - pandas
@@ -9,3 +9,4 @@ dependencies:
   - pyyaml
   - ipywidgets
   - ipykernel
+  - pexpect

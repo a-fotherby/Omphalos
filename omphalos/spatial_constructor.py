@@ -57,7 +57,7 @@ def initialise_array(input_file, variable_num, verbose=False):
     CT cycles through coordinates x -> y -> z in TecPlot output format so we need an array with xboxes * yboxes * 
     zboxes number of rows and species number of columns. Following on from this, any coord has a row number = [x + (y 
     * x_len) + (z * x_len * y_len)] in this scheme. (Where coord counting starts from (0, 0, 0)) Contiguous areas in 
-    real space are not necissarily contiguous in the row format. 
+    real space are not necessarily contiguous in the row format. 
     
     Arguments:
     input_file -- InputFile object to construct the array for.

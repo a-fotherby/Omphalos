@@ -1,4 +1,9 @@
-"""Methods for constructing tidy DataFrames of CrunchTope data."""
+"""Methods for constructing tidy DataFrames of CrunchTope data.
+
+We have to go through this roundabout method because it's the easiest way to construct spatial arrays when then are
+multiple connected (potentially discontinuous) zones in the initial condition, rather than directly trying to make the
+xarray object.
+"""
 
 
 def populate_array(input_file, primary_species=True, mineral_vols=False):

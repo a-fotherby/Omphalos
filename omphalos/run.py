@@ -28,11 +28,13 @@ def input_file(input_file, file_num, tmp_dir, timeout):
 
 
 def crunchtope(input_file, file_name, file_num, timeout, tmp_dir):
+    import sys
     import pexpect as pexp
     from omphalos.settings import crunch_dir
 
     command = f"{crunch_dir} {file_name}"
-    process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir)
+    process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
+    process.logfile = sys.stdout
 
     errors = ["EXCEEDED MAXIMUM ITERATIONS", "TRY A"]
 

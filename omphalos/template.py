@@ -42,8 +42,6 @@ class Template(InputFile):
         if config['aqueous_database'] is not None:
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
         if config['catabolic_pathways'] is not None:
-            print('DIING')
-            print(config['catabolic_pathways'])
             self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
 
     @staticmethod

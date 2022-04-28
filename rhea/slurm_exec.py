@@ -22,8 +22,10 @@ def execute(file_num, config):
     # overwrite config['template'] entry to fix file reading
     # same for other files that must be read in
     config.update({'template': f'{tmp_dir}/{name}'}) 
-    config.update({'aqueous_database': f'{tmp_dir}/{aqueous_database}'}) 
-    config.update({'catabolic_pathways': f'{tmp_dir}/{catabolic_pathways}'}) 
+    if aqueous_database is not None:
+        config.update({'aqueous_database': f'{tmp_dir}{aqueous_database}'}) 
+    if catabolic_pathways is not None:
+        config.update({'catabolic_pathways': f'{tmp_dir}{catabolic_pathways}'}) 
     input_file = Template(config)
 
     run.crunchtope(input_file, name, file_num, config['timeout'], tmp_dir)

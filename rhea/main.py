@@ -41,11 +41,11 @@ if __name__ == '__main__':
     subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'],
                    shell=True, executable='/bin/bash')
-    if config['aqueous_database']:
+    if config['aqueous_database'] is not None:
         subprocess.run([
                            f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'],
                        shell=True, executable='/bin/bash')
-    if config['catabolic_pathways']:
+    if config['catabolic_pathways'] is not None:
         subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: '
                         f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
 

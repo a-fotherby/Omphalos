@@ -35,8 +35,17 @@ def compile_results(dict_len):
     import omphalos.file_methods as fm
     import numpy as np
 
+    fails = []
     results_dict = dict.fromkeys(np.arange(dict_len))
     for i in results_dict:
-        input_file = fm.unpickle(f'run{i}/input_file{i}_complete.pkl')
-        results_dict[i] = input_file
+        try:
+            input_file = fm.unpickle(f'run{i}/input_file{i}_complete.pkl')
+            results_dict[i] = input_file
+        except:
+            fails.append(i)
+    
+    for j in fails:
+        results_dict.pop(j)
+
     fm.pickle_data_set(results_dict, 'completed_run.pkl')
+    print(f'Files failed to run: {len(fails)}')

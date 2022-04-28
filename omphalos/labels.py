@@ -13,7 +13,7 @@ def raw(data_set, output_key):
     # Generate dataframe of requested labels.
     set_list = []
     for i in data_set:
-        set_list.append(data_set[i].results.results_dict[output_key])
+        set_list.append(data_set[i].results[output_key])
     array = xr.concat(set_list, dim='file_num')
 
     return array

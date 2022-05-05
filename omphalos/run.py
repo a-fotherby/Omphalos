@@ -32,13 +32,13 @@ def crunchtope(input_file, file_name, file_num, timeout, tmp_dir):
     import pexpect as pexp
     from omphalos.settings import crunch_dir
 
-    command = f"{crunch_dir} {file_name}"
+    command = f'{crunch_dir} {file_name}'
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 
-    errors = ["EXCEEDED MAXIMUM ITERATIONS", "TRY A"]
+    errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'nrerror: singular matrix']
 
-    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1]])
+    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2]])
 
     if error_code == 0:
         # Successful run.

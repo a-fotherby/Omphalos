@@ -12,6 +12,7 @@ class InputFile:
         # 1 = timeout
         # 2 = condition speciation error
         # 3 = charge balance error
+        # 4 = singular matrix encountered
         self.error_code = 0
 
     def sort_condition_block(self, condition):

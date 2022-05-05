@@ -139,48 +139,81 @@ def primary_species(input_file, condition):
     return primary_species_df_row
 
 
-def initial_conditions(data_set, primary_species=True, mineral_vols=False):
+def initial_conditions(dataset, concentrations=True, minerals=False):
     """Returns an attribute DataFrame containing the spatial initial condition for each InputFile in a data set.
     
     """
-    import omphalos.labels as lbls
-    import pandas as pd
+    import xarray as xr
     import numpy as np
     import omphalos.spatial_constructor as sc
+    from omphalos import labels as lbls
 
-    # Create a new DataFrame with the same geometry as the labels by making a deep copy of the coordinate data.
-    # Use totcon because it's always present 
-    initial_conditions = lbls.raw_labels(data_set, 'totcon')[['X', 'Y', 'Z']].copy()
+    for file in dataset:
+        for condition in dataset[file].condition_blocks:
+            dataset[file].check_condition_sort(condition)
 
-    secondary_precip = pd.DataFrame()
-    mineral_vol_init = pd.DataFrame()
+    # TODO: add pH option for initial condition construction. Currently concentrations does not support the H+ ion
+    #  because sc.populate_array doesn't support pH directly. Will need to add looking in the parameters dict for pH
+    #  and adding that to the spatial array either as pH or [H+].
 
-    primary_species_dict = {}
-    mineral_dict = {}
+    # Make list of species now so that when we stack the coords to the list format, we have a copy that doesn't
+    # include X Y and Z. Initial conditions in CrunchTope can at most be combinations of primary species and
+    # minerals. Therefore, we construct the template xarray object accordingly.
 
-    if primary_species:
-        primary_species_dict = data_set[next(iter(data_set))].condition_blocks[
-            next(iter(data_set[next(iter(data_set))].condition_blocks))].concentrations
+    conc_ds = xr.Dataset()
+    mins_ds = xr.Dataset()
 
-    if mineral_vols:
-        mineral_dict = data_set[next(iter(data_set))].condition_blocks[
-            next(iter(data_set[next(iter(data_set))].condition_blocks))].minerals
+    nxt = next(iter(dataset))
+    c_names = []
+    m_names = []
 
-    condition_dict = {**primary_species_dict, **mineral_dict}
-    column_names = condition_dict.keys()
+    results_array = np.array([])
 
-    initial_conditions[list(column_names)] = np.nan
+    if concentrations:
+        conc_ds = lbls.raw(dataset, 'totcon')
+        c_names = dataset[nxt].condition_blocks[next(iter(dataset[nxt].condition_blocks))].concentrations.keys()
+    if minerals:
+        mins_ds = lbls.raw(dataset, 'volume')
+        m_names = dataset[nxt].condition_blocks[next(iter(dataset[nxt].condition_blocks))].minerals.keys()
 
-    for file in data_set:
-        data_set[file].check_condition_sort(co)
-        condition_array = sc.populate_array(data_set[file], primary_species, mineral_vols)
-        condition_df = pd.DataFrame(condition_array)
+    template_arr = xr.merge((conc_ds, mins_ds))
 
-        condition_df.columns = column_names
+    var_list = list(c_names) + list(m_names)
 
-        initial_conditions.loc[file].update(condition_df)
+    print(var_list)
 
-    return initial_conditions
+    # Unstack the template array to make it compatible with data out of the sc. Template array is typically some
+    # lbls.raw call of the same type. Data vars must match those that are being constructed.
+    template_arr = template_arr.stack(index=('X', 'Y', 'Z'))
+    template_arr = template_arr.reset_index(('X', 'Y', 'Z'))
+    template_arr = template_arr.reset_coords(('X', 'Y', 'Z'))
+
+    # For each file in the dataset, generate the spatial array describing the initial condition in the long format.
+    for i, file in enumerate(dataset):
+        update_array = sc.populate_array(dataset[file], concentrations, minerals)
+        # If it is the first time, get the shape of the array that will contain the initial condition for each file
+        # in the dataset (i.e. (no. of files) x (no. of species) x (no. of grid cells) . Initialise that array.
+        if i == 0:
+            shape = tuple((len(dataset), np.shape(update_array)[0], np.shape(update_array)[1]))
+            results_array = np.empty(shape)
+        # Add the file initial condition array to the large array for all files. Repeat until all have been added.
+        results_array[i, :, :] = update_array
+
+    # To construct the xarray object, we have to pass it a correctly structured dictionary. We construct this now.
+    # For every species/variable in the template we create an entry in that name, slicing along the correct axis of
+    # results_array.
+    results_dict = {var: results_array[:, :, i] for i, var in enumerate(var_list)}
+    # Turn each entry into a list, containing the var data, as well the names index and file_num which will become
+    # xarray coordinates, in accordance with the xr.ds constructor method.
+    for var in results_dict:
+        results_dict.update({var: (['file_num', 'index'], results_dict[var])})
+    ds = xr.Dataset(results_dict)
+    # Unstack the coordinate system again.
+    ds = ds.assign({var: template_arr[var] for var in ('X', 'Y', 'Z')})
+    ds = ds.set_index(index=('X', 'Y', 'Z'))
+    ds = ds.unstack('index')
+
+    return ds
 
 
 def mineral_rates(dataset):

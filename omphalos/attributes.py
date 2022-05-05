@@ -15,7 +15,7 @@ def get_condition(
     import pandas as pd
 
     # Put data into a dataframe for visualisation.
-    # Currently only supports primary_species but can easily be extended to
+    # Currently, only supports primary_species but can easily be extended to
     # other attributes of a ConditionBlocks once Omphalos supports their
     # randomisation.
     attributes = pd.DataFrame()
@@ -58,18 +58,16 @@ def boundary_condition(dataset, boundary='x_begin', species_concs=True, mineral_
     Arguments:
     data_set -- The InputFile dictionary to return the boundary conditions for.
     
-    Keyword Arguments:
-    boundary -- The boundary over which to return the condition. Takes the CrunchTope boundary specifier keyword as a string for an argument.
-    primary_species -- Bool. Whether or not to return primary species conditions.
-    mineral_vols -- Bool. Whether or not to return mineral volume fractions.
+    Keyword Arguments: boundary -- The boundary over which to return the condition. Takes the CrunchTope boundary
+    specifier keyword as a string for an argument. primary_species -- Bool. Whether or not to return primary species
+    conditions. mineral_vols -- Bool. Whether or not to return mineral volume fractions.
     """
 
     import pandas as pd
 
-    # Find out what condition keyword is indicicated by the boundary var.
-    # In theory this should be the same in all InputFiles (I haven't implement changing boundary condition keywords in between files yet).
-    # So we only check once, at the beginning.
-    # In theory, InputFile 0 could have timed out, so use iter to get first available entry.
+    # Find out what condition keyword is indicicated by the boundary var. In theory this should be the same in all
+    # InputFiles (I haven't implement changing boundary condition keywords in between files yet). So we only check
+    # once, at the beginning. In theory, InputFile 0 could have timed out, so use iter to get first available entry.
     condition = dataset[next(iter(dataset))].keyword_blocks['BOUNDARY_CONDITIONS'].contents[boundary][0]
 
     boundary_conditions = pd.DataFrame()
@@ -273,7 +271,7 @@ def normalise_by_frac(attribute_df):
     
     Arguments:
     
-    attribute_df -- The DataFrame of attributes to normalize.
+    attribute_df -- The DataFrame of attributes to normalise.
     """
     import pandas as pd
     attribute_sum = attribute_df.sum(axis=1)

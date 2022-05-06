@@ -178,8 +178,6 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
 
     var_list = list(c_names) + list(m_names)
 
-    print(var_list)
-
     # Unstack the template array to make it compatible with data out of the sc. Template array is typically some
     # lbls.raw call of the same type. Data vars must match those that are being constructed.
     template_arr = template_arr.stack(index=('X', 'Y', 'Z'))

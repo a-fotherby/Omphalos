@@ -10,3 +10,4 @@ dependencies:
   - ipywidgets
   - ipykernel
   - pexpect
+  - py-xgboost-gpu

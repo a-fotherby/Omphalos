@@ -9,11 +9,15 @@
 
 ## Installation
 
-1. Ensure conda-forge is enabled: https://conda-forge.org/
-2. Inside the Omphalos directory run <code> conda env create --file requirements.yml </code>
-3. <code> conda activate omphalos </code>
-4. Open settings_defaults.py and fill in the paths to your CrunchTope and Omphalos directories respectively.
-5. Rename settings_defaults.py to settings.py. This won't be tracked when you pull newer versions of Omphalos.
+1. Make sure conda is installed on your system: https://docs.conda.io/en/latest/
+2. Run the installation script: `./install.sh`
+   1. Make sure you provide the *absolute path* to your CrunchTope executable. 
+   2. You can always change it later in `omphalos/settings.py`.
+3. Activate the conda environment: `conda activate omphalos`
+
+## Usage
+
+More to come!
 
 ### About
 

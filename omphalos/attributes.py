@@ -7,7 +7,7 @@ def get_condition(
         species_concs=False,
         mineral_volumes=False,
         mineral_rates=False):
-    """Returns a normalised DataFrame of attributes based on an input file condition.
+    """Returns a DataFrame of attributes based on an input file condition.
     
     Doesn't contain any spatial data, just the concentrations and volume fractions of the species in the condition.
     The attribute array will be of dimension (# of InputFile objects x # of primary species).
@@ -188,7 +188,7 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
     for i, file in enumerate(dataset):
         update_array = sc.populate_array(dataset[file], concentrations, minerals)
         # If it is the first time, get the shape of the array that will contain the initial condition for each file
-        # in the dataset (i.e. (no. of files) x (no. of species) x (no. of grid cells) . Initialise that array.
+        # in the dataset (i.e. (no. of files) x (no. of species) x (no. of grid cells). Initialise that array.
         if i == 0:
             shape = tuple((len(dataset), np.shape(update_array)[0], np.shape(update_array)[1]))
             results_array = np.empty(shape)

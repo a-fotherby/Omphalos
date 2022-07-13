@@ -59,7 +59,7 @@ def data_cats(path):
     f_list = glob.glob(path + '*.tec')
     f_list = [i.rstrip('.tec') for i in f_list]
     f_list = [i.rstrip('0123456789') for i in f_list]
-    f_list = [i.split('/', 1)[-1] for i in f_list]
+    f_list = [i.split('/')[-1] for i in f_list]
     f_set = set(f_list)
     return f_set
 

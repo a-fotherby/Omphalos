@@ -58,11 +58,10 @@ class Template(InputFile):
         # Check template is not a restart file to avoid infinite recursion.
         if not self.config['restart']:
             # Check for restarts.
-            print(self.keyword_blocks['RUNTIME'].contents)
             try:
                 later_files = self.keyword_blocks['RUNTIME'].contents['later_inputfiles']
             except KeyError:
-                pass
+                return
             if later_files:
                 print('*** Later input files found ***')
                 for later_file in later_files:
@@ -351,33 +350,36 @@ class Template(InputFile):
                 # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
                 # number index is preserved. So put in try-except statement to ignore error thrown by missing line
                 # removed due to commenting.
-                if self.raw[a].split()[0] in zone_entries != -1 and self.raw[a].find('zone') != -1:
-                    try:
-                        line_list = self.raw[a].split()
-                        # Regex extracts keys as unique coordinate sets.
-                        key = re.findall("\d+-\d+", self.raw[a])
-                        key = ' '.join((line_list[0], ' '.join(key)))
-                        # Check to see if the fix keyword has been invoked.
-                        if line_list[-1] == 'fix':
-                            entry = line_list[1:3] + [line_list[-1]]
-                        else:
-                            entry = line_list[1:3]
-                        keyword_dict.update({key: entry})
-                    except IndexError:
-                        # The block keyword is by itself, so there is no coordinate to use as a key.
-                        # This will raise an IndexError, so catch it and allocate
-                        # the dict entries accordingly.
-                        keyword_dict.update({line_list[0]: line_list[1:]})
-                    except BaseException:
-                        print(
-                            'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                            'something has gone really wrong!')
-                else:
-                    try:
-                        line_list = self.raw[a].split()
-                        keyword_dict.update({line_list[0]: line_list[1:]})
-                    except BaseException:
-                        pass
+                try:
+                    if self.raw[a].split()[0] in zone_entries != -1 and self.raw[a].find('zone') != -1:
+                        try:
+                            line_list = self.raw[a].split()
+                            # Regex extracts keys as unique coordinate sets.
+                            key = re.findall("\d+-\d+", self.raw[a])
+                            key = ' '.join((line_list[0], ' '.join(key)))
+                            # Check to see if the fix keyword has been invoked.
+                            if line_list[-1] == 'fix':
+                                entry = line_list[1:3] + [line_list[-1]]
+                            else:
+                                entry = line_list[1:3]
+                            keyword_dict.update({key: entry})
+                        except IndexError:
+                            # The block keyword is by itself, so there is no coordinate to use as a key.
+                            # This will raise an IndexError, so catch it and allocate
+                            # the dict entries accordingly.
+                            keyword_dict.update({line_list[0]: line_list[1:]})
+                        except BaseException:
+                            print(
+                                'BaseException: this is normally due to a commented line in the input file. If it is not, '
+                                'something has gone really wrong!')
+                    else:
+                        try:
+                            line_list = self.raw[a].split()
+                            keyword_dict.update({line_list[0]: line_list[1:]})
+                        except BaseException:
+                            pass
+                except KeyError:
+                    continue
                 block.contents = keyword_dict
                 self.keyword_blocks.update({keyword: block})
         except IndexError:

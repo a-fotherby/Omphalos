@@ -14,21 +14,24 @@ def execute(file_num, config):
     import omphalos.file_methods as fm
     from omphalos.template import Template
     import omphalos.run as run
+    import os
 
-    name = 'input_file.in'
+    cwd = f'{os.getcwd()}/'
+    name = config['template']
     aqueous_database = config['aqueous_database']
     catabolic_pathways = config['catabolic_pathways']
     tmp_dir = f'run{file_num}/'
     # overwrite config['template'] entry to fix file reading
     # same for other files that must be read in
-    config.update({'template': f'{tmp_dir}/{name}'}) 
+    config.update({'template': f'{cwd}{tmp_dir}{name}'}) 
     if aqueous_database is not None:
-        config.update({'aqueous_database': f'{tmp_dir}{aqueous_database}'}) 
+        config.update({'aqueous_database': f'{cwd}{tmp_dir}{aqueous_database}'}) 
     if catabolic_pathways is not None:
-        config.update({'catabolic_pathways': f'{tmp_dir}{catabolic_pathways}'}) 
+        config.update({'catabolic_pathways': f'{cwd}{tmp_dir}{catabolic_pathways}'}) 
     input_file = Template(config)
+    input_file.path = config['template']
 
-    run.crunchtope(input_file, name, file_num, config['timeout'], tmp_dir)
+    run.crunchtope(input_file, file_num, config['timeout'], tmp_dir)
 
     return input_file
 

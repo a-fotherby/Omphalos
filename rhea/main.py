@@ -25,7 +25,6 @@ if __name__ == '__main__':
 
     # Define procedural file generation name scheme at top for consistency.
     # Do not change as this is not passed to slurm_exec.py
-    file_name_scheme = 'input_file'
     dir_name = 'run'
 
     with open(args.path_to_config) as file:
@@ -50,7 +49,7 @@ if __name__ == '__main__':
                         f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
 
     for file in file_dict:
-        file_dict[file].path = f'{dir_name}{file}/{file_name_scheme}.in'
+        file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
         file_dict[file].print()
 
     t_stop = time()

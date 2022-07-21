@@ -75,7 +75,7 @@ class Template(InputFile):
 
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
         for file in file_dict:
-            file_dict[file] = InputFile(f'input_file{file}', copy.deepcopy(self.keyword_blocks),
+            file_dict[file] = InputFile(self.config['template'], copy.deepcopy(self.keyword_blocks),
                                         copy.deepcopy(self.condition_blocks), copy.deepcopy(self.aqueous_database),
                                         copy.deepcopy(self.catabolic_pathways))
             file_dict[file].file_num = file

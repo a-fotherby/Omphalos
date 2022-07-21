@@ -12,9 +12,8 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     # Print the file. Run it in CT. Collect the results, and assign to a
     # Results object in the InputFile object.
 
-    name = 'input_file'
-    file_name = name + str(file_num) + '.in'
-    input_file.path = tmp_dir + file_name
+    import os
+    input_file.path = os.getcwd() + '/' + tmp_dir + input_file.path
     input_file.print()
     if input_file.aqueous_database:
         input_file.aqueous_database.print(
@@ -22,17 +21,17 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     if input_file.catabolic_pathways:
         input_file.catabolic_pathways.print(tmp_dir + 'CatabolicPathways.in')
 
-    crunchtope(input_file, file_name, file_num, timeout, tmp_dir)
+    crunchtope(input_file, file_num, timeout, tmp_dir)
 
     return input_file
 
 
-def crunchtope(input_file, file_name, file_num, timeout, tmp_dir):
+def crunchtope(input_file, file_num, timeout, tmp_dir):
     import sys
     import pexpect as pexp
     from omphalos.settings import crunch_dir
 
-    command = f'{crunch_dir} {file_name}'
+    command = f'{crunch_dir} {input_file.path}'
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 
@@ -45,14 +44,14 @@ def crunchtope(input_file, file_name, file_num, timeout, tmp_dir):
         # Make a results object that is an attribute of the InputFile object.
         input_file.get_results(tmp_dir)
         print(f'File {file_num} outputs recorded.')
-        clean_dir(tmp_dir, file_name)
+        clean_dir(tmp_dir, input_file.path)
 
     else:
         # File threw an error.
         print(f'Error {error_code} encountered.')
         input_file.error_code = error_code
         # Clean the temp directory ready the next input file.
-        clean_dir(tmp_dir, file_name)
+        clean_dir(tmp_dir, input_file.path)
 
     print('File {} complete.'.format(file_num))
 

@@ -1,7 +1,7 @@
 """Run Omphalos in parallel using Slurm.
 
 Args:
-config -- new option, specifies YAML file containing template modification options. Will replace 'condition' soon.
+config -- new option, specifies YAML file containing template modification options.
 
 """
 

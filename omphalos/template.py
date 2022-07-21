@@ -6,8 +6,10 @@ class Template(InputFile):
 
     def __init__(self, config):
         from omphalos.namelist import CrunchNameList
+        import copy
+        import sys
 
-        super().__init__(config['template'], {}, {}, {}, {})
+        super().__init__(config['template'], {}, {}, {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.
         # FLOW, INITIAL_CONDITION, and ISOTOPES have their own methods.
         keyword_list = [
@@ -24,14 +26,21 @@ class Template(InputFile):
             'SURFACE_COMPLEXATION',
             'BOUNDARY_CONDITIONS',
             'TRANSPORT',
-            'FLOW',
             'TEMPERATURE',
             'POROSITY',
             'PEST',
             'EROSION/BURIAL']
         self.config = config
+        self.later_inputs = {}
         self.raw = self.read_file(self.path)
         self.error_code = 0
+        # Will only have 'restart' key if it is a restart.
+        # Therefore, if KeyError, not a restart.
+        try:
+            if self.config['restart']:
+                pass
+        except KeyError:
+            self.config['restart'] = False
         for keyword in keyword_list:
             self.get_keyword_block(keyword)
 
@@ -45,6 +54,30 @@ class Template(InputFile):
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
         if config['catabolic_pathways'] is not None:
             self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
+
+        # Check template is not a restart file to avoid infinite recursion.
+        if not self.config['restart']:
+            # Check for restarts.
+            print(self.keyword_blocks['RUNTIME'].contents)
+            try:
+                later_files = self.keyword_blocks['RUNTIME'].contents['later_inputfiles']
+            except KeyError:
+                pass
+            if later_files:
+                print('*** Later input files found ***')
+                for later_file in later_files:
+                    # By default we propagate the changes specified in the Omphalos config.
+                    # I.e. if we change a boundary condition we expect it to be the same in later restarts.
+                    # TODO: Varying conditions from the config over restarts.
+                    later_config = copy.deepcopy(self.config)
+                    later_config['template'] = later_file
+                    later_config['number_of_files'] = 1
+                    later_config['restart'] = True
+                    self.later_inputs.update({later_file: Template(later_config)})
+                    print(f'*** IMPORTED LATER FILE {later_file} ***')
+            else:
+                import sys
+                sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')
 
     @staticmethod
     def read_file(path):
@@ -77,7 +110,7 @@ class Template(InputFile):
         for file in file_dict:
             file_dict[file] = InputFile(self.config['template'], copy.deepcopy(self.keyword_blocks),
                                         copy.deepcopy(self.condition_blocks), copy.deepcopy(self.aqueous_database),
-                                        copy.deepcopy(self.catabolic_pathways))
+                                        copy.deepcopy(self.catabolic_pathways), self.later_inputs)
             file_dict[file].file_num = file
 
         return file_dict

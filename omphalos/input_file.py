@@ -1,7 +1,7 @@
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways):
+    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways, restarts):
         self.path = path
         self.keyword_blocks = keyword_blocks
         self.condition_blocks = condition_blocks
@@ -14,6 +14,7 @@ class InputFile:
         # 3 = charge balance error
         # 4 = singular matrix encountered
         self.error_code = 0
+        self.later_inputs = restarts
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,

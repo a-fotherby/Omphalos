@@ -15,6 +15,10 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     import os
     input_file.path = os.getcwd() + '/' + tmp_dir + input_file.path
     input_file.print()
+    if input_file.later_inputs:
+        for name in input_file.later_inputs:
+            input_file.later_inputs[name].path = os.getcwd() + '/' + tmp_dir + input_file.later_inputs[name].path
+            input_file.later_inputs[name].print()
     if input_file.aqueous_database:
         input_file.aqueous_database.print(
             tmp_dir + input_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0])

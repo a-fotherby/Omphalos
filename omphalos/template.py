@@ -9,6 +9,7 @@ class Template(InputFile):
 
         super().__init__(config['template'], {}, {}, {}, {})
         # Proceed to iterate through each keyword block to import the whole file.
+        # FLOW, INITIAL_CONDITION, and ISOTOPES have their own methods.
         keyword_list = [
             'TITLE',
             'RUNTIME',
@@ -38,6 +39,7 @@ class Template(InputFile):
         self.get_initial_conditions_block()
         self.get_isotope_block()
         self.get_condition_blocks()
+        self.get_flow()
 
         if config['aqueous_database'] is not None:
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
@@ -282,3 +284,68 @@ class Template(InputFile):
                 self.keyword_blocks.update({keyword: block})
         except IndexError:
             print('The keyword "INITIAL_CONDITIONS" you searched for does not exist; check your input file for errors.')
+
+    def get_flow(self):
+        """Method to get the flow block from the input file and encode it as a KeywordBlock object in the InputFile.
+
+        We have to do this in a separate method because the flow block has repeated entries to specify permeability
+        and pressure over non-contiguous regions, so the left most word is not always unique. This means that the
+        dictionary keys are overwriting each other.
+        """
+        from omphalos import file_methods as fm
+        from omphalos import keyword_block as kb
+        import numpy as np
+        import re
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'FLOW'
+        block_start = fm.search_file(self.raw, keyword)
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_file(self.raw, 'END')
+
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
+        # Set the block type using the keyword in question.
+        block = kb.KeywordBlock(keyword)
+        keyword_dict = {}
+        zone_entries = {'permeability_x', 'permeability_y', 'permeability_z', 'pressure'}
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
+                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
+                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
+                # removed due to commenting.
+                if self.raw[a].split()[0] in zone_entries != -1 and self.raw[a].find('zone') != -1:
+                    try:
+                        line_list = self.raw[a].split()
+                        # Regex extracts keys as unique coordinate sets.
+                        key = re.findall("\d+-\d+", self.raw[a])
+                        key = ' '.join((line_list[0], ' '.join(key)))
+                        # Check to see if the fix keyword has been invoked.
+                        if line_list[-1] == 'fix':
+                            entry = line_list[1:3] + [line_list[-1]]
+                        else:
+                            entry = line_list[1:3]
+                        keyword_dict.update({key: entry})
+                    except IndexError:
+                        # The block keyword is by itself, so there is no coordinate to use as a key.
+                        # This will raise an IndexError, so catch it and allocate
+                        # the dict entries accordingly.
+                        keyword_dict.update({line_list[0]: line_list[1:]})
+                    except BaseException:
+                        print(
+                            'BaseException: this is normally due to a commented line in the input file. If it is not, '
+                            'something has gone really wrong!')
+                else:
+                    try:
+                        line_list = self.raw[a].split()
+                        keyword_dict.update({line_list[0]: line_list[1:]})
+                    except BaseException:
+                        pass
+                block.contents = keyword_dict
+                self.keyword_blocks.update({keyword: block})
+        except IndexError:
+            print('The keyword "FLOW" you searched for does not exist; check your input file for errors.')

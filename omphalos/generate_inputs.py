@@ -53,6 +53,15 @@ def configure_input_files(template, tmp_dir, rhea=False):
 
     if not rhea:
         subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
+        # Check for a temperature file specification and copy it to tmp if there.
+        if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
+            subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}', f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
+
+    if template.later_inputs:
+        for key in template.later_inputs:
+            print(key)
+            later_file = configure_input_files(template.later_inputs[key], tmp_dir)[0]
+            template.later_inputs.update({key: later_file})
 
     return file_dict
 

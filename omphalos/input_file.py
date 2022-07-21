@@ -1,7 +1,7 @@
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways):
+    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways, restarts):
         self.path = path
         self.keyword_blocks = keyword_blocks
         self.condition_blocks = condition_blocks
@@ -14,6 +14,7 @@ class InputFile:
         # 3 = charge balance error
         # 4 = singular matrix encountered
         self.error_code = 0
+        self.later_inputs = restarts
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,
@@ -69,6 +70,24 @@ class InputFile:
                         line.insert(1, entry)
                         line.append('\n')
                         f.write(' '.join(line))
+                elif block == 'FLOW':
+                    for entry in self.keyword_blocks[block].contents:
+                        if (entry.find('permeability') != -1 or entry.find('pressure') != -1) and self.keyword_blocks[block].contents[entry][-1] != 'default':
+                            line = copy.deepcopy(
+                                self.keyword_blocks[block].contents[entry])
+                            keyword = entry.split(' ', 1)[0]
+                            coord = entry.split(' ', 1)[-1]
+
+                            line.insert(0, keyword)
+                            line.insert(3, coord)
+                            line.append('\n')
+                            f.write(' '.join(line))
+                        else:
+                            line = copy.deepcopy(
+                                self.keyword_blocks[block].contents[entry])
+                            line.insert(0, entry)
+                            line.append('\n')
+                            f.write(' '.join(line))
                 else:
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(

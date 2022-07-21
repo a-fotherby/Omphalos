@@ -32,6 +32,10 @@ if __name__ == '__main__':
 
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")
+        for file in file_dict:
+            file_dict[file].print()
+
+        sys.exit()
     else:
         print('*** Begin running input files... ***')
         run.run_dataset(file_dict, tmp_dir, config['timeout'])

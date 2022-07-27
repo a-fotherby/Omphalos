@@ -107,9 +107,10 @@ class Template(InputFile):
 
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
         for file in file_dict:
-            file_dict[file] = InputFile(self.config['template'], copy.deepcopy(self.keyword_blocks),
-                                        copy.deepcopy(self.condition_blocks), copy.deepcopy(self.aqueous_database),
-                                        copy.deepcopy(self.catabolic_pathways), self.later_inputs)
+            # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of string attributes.
+            file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.keyword_blocks,
+                                        self.condition_blocks, self.aqueous_database,
+                                        self.catabolic_pathways, self.later_inputs))
             file_dict[file].file_num = file
 
         return file_dict

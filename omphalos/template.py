@@ -160,8 +160,8 @@ class Template(InputFile):
                     print(
                         'BaseException: This is normally due to a commented line in the input file. If it is not, '
                         'something has gone really wrong!')
-                block.contents = keyword_dict
-                self.keyword_blocks.update({keyword: block})
+            block.contents = keyword_dict
+            self.keyword_blocks.update({keyword: block})
         except IndexError:
             print(
                 'The keyword "{}" you searched for does not exist. If you are sure that this keyword is in your input '
@@ -253,8 +253,8 @@ class Template(InputFile):
                     print(
                         'BaseException: this is normally due to a commented line in the input file. If it is not, '
                         'something has gone really wrong!')
-                block.contents = keyword_dict
-                self.keyword_blocks.update({keyword: block})
+            block.contents = keyword_dict
+            self.keyword_blocks.update({keyword: block})
         except IndexError:
             print(
                 'The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your '
@@ -313,8 +313,8 @@ class Template(InputFile):
                     print(
                         'BaseException: this is normally due to a commented line in the input file. If it is not, '
                         'something has gone really wrong!')
-                block.contents = keyword_dict
-                self.keyword_blocks.update({keyword: block})
+            block.contents = keyword_dict
+            self.keyword_blocks.update({keyword: block})
         except IndexError:
             print('The keyword "INITIAL_CONDITIONS" you searched for does not exist; check your input file for errors.')
 

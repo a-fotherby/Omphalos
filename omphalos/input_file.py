@@ -171,6 +171,20 @@ class InputFile:
         from omphalos import file_methods as fm
 
         times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
+        print(f'time type: {type(times)}')
+        print(times)
+
+        # Check for later inputs and append times.
+        if self.later_inputs:
+            print('later input found')
+            for file in self.later_inputs:
+                print(f'iterate {file} file')
+                later_times = self.later_inputs[file].keyword_blocks['OUTPUT'].contents['spatial_profile']
+                print(f'later file times: {later_times}')
+                print(f'late type: {type(later_times)}')
+                times.extend(later_times)
+                print(f'newtimes: {times}')
+
         times = [float(a) for a in times]
         times = pd.Index(data=times, name='time')
 

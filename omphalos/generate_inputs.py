@@ -18,7 +18,7 @@ CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
 
 
-def configure_input_files(template, tmp_dir, rhea=False):
+def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
     import subprocess
@@ -27,6 +27,11 @@ def configure_input_files(template, tmp_dir, rhea=False):
         template.sort_condition_block(condition)
 
     file_dict = template.make_dict()
+
+    if override_num != -1:
+        # Do it to all files so that accidental call is obvious.
+        for file in file_dict:
+            file_dict[file].file_num = override_num
 
     for file in file_dict:
         for condition in template.config['conditions']:
@@ -58,10 +63,10 @@ def configure_input_files(template, tmp_dir, rhea=False):
             subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}', f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
 
     if template.later_inputs:
-        for key in template.later_inputs:
-            print(key)
-            later_file = configure_input_files(template.later_inputs[key], tmp_dir)[0]
-            template.later_inputs.update({key: later_file})
+        for file in file_dict:
+            for key in file_dict[file].later_inputs:
+                later_file = configure_input_files(file_dict[file].later_inputs[key], tmp_dir, rhea, file_dict[file].file_num)[0]
+                file_dict[file].later_inputs.update({key: later_file})
 
     return file_dict
 

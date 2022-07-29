@@ -40,7 +40,7 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
-                self.condition_blocks[condition].minerals.update(
+                self.condition_blocks[condition].mineral_volumes.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
                 self.condition_blocks[condition].gases.update(
@@ -111,7 +111,7 @@ class InputFile:
                     self.condition_blocks[block].parameters,
                     self.condition_blocks[block].concentrations,
                     self.condition_blocks[block].gases,
-                    self.condition_blocks[block].minerals,
+                    self.condition_blocks[block].mineral_volumes,
                 ]:
                     for entry in species_type:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the
@@ -171,8 +171,6 @@ class InputFile:
         from omphalos import file_methods as fm
 
         times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
-        print(f'time type: {type(times)}')
-        print(times)
 
         # Check for later inputs and append times.
         if self.later_inputs:

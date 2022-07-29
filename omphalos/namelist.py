@@ -22,6 +22,15 @@ class CrunchNameList():
 
         f90nml.write(self.namelist, path, force=True)
 
+    def find_reaction(self, list_name, reaction_name):
+        for reaction_namelist in self.namelist[list_name]:
+            if reaction_namelist['name'] == reaction_name:
+                return reaction_namelist
+
+            else:
+                return None
+
+
     def modify_namelist(self, input_file, config, nml_type):
         """Change the parameters of a namelist associated with an InputFile.
 
@@ -29,7 +38,7 @@ class CrunchNameList():
         nml -- the namelist attribute of the InputFile
         config -- the run configuration file, stored in the Template
         """
-        from omphalos.generate_inputs import get_config_value
+        from omphalos.generate_inputs import get_config_array
 
         # Get the attribute corresponding to the namelist file in the InputFile.
         nml = self.namelist

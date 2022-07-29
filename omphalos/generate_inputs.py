@@ -107,7 +107,8 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                 for entry in condition_block:
                     change_list = condition_block[entry]
                     for file in file_dict:
-                        file_dict[file].condition_blocks[condition].modify(entry, change_list[file], mod_pos,
+                        file_num = file_dict[file].file_num
+                        file_dict[file].condition_blocks[condition].modify(entry, change_list[file_num], mod_pos,
                                                                            species_type=block)
         elif block == 'namelists':
             namelist_dict = modified_params['namelists']
@@ -121,9 +122,10 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                         change_list = reaction[parameter]
                         print(change_list)
                         for file in file_dict:
+                            file_num = file_dict[file].file_num
                             namelist = file_dict[file].__getattribute__(nml_name)
                             reaction_namelist = namelist.find_reaction(list_name, reaction_name)
-                            reaction_namelist[parameter] = change_list[file]
+                            reaction_namelist[parameter] = change_list[file_num]
 
         else:
             keyword_dict = modified_params[block]
@@ -132,7 +134,8 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
             for entry in keyword_dict:
                 change_list = keyword_dict[entry]
                 for file in file_dict:
-                    file_dict[file].keyword_blocks[block_name].modify(entry, change_list[file], mod_pos)
+                    file_num = file_dict[file].file_num
+                    file_dict[file].keyword_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
 
     if not rhea:
         subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])

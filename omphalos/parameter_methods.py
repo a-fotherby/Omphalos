@@ -56,7 +56,7 @@ def constant(params, num_files):
 
 
 def custom_list(params, num_files):
-    array = params[0]
+    array = params
 
     return array
 

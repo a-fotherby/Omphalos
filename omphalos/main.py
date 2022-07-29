@@ -33,6 +33,7 @@ if __name__ == '__main__':
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")
         for file in file_dict:
+            file_dict[file].path = f'{tmp_dir}{file_dict[file].path}{file}'
             file_dict[file].print()
 
         sys.exit()

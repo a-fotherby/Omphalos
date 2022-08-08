@@ -1,7 +1,7 @@
 """Run Omphalos in parallel using Slurm.
 
 Args:
-config -- new option, specifies YAML file containing template modification options. Will replace 'condition' soon.
+config -- new option, specifies YAML file containing template modification options.
 
 """
 
@@ -25,7 +25,6 @@ if __name__ == '__main__':
 
     # Define procedural file generation name scheme at top for consistency.
     # Do not change as this is not passed to slurm_exec.py
-    file_name_scheme = 'input_file'
     dir_name = 'run'
 
     with open(args.path_to_config) as file:
@@ -48,10 +47,26 @@ if __name__ == '__main__':
     if config['catabolic_pathways'] is not None:
         subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: '
                         f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+    try:
+        if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
+            t_file = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
+            subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
+                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+            if template.later_inputs:
+                for file in template.later_inputs:
+                    t_file = template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
+                    subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
+                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+    except KeyError:
+        pass
 
     for file in file_dict:
-        file_dict[file].path = f'{dir_name}{file}/{file_name_scheme}.in'
+        file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
         file_dict[file].print()
+        if file_dict[file].later_inputs:
+            for later_file in file_dict[file].later_inputs:
+                file_dict[file].later_inputs[later_file].path = f'{dir_name}{file}/{file_dict[file].later_inputs[later_file].path}'
+                file_dict[file].later_inputs[later_file].print()
 
     t_stop = time()
 

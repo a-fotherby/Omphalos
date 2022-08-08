@@ -1,7 +1,7 @@
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways):
+    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways, restarts):
         self.path = path
         self.keyword_blocks = keyword_blocks
         self.condition_blocks = condition_blocks
@@ -14,6 +14,7 @@ class InputFile:
         # 3 = charge balance error
         # 4 = singular matrix encountered
         self.error_code = 0
+        self.later_inputs = restarts
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,
@@ -39,7 +40,7 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
-                self.condition_blocks[condition].minerals.update(
+                self.condition_blocks[condition].mineral_volumes.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
                 self.condition_blocks[condition].gases.update(
@@ -69,6 +70,24 @@ class InputFile:
                         line.insert(1, entry)
                         line.append('\n')
                         f.write(' '.join(line))
+                elif block == 'FLOW':
+                    for entry in self.keyword_blocks[block].contents:
+                        if (entry.find('permeability') != -1 or entry.find('pressure') != -1) and self.keyword_blocks[block].contents[entry][-1] != 'default':
+                            line = copy.deepcopy(
+                                self.keyword_blocks[block].contents[entry])
+                            keyword = entry.split(' ', 1)[0]
+                            coord = entry.split(' ', 1)[-1]
+
+                            line.insert(0, keyword)
+                            line.insert(3, coord)
+                            line.append('\n')
+                            f.write(' '.join(line))
+                        else:
+                            line = copy.deepcopy(
+                                self.keyword_blocks[block].contents[entry])
+                            line.insert(0, entry)
+                            line.append('\n')
+                            f.write(' '.join(line))
                 else:
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(
@@ -92,7 +111,7 @@ class InputFile:
                     self.condition_blocks[block].parameters,
                     self.condition_blocks[block].concentrations,
                     self.condition_blocks[block].gases,
-                    self.condition_blocks[block].minerals,
+                    self.condition_blocks[block].mineral_volumes,
                 ]:
                     for entry in species_type:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the
@@ -152,6 +171,18 @@ class InputFile:
         from omphalos import file_methods as fm
 
         times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
+
+        # Check for later inputs and append times.
+        if self.later_inputs:
+            print('later input found')
+            for file in self.later_inputs:
+                print(f'iterate {file} file')
+                later_times = self.later_inputs[file].keyword_blocks['OUTPUT'].contents['spatial_profile']
+                print(f'later file times: {later_times}')
+                print(f'late type: {type(later_times)}')
+                times.extend(later_times)
+                print(f'newtimes: {times}')
+
         times = [float(a) for a in times]
         times = pd.Index(data=times, name='time')
 

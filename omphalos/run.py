@@ -41,7 +41,7 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
 
     errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'nrerror: singular matrix', 'NaN']
 
-    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2]], errors[3])
+    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2], errors[3]])
 
     if error_code == 0:
         # Successful run.

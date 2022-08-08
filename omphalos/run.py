@@ -36,9 +36,9 @@ def crunchtope(input_file, file_name, file_num, timeout, tmp_dir):
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 
-    errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'nrerror: singular matrix']
+    errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'nrerror: singular matrix', 'NaN']
 
-    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2]])
+    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2]], errors[3])
 
     if error_code == 0:
         # Successful run.

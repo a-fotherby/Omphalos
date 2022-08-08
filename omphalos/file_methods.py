@@ -48,7 +48,7 @@ def parse_output(path, output, time_ref):
                 2],
             names=headers)
         ds = df.to_xarray()
-        ds = ds.set_index(index=('X','Y','Z'))
+        ds = ds.set_index(index=('X', 'Y', 'Z'))
         ds = ds.unstack('index')
 
         return ds

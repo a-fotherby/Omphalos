@@ -44,7 +44,11 @@ def fix_smalls(dataset, category):
     # numbers, assume any DataArray object that isn't type float64 has values like this, which we can safely assume
     # to be zero.
     for i in dataset:
-        dataset[i].results[category] = dataset[i].results[category].map(map_smalls)
+        for species in dataset[i].results[category]:
+            if dataset[i].results[category][species].dtype == object:
+                dataset[i].results[category][species] = dataset[i].results[category][species].astype(str).str.replace(r'\d.\d+-\d+', '0').astype(float)
+            else:
+                continue
 
     return dataset
 

@@ -2,16 +2,17 @@
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
-CT_IDs = {'concentrations': ['geochemical condition', -1],
-          'mineral_volumes': ['geochemical condition', 0],
-          'parameters': ['geochemical condition', -1],
-          'gases': ['geochemical condition', -1],
-          'mineral_rates': ['MINERALS', -1],
-          'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
-          'flow': ['FLOW', 0],
-          'transport': ['TRANSPORT', -1],
-          'erosion/burial': ['EROSION/BURIAL', -1],
-          'namelists': [None]
+CT_IDs = {'concentrations':     ['geochemical condition', -1],
+          'mineral_volumes':    ['geochemical condition', 0],
+          'mineral_ssa':        ['geochemical condition', -1],
+          'parameters':         ['geochemical condition', -1],
+          'gases':              ['geochemical condition', -1],
+          'mineral_rates':      ['MINERALS', -1],
+          'aqueous_kinetics':   ['AQUEOUS_KINETICS', -1],
+          'flow':               ['FLOW', 0],
+          'transport':          ['TRANSPORT', -1],
+          'erosion/burial':     ['EROSION/BURIAL', -1],
+          'namelists':          [None]
           }
 
 CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
@@ -120,7 +121,6 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                     reaction = reactions[reaction_name]
                     for parameter in reaction:
                         change_list = reaction[parameter]
-                        print(change_list)
                         for file in file_dict:
                             file_num = file_dict[file].file_num
                             namelist = file_dict[file].__getattribute__(nml_name)

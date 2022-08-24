@@ -46,7 +46,11 @@ class ConditionBlock(KeywordBlock):
             raise ConditionBlockModificationError('ConditionBlock must have a species_type.')
             import sys
             sys.exit()
-
+        
+        # If modifying specific surface area, need to ensure we index into mineral volumes.
+        if species_type == 'mineral_ssa':
+            species_type = 'mineral_volumes'
+        
         contents = self.__getattribute__(species_type)
 
         array = contents[entry]

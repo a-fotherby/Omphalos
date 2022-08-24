@@ -70,7 +70,6 @@ class Template(InputFile):
                     # TODO: Varying conditions from the config over restarts.
                     later_config = copy.deepcopy(self.config)
                     later_config['template'] = later_file
-                    later_config['number_of_files'] = 1
                     later_config['restart'] = True
                     self.later_inputs.update({later_file: Template(later_config)})
                     print(f'*** IMPORTED LATER FILE {later_file} ***')

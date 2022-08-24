@@ -50,7 +50,7 @@ def random_uniform(params, num_files):
 
 def constant(params, num_files):
     import numpy as np
-    array = np.ones(num_files) * params[1]
+    array = np.ones(num_files) * params
 
     return array
 

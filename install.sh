@@ -8,7 +8,7 @@ eval "$(conda shell.bash hook)"
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 
-conda create env --file requirments.yml
+conda create env --file requirements.yml
 
 echo alias omphalos="$SCRIPT_DIR/omphalos/main.py" >> ~/.bashrc
 echo alias rhea="$SCRIPT_DIR/rhea/main.py" >> ~/.bashrc

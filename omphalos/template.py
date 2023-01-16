@@ -106,7 +106,8 @@ class Template(InputFile):
 
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
         for file in file_dict:
-            # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of string attributes.
+            # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of
+            # string attributes.
             file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.keyword_blocks,
                                         self.condition_blocks, self.aqueous_database,
                                         self.catabolic_pathways, self.later_inputs))
@@ -370,8 +371,8 @@ class Template(InputFile):
                             keyword_dict.update({line_list[0]: line_list[1:]})
                         except BaseException:
                             print(
-                                'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                                'something has gone really wrong!')
+                                'BaseException: this is normally due to a commented line in the input file. If it is '
+                                'not, something has gone really wrong!')
                     else:
                         try:
                             line_list = self.raw[a].split()

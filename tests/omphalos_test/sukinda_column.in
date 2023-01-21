@@ -1,0 +1,218 @@
+TITLE
+Sukinda valley DIR/Cr coupled column.
+END
+
+RUNTIME
+time_units              days
+timestep_max            3e-2
+timestep_init           1.E-10
+time_tolerance          0.001
+hindmarsh               true
+correction_max          2.0
+debye-huckel            true
+graphics                tecplot
+master                  H+
+database                SukindaCr53.dbs
+kinetic_database        sukinda_aqueous.dbs
+coordinates             rectangular
+gimrt                   true
+screen_output           1000
+database_sweep          false
+speciate_only           false
+END
+
+OUTPUT
+time_units  days
+spatial_profile       1 2 3 4 5
+END
+
+MINERALS
+Cr(OH)3              -label default  -rate  -9.43 
+!Using Fe(OH)3 value for now.
+Cr53(OH)3            -label default  -rate  -9.43
+C5H7O2NFe(s)         -label default  -rate  -2.0
+C5H7O2NSO4(s)        -label  default -rate  -2.0
+decay_b_so4(s)       -label  default -rate  -4.3   -associate  C5H7O2NSO4(s)
+Ferrihydrite_DIRB    -label DIRB     -rate  -8.20
+FeS(am)              -label  default -rate  -6.0
+Fe(OH)3              -label default  -rate  -9.43  -associate Ferrihydrite_DIRB
+!Goethite             -label default  -rate  -35.00
+!Goethite_DIRB        -label DIRB     -rate  -35.00   
+Quartz               -label default  -rate  -35.5
+!S(s)                 -label  default -rate  -3.0
+END
+
+AQUEOUS_KINETICS
+Cr_Fe_redox         -rate 29.59E6
+Cr53_Fe_redox       -rate 29.51E6
+Cr_H2S_redox        -rate 0.05192E6
+Cr53_H2S_redox      -rate 0.05184E6
+Cr_S(s)_redox       -rate 0.05192E6
+Cr53_S(s)_redox     -rate 0.05184E6
+Sulfate_reduction   -pathway Sulfate_reduction     0.92  -pathway C5H7O2N_RCH2_Ace_NH4_SR  0.08    -rate 3750
+END
+
+ISOTOPES
+primary          Cr53O4-- CrO4-- 0.113386
+primary          Cr53+++  Cr+++  0.113386
+mineral          Cr53(OH)3 Cr(OH)3 none
+END
+
+CONDITION        initial
+units            mmol/kg             
+temperature      25.0         
+pH               7.2            
+Acetate          8.80
+Br-              1.0e-10
+Ca++             4.48
+Cr+++            1.0e-10
+Cr53+++          0.113386e-10
+CrO4--           0.0050
+Cr53O4--         0.00056693
+C5H7O2NFe        1.0E-12
+C5H7O2NSO4       1.0e-12
+Cl-              30.00
+CO2(aq)          8.66
+decay_b_so4      1.0e-10
+Fe++             1.0e-10
+Fe+++            Fe(OH)3
+H2S(aq)          1.0E-12
+Na+              charge
+NH4+             1.5
+Mg++             4.4
+O2(aq)           15.6E-3
+SiO2(aq)         0.35
+SO4--            8.80
+S(aq)            1.0e-10
+
+! Mineral name <volume fraction m3/m3>
+Cr(OH)3                  1.0e-10
+Cr53(OH)3                0.113386e-10
+C5H7O2NFe(s)             5.0e-5
+C5H7O2NSO4(s)            5.0E-5
+decay_b_so4(s)           1.0e-8      bulk_surface_area      1.00
+Ferrihydrite_DIRB        0.001       specific_surface_area  79.8
+FeS(am)                  0.00        1.00
+Fe(OH)3                  0.001       1.00
+!Goethite_DIRB            0.001       specific_surface_area  55.2
+!Goethite                 3.60e-4     specific_surface_area  55.2
+Quartz                   0.65
+!S(s)                     1.0e-10  1.0
+END
+
+CONDITION        boundary
+units            mmol/kg             
+temperature      25.0         
+pH               7.2            
+Fe++             1.0e-21
+Fe+++            Fe(OH)3
+SiO2(aq)         0.35
+Na+              charge
+Ca++             5.4
+Cr+++            1.0e-10
+Cr53+++          0.113386e-10
+CrO4--           0.0050
+Cr53O4--         0.00056693
+decay_b_so4      1e-11
+Mg++             4.34
+SO4--            8.80
+H2S(aq)          1e-12
+Cl-              3
+CO2(aq)          CO2(g)   0.0325
+Acetate          8.80
+O2(aq)           15.6E-3
+NH4+             1.5
+Br-              1.32
+C5H7O2NFe        1.0e-10
+C5H7O2NSO4       1.0e-10
+S(aq)            1.0e-10
+END
+
+INITIAL_CONDITIONS
+initial 1-10 1 1
+END                                    
+                                    
+BOUNDARY_CONDITIONS
+x_begin   boundary                 flux
+x_end     boundary                 flux
+END                                 
+
+DISCRETIZATION
+distance_units      centimeters
+xzones              10 10.0
+END
+
+FLOW
+distance_units         centimeters
+time_units             days
+constant_flow          10.0
+END
+
+POROSITY
+fix_porosity 0.30
+END
+
+TRANSPORT
+distance_units           centimeters
+time_units               second
+fix_diffusion            1.0e-05 
+!formation_factor         1.00
+!cementation_exponent     1.90
+!dispersivity             4.0
+END
+
+PRIMARY_SPECIES
+H+
+Fe++
+Fe+++
+Na+
+Ca++
+Cr+++
+Cr53+++
+CrO4--
+Cr53O4--
+decay_b_so4
+Mg++
+Cl-
+SO4--
+S(aq)
+H2S(aq)
+CO2(aq)
+Acetate
+SiO2(aq)
+O2(aq)
+NH4+
+Br-
+C5H7O2NFe
+C5H7O2NSO4
+END
+
+SECONDARY_SPECIES
+OH-
+HCO3-
+CO3--
+FeOH+
+FeS(aq)
+FeCO3(aq)
+CaOH+
+CaCO3(aq)
+CaSO4(aq)
+CaHCO3+
+MgCO3(aq)
+MgCl+
+MgSO4(aq)
+Acetic_acid(aq)
+HS-
+S--
+NH3(aq)
+END
+
+TEMPERATURE
+set_temperature  25.0
+END
+
+GASES
+CO2(g)
+O2(g)
+H2S(g)
+END

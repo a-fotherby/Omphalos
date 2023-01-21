@@ -23,7 +23,14 @@ class KeywordBlock:
             sys.exit()
 
         array = self.contents[entry]
-        array[mod_pos] = str(value)
+
+        # Check if assigning an entire array (e.g. if changing spatial profile).
+        if type(value) == list:
+            for i in range(len(value)):
+                value[i] = str(value[i])
+            array[mod_pos] = value
+        else:
+            array[mod_pos] = str(value)
         self.contents.update({entry: array})
 
 

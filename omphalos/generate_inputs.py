@@ -2,17 +2,19 @@
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
-CT_IDs = {'concentrations':     ['geochemical condition', -1],
-          'mineral_volumes':    ['geochemical condition', 0],
-          'mineral_ssa':        ['geochemical condition', -1],
-          'parameters':         ['geochemical condition', -1],
-          'gases':              ['geochemical condition', -1],
-          'mineral_rates':      ['MINERALS', -1],
-          'aqueous_kinetics':   ['AQUEOUS_KINETICS', -1],
-          'flow':               ['FLOW', 0],
-          'transport':          ['TRANSPORT', -1],
-          'erosion/burial':     ['EROSION/BURIAL', -1],
-          'namelists':          [None]
+CT_IDs = {'runtime': ['RUNTIME', -1],
+          'output': ['OUTPUT', slice(None)],
+          'concentrations': ['geochemical condition', -1],
+          'mineral_volumes': ['geochemical condition', 0],
+          'mineral_ssa': ['geochemical condition', -1],
+          'parameters': ['geochemical condition', -1],
+          'gases': ['geochemical condition', -1],
+          'mineral_rates': ['MINERALS', -1],
+          'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
+          'flow': ['FLOW', 0],
+          'transport': ['TRANSPORT', -1],
+          'erosion/burial': ['EROSION/BURIAL', -1],
+          'namelists': [None]
           }
 
 CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
@@ -82,8 +84,9 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     the specified condition. """
     import subprocess
 
-    for condition in template.config['conditions']:
-        template.sort_condition_block(condition)
+    if template.config['conditions'] is not None:
+        for condition in template.config['conditions']:
+            template.sort_condition_block(condition)
 
     file_dict = template.make_dict()
 
@@ -94,9 +97,10 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
 
     modified_params = evaluate_config(template.config)
 
-    for file in file_dict:
-        for condition in template.config['conditions']:
-            file_dict[file].sort_condition_block(condition)
+    if template.config['conditions'] is not None:
+        for file in file_dict:
+            for condition in template.config['conditions']:
+                file_dict[file].sort_condition_block(condition)
 
     # For every entry in the modified_params dict update the input file.
     for block in modified_params:

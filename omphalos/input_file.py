@@ -65,8 +65,7 @@ class InputFile:
                 # that the file has the right syntax.
                 if (block == 'ISOTOPES') or (block == 'INITIAL_CONDITIONS'):
                     for entry in self.keyword_blocks[block].contents:
-                        line = copy.deepcopy(
-                            self.keyword_blocks[block].contents[entry])
+                        line = copy.deepcopy(self.keyword_blocks[block].contents[entry])
                         line.insert(1, entry)
                         line.append('\n')
                         f.write(' '.join(line))
@@ -88,6 +87,15 @@ class InputFile:
                             line.insert(0, entry)
                             line.append('\n')
                             f.write(' '.join(line))
+                elif block == 'MINERALS':
+                    # Need to strip kinetic labels from the dictionary entries in the mineral dict when printing.
+                    for entry in self.keyword_blocks[block].contents:
+                        line = copy.deepcopy(self.keyword_blocks[block].contents[entry])
+                        min_name = entry.split('_')[0]
+                        line.insert(0, min_name)
+                        line.append('\n')
+                        f.write(' '.join(line))
+
                 else:
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(
@@ -113,6 +121,7 @@ class InputFile:
                     self.condition_blocks[block].gases,
                     self.condition_blocks[block].mineral_volumes,
                 ]:
+                    print(species_type)
                     for entry in species_type:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the
                         # line, but I want to store as number for data analysis purposes. This might come back to

@@ -1,5 +1,6 @@
 """Read in F90 namelist files describing reaction parameters."""
 
+
 class CrunchNameList():
 
     def __init__(self, path):
@@ -29,7 +30,6 @@ class CrunchNameList():
 
             else:
                 return None
-
 
     def modify_namelist(self, input_file, config, nml_type):
         """Change the parameters of a namelist associated with an InputFile.

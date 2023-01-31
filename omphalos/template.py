@@ -20,7 +20,6 @@ class Template(InputFile):
             'PRIMARY_SPECIES',
             'SECONDARY_SPECIES',
             'GASES',
-            'MINERALS',
             'AQUEOUS_KINETICS',
             'ION_EXCHANGE',
             'SURFACE_COMPLEXATION',
@@ -46,8 +45,9 @@ class Template(InputFile):
 
         # Get keyword blocks that require unique handling due to format.
         self.get_initial_conditions_block()
-        self.get_isotope_block()
         self.get_condition_blocks()
+        self.get_minerals()
+        self.get_isotope_block()
         self.get_flow()
 
         if config['aqueous_database'] is not None:
@@ -109,8 +109,8 @@ class Template(InputFile):
             # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of
             # string attributes.
             file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.keyword_blocks,
-                                        self.condition_blocks, self.aqueous_database,
-                                        self.catabolic_pathways, self.later_inputs))
+                                                      self.condition_blocks, self.aqueous_database,
+                                                      self.catabolic_pathways, self.later_inputs))
             file_dict[file].file_num = file
 
         return file_dict
@@ -164,8 +164,8 @@ class Template(InputFile):
             self.keyword_blocks.update({keyword: block})
         except IndexError:
             print(
-                'The keyword "{}" you searched for does not exist. If you are sure that this keyword is in your input '
-                'file, check your spelling.'.format(keyword))
+                f'The keyword "{keyword}" you searched for does not exist. If you are sure that this keyword is in '
+                f'your input file, check your spelling.')
 
     def get_condition_blocks(self):
         """Special method for getting all CONDITION blocks from an input file, of which there may be multiple.
@@ -385,3 +385,64 @@ class Template(InputFile):
                 self.keyword_blocks.update({keyword: block})
         except IndexError:
             print('The keyword "FLOW" you searched for does not exist; check your input file for errors.')
+
+    def get_minerals(self):
+        """Method to get the MINERAL block from the input file and encode it as a KeywordBlock object in the InputFile.
+
+        We have to do this in a separate method because the MINERAL block has to be able to specify parallel reactions for
+        the same mineral (e.g. both a acidic and neutral mechanism for Forsterite dissolution). As a result, entries in the
+        MINERAL block can have non-unique left most entries and can only be uniquely identifed through a combination of
+        both the mineral name, and the `-label` entry referencing a specific kinetic rate law in the database. In this
+        special keyword block method we create unique dictionary keys for each entry by appending the mineral name with its
+        label entry, i.e. {mineral_name}_{label}. If there is no label entry, we take the label to be 'default', which is
+        the same as the CrunchTope default.
+        """
+        from omphalos import file_methods as fm
+        from omphalos import keyword_block as kb
+        import numpy as np
+        import re
+        # Get all instances of the keyword in question, in a numpy array.
+        keyword = 'MINERALS'
+        block_start = fm.search_file(self.raw, keyword)
+
+        # Get array of line numbers for the END statements in the input file.
+        # All CT input file keyword blocks end with 'END'.
+        ending_array = fm.search_file(self.raw, 'END')
+
+        # Find the index for the END line corresponding to the block of
+        # interest.
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
+        # Set the block type using the keyword in question.
+        block = kb.KeywordBlock(keyword)
+        keyword_dict = {}
+        try:
+            for a in np.arange(block_start[0], block_end[0]):
+                # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
+                # Commented lines are removed but line number index is preserved.
+                # So put in try-except statement to ignore error thrown by missing
+                # line removed due to commenting.
+                try:
+                    line_list = self.raw[a].split()
+                    # If keyword block title, don't modify.
+                    if line_list[0] == 'MINERALS':
+                        new_min_name = 'MINERALS'
+                    else:
+                        mineral_name = line_list[0]
+                        # Look for -label keyword. If not found, then kinetics label is 'default'.
+                        try:
+                            label_index = line_list.index('-label')
+                            kinetics_label = line_list[label_index + 1]
+                        except ValueError:
+                            kinetics_label = 'default'
+                        new_min_name = f'{mineral_name}_{kinetics_label}'
+                    keyword_dict.update({new_min_name: line_list[1:]})
+                except BaseException:
+                    print(
+                        'BaseException: This is normally due to a commented line in the input file. If it is not, '
+                        'something has gone really wrong!')
+            block.contents = keyword_dict
+            self.keyword_blocks.update({keyword: block})
+            print(keyword_dict)
+        except IndexError:
+            print('The keyword "MINERAL" you searched for does not exist; check your input file for errors.')

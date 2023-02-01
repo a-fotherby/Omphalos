@@ -26,6 +26,9 @@ class InputFile:
         # comparison. Raise an exception otherwise.
         try:
             mineral_list = self.keyword_blocks['MINERALS'].contents.keys()
+            # Need to strip kinetics labels from mineral names to find them in condition block.
+            for i, mineral in enumerate(mineral_list):
+                mineral_list[i] = mineral_list[i].split('_')[0]
             gases_list = self.keyword_blocks['GASES'].contents.keys()
             primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
             )

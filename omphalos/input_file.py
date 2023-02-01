@@ -25,7 +25,8 @@ class InputFile:
         # Try and get the lists of minerals, gases, and primary species for
         # comparison. Raise an exception otherwise.
         try:
-            mineral_list = self.keyword_blocks['MINERALS'].contents.keys()
+            # Making a list of a dict returns the keys. Need this as opposed to .keys method since we want to edit them.
+            mineral_list = list(self.keyword_blocks['MINERALS'].contents)
             # Need to strip kinetics labels from mineral names to find them in condition block.
             for i, mineral in enumerate(mineral_list):
                 mineral_list[i] = mineral_list[i].split('_')[0]
@@ -124,7 +125,6 @@ class InputFile:
                     self.condition_blocks[block].gases,
                     self.condition_blocks[block].mineral_volumes,
                 ]:
-                    print(species_type)
                     for entry in species_type:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the
                         # line, but I want to store as number for data analysis purposes. This might come back to

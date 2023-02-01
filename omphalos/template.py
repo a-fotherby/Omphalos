@@ -443,6 +443,5 @@ class Template(InputFile):
                         'something has gone really wrong!')
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
-            print(keyword_dict)
         except IndexError:
             print('The keyword "MINERAL" you searched for does not exist; check your input file for errors.')

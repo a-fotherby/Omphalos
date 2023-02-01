@@ -4,8 +4,8 @@ END
  
 RUNTIME
 time_units                   years
-timestep_max                 1e-3
-timestep_init                1e-65
+timestep_max                 10
+timestep_init                1e-64
 time_tolerance               0.1
 correction_max               5.0
 debye-huckel                 true
@@ -18,17 +18,17 @@ master                       H+
 database                     CrunchThermoddem.dbs
 graphics                     tecplot
 save_restart                 burn.rst
-!later_inputfiles             burn2.in burn3.in burn4.in burn5.in burn6.in
+!later_inputfiles             burn2.in burn3.in burn4.in burn5.in burn6.in burn7.in
 END
 
 DISCRETIZATION
 distance_units               meters
-xzones                       1000   1.0
+xzones                       500   2.0
 END
 
 OUTPUT
 time_units                   years
-spatial_profile              1e-1 5 10
+spatial_profile              1e-1 2000
 END
 
 CONDITION                    Initial
@@ -59,66 +59,73 @@ Ti(OH)4(aq)                  2.09E-9
 !porosity = 0.1, total solid phase = 0.9
 
 !olivine, total (40%)
-Forsterite                   0.030
-Fayalite                     0.030       
+Forsterite                   0.030            ssa 1e-10
+Fayalite                     0.030            ssa 1e-10 
 
 !pyroxene
-Diopside                     0.190      
+Diopside                     0.190            ssa 1e-10
 !Enstatite + Ferrosillite = Hypersthene
-Enstatite(alpha)            0.050
-Ferrosilite(alpha)          0.050
+Enstatite(alpha)            0.050             ssa 1e-10
+Ferrosilite(alpha)          0.050             ssa 1e-10
 
 !microcline as sub for orthoclase
-Microcline                   0.010     
+Microcline                   0.010            ssa 1e-10
 
 !plagioclase
-Anorthite                    0.258    
-Albite(low)                  0.258   
+Anorthite                    0.258            ssa 1e-10
+Albite(low)                  0.258            ssa 1e-10
 
-Ilmenite                     0.020
+Ilmenite                     0.020            ssa 1e-10
 
-Fluorapatite(Natur)          0.004
+Fluorapatite(Natur)          0.004            ssa 1e-10
 
-Brucite                      1.0E-10        ssa 1.0
+!! Secondary minerals
+
+!amphibole
+Tremolite                    1.0e-10        ssa 2e-10
+Actinolite                   1.0e-10        ssa 2e-10
+
+!Brucite                      1.0E-10        ssa 2e-10
 
 !serpentine
-Lizardite                    1.0E-10        ssa 1.0   
-Chrysotile                   1.0E-10        ssa 1.0  
-Talc                         1.0E-10        ssa 1.0 
-Hydrotalcite                 1.0E-10        ssa 1.0
+Chrysotile                   1.0E-10        ssa 2e-10 
+Talc                         1.0E-10        ssa 2e-10
 
-!Hematite                     1.0E-10       ssa 1.0
+Hematite                     1.0E-10       ssa 2e-10
 
-Quartz(alpha)                1.0E-10        ssa 1.0   
+Quartz(alpha)                1.0E-10        ssa 2e-10   
 
 !smectites
 !important clays
-Hsaponite(Mg)                1.0E-10        ssa 1.0
-Hsaponite(Ca)                1.0E-10        ssa 1.0   
-Hsaponite(Na)                1.0E-10        ssa 1.0   
-Celadonite                   1.0e-10        ssa 1.0   
+Hsaponite(Mg)                1.0E-10        ssa 2e-10
+Celadonite                   1.0e-10        ssa 2e-10   
+
+!Epidotes
+Epidote                      1.0e-10        ssa 2e-10
+Clinozoisite                 1.0e-10        ssa 2e-10
 
 !Chlorites
-Chamosite(Daphnite)          1.0e-10        ssa 1.0
-Clinochlore                  1.0e-10        ssa 1.0
+Chamosite(Daphnite)          1.0e-10        ssa 2e-10
+Clinochlore                  1.0e-10        ssa 2e-10
 
 !Na-Zeolites
-Natrolite                    1.0e-10        ssa 1.0
+Natrolite                    1.0e-10        ssa 2e-10
 
-FeS(am)                      1.0e-10        ssa 1.0
+!Pyrite
+FeS(am)                      1.0e-10        ssa 2e-10
 
-!sulphates
-Anhydrite                    1.0E-10        ssa 1.0  
-Gypsum                       1.0E-10        ssa 1.0  
-MgSO4                        1.0E-10        ssa 1.0  
+!Sulphates
+Anhydrite                    1.0E-10        ssa 2e-10  
 
-Calcite                      1.0E-10        ssa 1.0   
-!Siderite                     1.0E-10        ssa 1.0
+!Carbonates
+Calcite                      1.0E-10        ssa 2e-10   
+!Siderite                     1.0E-10        ssa 2e-10
 END
 
 CONDITION                    Boundary
 !Seawater composition
 pH                           8.15  
+temperature                  2.0
 HCO3-                        2.4E-3
 O2(aq)                       1.0e-15
 !NH4+                         1.480e-09
@@ -144,57 +151,87 @@ END
 MINERALS
 !Basalt CIPW norm
 !Olivine 
-Forsterite                   -rate -9 ssa 4e-8
-Fayalite                     -rate -9 ssa 4e-8
-Microcline                   -rate -9 ssa 4e-8
+Forsterite                   -rate -10.64   -activation 18.88
+Forsterite                   -label h+
+Fayalite                     -rate -10.64   -activation 18.88
+Fayalite                     -label h+
 
-!pyroxenes
-Enstatite(alpha)             -rate -9 ssa 4e-8
-Ferrosilite(alpha)           -rate -9 ssa 4e-8
-Diopside                     -rate -9 ssa 4e-8
+Microcline                   -rate -12.56   -activation 16.68
+Microcline                   -label h+
+Microcline                   -label oh-
 
-!plagioclase to chlorites and clays
-Anorthite                    -rate -9 ssa 4e-8
-Albite(low)                  -rate -9 ssa 4e-8
+!orthopyroxene
+Ferrosilite(alpha)           -rate -12.71   -activation 19.12
+Enstatite(alpha)             -rate -12.71   -activation 19.12
 
-Ilmenite                     -rate -9 ssa 4e-8
-Fluorapatite(Natur)          -rate -9 ssa 4e-8
+!clinopyroxene
+Diopside                     -rate -12.24   -activation 19.12
+Diopside                     -label h+
 
-Quartz(alpha)                -rate -9.5 ssa 4e-8
+!plagioclase
+Anorthite                    -rate -12.56   -activation 16.68
+Anorthite                    -label h+
+Anorthite                    -label oh-
+Albite(low)                  -rate -11.15   -activation 16.68
+Albite(low)                  -label h+
+Albite(low)                  -label oh-
+
+!Oxides
+Ilmenite                     -rate -14.60   -activation 15.82
+
+!Phosphate
+Fluorapatite(Natur)          -rate -8       -activation 59.75
+
 
 !! Secondary minerals
-Brucite                      -rate -9.5 ssa 4e-8
+
+Quartz(alpha)                -rate -13.99   -activation 20.96
+
+!amphibole
+Tremolite                    -rate -12.52  -activation 21.03
+Tremolite                    -label h+
+Actinolite                   -rate -12.52  -activation 21.03
+Actinolite                   -label h+
+
+!Brucite                      -rate -9.5   -activation
 
 !serpentine
-Lizardite                    -rate -9.5 ssa 4e-8
-Chrysotile                   -rate -9.5 ssa 4e-8
-Talc                         -rate -9.5 ssa 4e-8
-Hydrotalcite                 -rate -9.5 ssa 4e-8
+Chrysotile                   -rate -12.52   -activation 21.03
+Chrysotile                   -label h+
+Talc                         -rate -12.52   -activation 21.03
+Talc                         -label h+
 
-!Hematite                     -rate -9.5 ssa 4e-8
+Hematite                     -rate -14.6   -activation 15.82
 
 !smectites
 !important clays
-Hsaponite(Mg)                 -rate -9.5 ssa 4e-8
-Hsaponite(Ca)                 -rate -9.5 ssa 4e-8
-Hsaponite(Na)                 -rate -9.5 ssa 4e-8
-Celadonite                    -rate -9.5 ssa 4e-8
+Hsaponite(Mg)                 -rate -12.52   -activation 21.03
+Hsaponite(Mg)                 -label h+
+Celadonite                    -rate -12.52   -activation 21.03
+
+!Epidotes
+Epidote                      -rate -12.52   -activation 21.03
+Epidote                      -label h+
+Clinozoisite                 -rate -12.52   -activation 21.03
+Clinozoisite                 -label h+
 
 !Chlorites
-Chamosite(Daphnite)          -rate -9.5 ssa 4e-8
-Clinochlore                  -rate -9.5 ssa 4e-8
+Chamosite(Daphnite)          -rate -12.52   -activation 21.03
+Chamosite(Daphnite)          -label h+
+Clinochlore                  -rate -12.52   -activation 21.03
+Clinochlore                  -label h+
 
 !Na-Zeolites
-Natrolite                    -rate -9.5 ssa 4e-8
+Natrolite                    -rate -12.52   -activation 21.03
 
-FeS(am)                      -rate -9.5 ssa 4e-8
+!Pyrite
+FeS(am)                      -rate -8.0   -activation 11.95
 
 !sulphates
-Anhydrite                    -rate -9.5     ssa 4e-8
-Gypsum                       -rate -9.5 ssa 4e-8
-MgSO4                        -rate -9.5 ssa 4e-8
+Anhydrite                    -rate -6.5   -activation 6.69
 
-Calcite                      -rate -9.5 ssa 4e-8
+Calcite                      -rate -6.5  -activation 6.69
+!Siderite                     -rate -9.5 
 END
 
 POROSITY
@@ -202,7 +239,7 @@ porosity_update               false
 END
 
 INITIAL_CONDITIONS
-Initial                     1-1000 1-1  1-1
+Initial                     1-500 1-1  1-1
 END
 
 PRIMARY_SPECIES
@@ -280,7 +317,6 @@ constant_flow  2
 END
 
 TEMPERATURE
-set_temperature          2.0
 read_temperaturefile     on_axis_temp.txt
 END
 

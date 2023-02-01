@@ -1,105 +1,104 @@
 # template can either be specified as either the relative or absolute path to the inputs.
 template: 'burn.in'
-database: 'CrunchThermoddem.dbs'
 aqueous_database:
 catabolic_pathways:
 
-# Timeout in seconds for any one input file.
-timeout: 86400
-# conditions must match geochemical condition names in concentration dict
+number_of_files: 6
+
 conditions:
-    - 'Initial'
-    - 'Boundary'
-# Number of files in this run.
-number_of_files: 5
+  - 'Initial'
 
 # Options for setting parameters:
 #     linspace
-#     random_uniform
+#     custom
 #     constant
 #     custom
+runtime:
+  timestep_max:
+    - 'custom'
+    - [1e-2,1e-2,1e-2,1e-3,1e-3,1e-2]
+
 output:
   spatial_profile:
     - 'custom'
-    - [[1000], [2000], [3000], [4000], [5000]]
-
+    - [[2100], [2200], [2300], ['2350'], [2400], [2500, 2600, 2700, 2800, 2900, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]]
 mineral_ssa:
   Initial:
-    Forsterite:
+    Forsterite:                   
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Fayalite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Microcline:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Enstatite(alpha):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Ferrosilite(alpha):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Diopside:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Anorthite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Albite(low):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Ilmenite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Fluorapatite(Natur):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Lizardite:
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [1e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8]
     Chrysotile:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Tremolite:
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Actinolite:
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Talc:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Hydrotalcite:
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Hematite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Quartz(alpha):
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Hsaponite(Mg):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Hsaponite(Ca):
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Hsaponite(Na):
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Clinochlore:
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Chamosite(Daphnite):
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Celadonite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Epidote:
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Clinozoisite:
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Chamosite(Daphnite):
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
+    Clinochlore:
+      - 'custom'
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Natrolite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     FeS(am):
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Anhydrite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    Gypsum:
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
-    MgSO4:
-      - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]
     Calcite:
       - 'custom'
-      - [4e-7, 4e-6, 4e-5, 4e-4, 4e-3]
+      - [2e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8]

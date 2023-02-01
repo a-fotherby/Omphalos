@@ -1887,10 +1887,24 @@ Alamosite
 +----------------------------------------------------
 Albite(low)
   label = default
-  type = DissolutionOnly
+  type = tst
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Albite(low)
+  label = h+
+  type = tst
+  rate(25C) = -10.16
+  activation = 15.54  (kcal / mole)
+  dependence : H+ 0.457
++----------------------------------------------------
+Albite(low)
+  label = oh-
+  type = tst
+  rate(25C) = -15.60
+  activation = 16.97  (kcal / mole)
+  dependence : H+ -0.572
 +----------------------------------------------------
 AlF3
   label = default
@@ -1996,6 +2010,20 @@ Anorthite
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Anorthite
+  label = h+
+  type = DissolutionOnly
+  rate(25C) = -10.16
+  activation = 15.54  (kcal / mole)
+  dependence : H+ 0.457
++----------------------------------------------------
+Anorthite
+  label = oh-
+  type = DissolutionOnly
+  rate(25C) = -15.60
+  activation = 16.97  (kcal / mole)
+  dependence : H+ -0.572
 +----------------------------------------------------
 Antarcticite
   label = default
@@ -2879,6 +2907,13 @@ Chamosite(Daphnite)
   activation = 0.0  (kcal / mole)
   dependence :
 +----------------------------------------------------
+Chamosite(Daphnite)
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
++----------------------------------------------------
 Chlorapatite(Pp)
   label = default
   type = tst
@@ -2935,6 +2970,13 @@ Chrysotile
   activation = 0.0  (kcal / mole)
   dependence :
 +----------------------------------------------------
+Chrysotile
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
++----------------------------------------------------
 Cinnabar(alpha)
   label = default
   type = tst
@@ -2962,6 +3004,13 @@ Clinochlore
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Clinochlore
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
 +----------------------------------------------------
 Clinoclase
   label = default
@@ -2997,6 +3046,13 @@ Clinozoisite
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Clinozoisite
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
 +----------------------------------------------------
 Co(element)
   label = default
@@ -3439,6 +3495,13 @@ Diopside
   activation = 0.0  (kcal / mole)
   dependence :
 +----------------------------------------------------
+Diopside
+  label = h+
+  type = DissolutionOnly
+  rate(25C) = -8.54
+  activation = 19.12 (kcal / mole)
+  dependence : H+ 0.60
++----------------------------------------------------
 Djurleite
   label = default
   type = tst
@@ -3509,6 +3572,13 @@ Epidote
   activation = 0.0  (kcal / mole)
   dependence :
 +----------------------------------------------------
+Epidote
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
++----------------------------------------------------
 Epsomite
   label = default
   type = tst
@@ -3569,8 +3639,15 @@ Fayalite
   label = default
   type = DissolutionOnly
   rate(25C) = -3.00
-  activation = 0.0  (kcal / mole)
+  activation = 0.0 (kcal / mole)
   dependence :
++----------------------------------------------------
+Fayalite
+  label = h+
+  type = DissolutionOnly
+  rate(25C) = -6.85
+  activation = 16.06 (kcal / mole)
+  dependence : H+ 0.47
 +----------------------------------------------------
 Fe(element)
   label = default
@@ -3781,6 +3858,13 @@ Forsterite
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Forsterite
+  label = h+
+  type = DissolutionOnly
+  rate(25C) = -6.85
+  activation = 16.06  (kcal / mole)
+  dependence : H+ 0.47
 +----------------------------------------------------
 Foshagite
   label = default
@@ -4320,6 +4404,13 @@ Hsaponite(Mg)
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Hsaponite(Mg)
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
 +----------------------------------------------------
 Hsaponite(Na)
   label = default
@@ -5020,6 +5111,20 @@ Microcline
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Microcline
+  label = h+
+  type = DissolutionOnly
+  rate(25C) = -10.16
+  activation = 15.54  (kcal / mole)
+  dependence : H+ 0.457
++----------------------------------------------------
+Microcline
+  label = oh-
+  type = DissolutionOnly
+  rate(25C) = -15.60
+  activation = 16.97  (kcal / mole)
+  dependence : H+ -0.572
 +----------------------------------------------------
 Mimetite
   label = default
@@ -6470,6 +6575,13 @@ Talc
   activation = 0.0  (kcal / mole)
   dependence :
 +----------------------------------------------------
+Talc
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
++----------------------------------------------------
 Tarbuttite
   label = default
   type = tst
@@ -6588,6 +6700,13 @@ Tremolite
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
   dependence :
++----------------------------------------------------
+Tremolite
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
+  dependence : H+ 0.5
 +----------------------------------------------------
 Troilite
   label = default
@@ -6902,6 +7021,13 @@ Actinolite
   type = tst
   rate(25C) = -3.00
   activation = 0.0  (kcal / mole)
+  dependence :
++----------------------------------------------------
+Actinolite
+  label = h+
+  type = tst
+  rate(25C) = -11.11
+  activation = 21.03  (kcal / mole)
   dependence :
 +----------------------------------------------------
 Zn(OH)2_e

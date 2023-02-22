@@ -186,14 +186,9 @@ class InputFile:
 
         # Check for later inputs and append times.
         if self.later_inputs:
-            print('later input found')
             for file in self.later_inputs:
-                print(f'iterate {file} file')
                 later_times = self.later_inputs[file].keyword_blocks['OUTPUT'].contents['spatial_profile']
-                print(f'later file times: {later_times}')
-                print(f'late type: {type(later_times)}')
                 times.extend(later_times)
-                print(f'newtimes: {times}')
 
         times = [float(a) for a in times]
         times = pd.Index(data=times, name='time')
@@ -201,15 +196,23 @@ class InputFile:
         categories = fm.data_cats(tmp_dir)
 
         for category in categories:
-
             ds_list = list()
+            skip_counter = 0
 
             for i, time in enumerate(times):
-                ds = fm.parse_output(tmp_dir, category, i+1)
-                ds_list.append(ds)
+                try:
+                    ds = fm.parse_output(tmp_dir, category, i+1)
+                    ds_list.append(ds)
+                except:
+                    skip_counter +=1
+                    print(f"WARNING: Outputs at time {time} not parsed.")
 
-            ds = xr.concat(ds_list, dim=times)
-
-            self.results.update({category: ds})
-
-
+            # Don't try to concat on times that have been skipped.
+            # If file formating for that output file category is bad then will try to concat nothing
+            # and this will throw ValueError.
+            try:
+                ds = xr.concat(ds_list, dim=times[:-skip_counter])
+                self.results.update({category: ds})
+            except ValueError:
+                print(f'WARNING: Output file {category} not parsed.')
+                continue

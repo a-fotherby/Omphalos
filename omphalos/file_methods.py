@@ -25,7 +25,8 @@ def search_file(dictionary, by_val):
 def parse_output(path, output, time_ref):
     """Import the spatial profile output file of the system at the target time specified in the input file. Require
     files to be in the TecPlot format. """
-    file_name = f'{path}{output}{time_ref}.tec'
+    from pathlib import Path
+    file_name = Path(path) / f'{output}{time_ref}.tec'
     # Column headers are quite badly mangled by TecPlot output format. Python csv sniffer will not correctly identify
     # the column headers. So we manually create the correct list by opening the file and navigating to the second
     # line (the header line for TecPlot outputs) and perform some judicious stripping and a regex split to generate
@@ -55,8 +56,10 @@ def parse_output(path, output, time_ref):
 
 
 def data_cats(path):
-    path = f'{path}'
-    f_list = glob.glob(path + '*.tec')
+    from pathlib import Path
+
+    path = Path(path) / '*.tec'
+    f_list = glob.glob(str(path))
     f_list = [i.rstrip('.tec') for i in f_list]
     f_list = [i.rstrip('0123456789') for i in f_list]
     f_list = [i.split('/')[-1] for i in f_list]

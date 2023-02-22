@@ -1,15 +1,6 @@
-def maxtime(dir):
-    import os
-    from glob import glob
-    os.chdir(dir)
-    f_list = glob('*.tec')
-    f_list = [i.rstrip('.tec') for i in f_list]
-    f_list = [i.rstrip('0123456789') for i in f_list]
-    f_set = set(f_list)
-    max_time = int(len(f_list) / len(f_set))
-    os.chdir('..')
-    return max_time
-
+"""Script to recover data from failed rhea runs.
+Will return pickled file dict as usual, with as many timesteps as it can find in each directory.
+"""
 
 if __name__ == "__main__":
     import argparse
@@ -40,8 +31,6 @@ if __name__ == "__main__":
         # Call InputFile.get_results(tmp_dir)
 
         dir = f'run{file}'
-        print(dir)
-        final_time = maxtime(dir)
         file_dict[file].get_results(dir)
 
     fm.pickle_data_set(file_dict, 'retrieval_run.pkl')

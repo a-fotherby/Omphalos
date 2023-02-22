@@ -208,6 +208,9 @@ class InputFile:
                     print(f"WARNING: Outputs at time {time} not parsed.")
 
             # Don't try to concat on times that have been skipped.
+            # WARNING: Will slice from the back, assuming that all failed output files are at the end
+            # i.e. after a crash or timeout. I don't know why this wouldn't be the case but just in case
+            # something wierd happens, maybe look here...
             # If file formating for that output file category is bad then will try to concat nothing
             # and this will throw ValueError.
             try:

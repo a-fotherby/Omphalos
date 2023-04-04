@@ -190,12 +190,19 @@ class InputFile:
                 later_times = self.later_inputs[file].keyword_blocks['OUTPUT'].contents['spatial_profile']
                 times.extend(later_times)
 
+        # Convert time strings in raw input file to floats and make into pd.Index object.
         times = [float(a) for a in times]
         times = pd.Index(data=times, name='time')
 
+        bad_cats = ['MineralPercent', 'velocityx', 'velocityy', 'velocityz', 'MineralVolfraction', 'gases_conc']
         categories = fm.data_cats(tmp_dir)
+        
+        for bad_cat in bad_cats:
+           categories.remove(bad_cat) 
 
         for category in categories:
+                
+            print(f'Parsing {category}')
             ds_list = list()
             skip_counter = 0
 
@@ -213,9 +220,9 @@ class InputFile:
             # something wierd happens, maybe look here...
             # If file formating for that output file category is bad then will try to concat nothing
             # and this will throw ValueError.
-            try:
-                ds = xr.concat(ds_list, dim=times[:-skip_counter])
-                self.results.update({category: ds})
-            except ValueError:
-                print(f'WARNING: Output file {category} not parsed.')
-                continue
+            #try:
+            ds = xr.concat(ds_list, dim=times[:len(times)-skip_counter])
+            self.results.update({category: ds})
+            #except ValueError:
+            #    print(f'WARNING: Output file {category} not parsed.')
+            #    continue

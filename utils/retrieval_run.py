@@ -29,6 +29,7 @@ if __name__ == "__main__":
         # Overwrite self.keyword_blocks['OUTPUT'].contents['spatial_profile'] for each file
         # Create correct tmp_dir
         # Call InputFile.get_results(tmp_dir)
+        print(f'Retrieving file #{file}')
 
         dir = f'run{file}'
         file_dict[file].get_results(dir)

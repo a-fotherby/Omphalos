@@ -21,6 +21,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
+    parser.add_argument('run_type', type=str, help='Type of run, either local or cluster.')
     args = parser.parse_args()
 
     # Define procedural file generation name scheme at top for consistency.
@@ -33,10 +34,11 @@ if __name__ == '__main__':
     template = Template(config)
     file_dict = gi.configure_input_files(template, 'foo', rhea=True)
 
-    dict_size = len(file_dict)
+    dict_size = len(file_dict)-1
 
     t_start = time()
 
+    print(f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}')
     subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'],
                    shell=True, executable='/bin/bash')
@@ -69,7 +71,13 @@ if __name__ == '__main__':
                 file_dict[file].later_inputs[later_file].print()
 
     t_stop = time()
-
+    
     print(f'All files generated and directories prepped. Time elapsed: {t_stop - t_start}')
-
-    si.submit(args.path_to_config, config['nodes'], dict_size)
+    if args.run_type == 'local':
+        nodes = config['nodes']
+        subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+        si.compile_results(dict_size+1)
+    elif args.run_type == 'cluster':
+        si.submit(args.path_to_config, config['nodes'], dict_size)
+    else:
+        print('ERROR: run_type must be either local or cluster')

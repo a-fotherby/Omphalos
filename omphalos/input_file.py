@@ -198,7 +198,8 @@ class InputFile:
         categories = fm.data_cats(tmp_dir)
         
         for bad_cat in bad_cats:
-            categories.remove(bad_cat) 
+            if bad_cat in categories:
+                categories.remove(bad_cat)
 
         for category in categories:
                 

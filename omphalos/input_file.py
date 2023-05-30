@@ -29,7 +29,7 @@ class InputFile:
             mineral_list = list(self.keyword_blocks['MINERALS'].contents)
             # Need to strip kinetics labels from mineral names to find them in condition block.
             for i, mineral in enumerate(mineral_list):
-                mineral_list[i] = mineral_list[i].split('_')[0]
+                mineral_list[i] = mineral_list[i].split('&')[0]
             gases_list = self.keyword_blocks['GASES'].contents.keys()
             primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
             )
@@ -44,7 +44,7 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
-                self.condition_blocks[condition].minerals.update(
+                self.condition_blocks[condition].mineral_volumes.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
                 self.condition_blocks[condition].gases.update(
@@ -95,7 +95,7 @@ class InputFile:
                     # Need to strip kinetic labels from the dictionary entries in the mineral dict when printing.
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(self.keyword_blocks[block].contents[entry])
-                        min_name = entry.split('_')[0]
+                        min_name = entry.split('&')[0]
                         line.insert(0, min_name)
                         line.append('\n')
                         f.write(' '.join(line))

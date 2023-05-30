@@ -1,7 +1,7 @@
 # template can either be specified as either the relative or absolute path to the inputs.
 template: 'sukinda_column.in'
 database: 'SukindaCr53.dbs'
-aqueous_database: 'sukinda_aqueous.dbs'
+aqueous_database: 'aqueous.dbs'
 catabolic_pathways: 'CatabolicPathways.in'
 # Timeout in seconds for any one input file.
 timeout: 60
@@ -35,14 +35,14 @@ mineral_volumes:
                 - 'random_uniform'
                 - [0.001, 0.1]
 mineral_rates:
-        Cr(OH)3:
+        Cr(OH)3&default:
         - 'random_uniform'
         - [-9.93, -8.93]
         #Cr53(OH)3:
         #- 'fix_ratio'
         #- 'Cr(OH)3'
         #- 1
-        Ferrihydrite_DIRB:
+        Ferrihydrite_DIRB&DIRB:
         - 'random_uniform'
         - [-8.7, -7.7]  
 

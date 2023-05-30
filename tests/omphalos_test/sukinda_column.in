@@ -13,7 +13,7 @@ debye-huckel            true
 graphics                tecplot
 master                  H+
 database                SukindaCr53.dbs
-kinetic_database        sukinda_aqueous.dbs
+kinetic_database        aqueous.dbs
 coordinates             rectangular
 gimrt                   true
 screen_output           1000
@@ -129,7 +129,7 @@ S(aq)            1.0e-10
 END
 
 INITIAL_CONDITIONS
-initial 1-10 1 1
+initial 1-10 1-1 1-1
 END                                    
                                     
 BOUNDARY_CONDITIONS

@@ -32,6 +32,8 @@ fitting/wandb
 # Pickle module files
 *.pickle
 *.pkl
+# NetCDF files
+*.nc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

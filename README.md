@@ -29,12 +29,16 @@ Unlike in the previous cases where we can select a different unique keyword from
 As such, this **does** affect how the user specifies different parallel mineral reactions in the Omphalos `.yaml` format.
 This ultimately makes good sense as the user would need to be able to differentiate between different mineral mechanism somehow in any case.
 
+
 The way it is implemented is as follows:
-  - By default, all mineral names will be compounded in the `MINERALS` block with their label in the format `{mineral_name}_{kinetics_label}`.
+  - By default, all mineral names will be compounded in the `MINERALS` block with their label in the format `{mineral_name}&{kinetics_label}`.
   - If the mineral does not have a kinetics label on the input file then the label name will be take as the CrunchTope default, which is 'default'.
-    - For example, an entry in the input file of `Forsterite -rate -12.0` would be indexable in a `.yaml` file as `Foreterite_default`.
-    - Similarly, an entry referring to the kinetics for an acidic mechanism of calcite dissolution, `Calcite -label h+ -ssa 4e-4` would be accessible with the key `Calcite_h+`.
+    - For example, an entry in the input file of `Forsterite -rate -12.0` would be indexable in a `.yaml` file as `Foreterite&default`.
+    - Similarly, an entry referring to the kinetics for an acidic mechanism of calcite dissolution, `Calcite -label h+ -ssa 4e-4` would be accessible with the key `Calcite&h+`.
   - Otherwise, the entries in the `MINERAL` block can be accessed and manipulated in the usual way.
+
+**THIS MEANS THAT YOU CANNOT USE AMPERSANDS IN MINERAL NAMES IN YOUR INPUT FILES!**
+This isn't a common naming scheme, so it shouldn't trip up many users, but I emphasise it just in case.
 
 ### About
 

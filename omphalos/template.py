@@ -435,7 +435,7 @@ class Template(InputFile):
                             kinetics_label = line_list[label_index + 1]
                         except ValueError:
                             kinetics_label = 'default'
-                        new_min_name = f'{mineral_name}_{kinetics_label}'
+                        new_min_name = f'{mineral_name}&{kinetics_label}'
                     keyword_dict.update({new_min_name: line_list[1:]})
                 except BaseException:
                     print(

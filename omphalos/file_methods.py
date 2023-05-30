@@ -87,3 +87,13 @@ def unpickle(file_path):
         # have to specify it.
         data = pickle.load(f)
         return data
+
+
+def dataset_to_netcdf(dataset):
+    import xarray as xr
+    from omphalos.labels import raw
+
+    for category in dataset[0].results:
+        group = raw(dataset, category)
+
+        group.to_netcdf('results.nc', group=category, mode='a')

@@ -16,7 +16,6 @@ class KeywordBlock:
         from omphalos.generate_inputs import get_config_array
 
         # Extract corresponding input file block name and the position of the variable to be modified.
-
         if species_type:
             raise KeywordBlockModificationError('KeywordBlock has no species_type')
             import sys

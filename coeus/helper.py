@@ -7,8 +7,8 @@ def quick_import(path, smalls_cats=None):
 
     raw = fm.unpickle(path)
     dataset, errors1 = filter_errors(raw)
-    for category in smalls_cats:
-        dataset = fix_smalls(dataset, category)
+    #for category in smalls_cats:
+    #    dataset = fix_smalls(dataset, category)
 
     return dataset
 
@@ -29,11 +29,11 @@ def filter_errors(dataset, verbose=False):
     # Check for unidentified errors that are not currently handled.
     # Do this by checking for empty results dict.
     weird_errors = list()
-    for i in dataset:
-        try:
-            dataset[i].results['totcon']
-        except:
-            weird_errors.append(i)
+    #for i in dataset:
+    #    try:
+    #        dataset[i].results['totcon']
+    #    except:
+    #        weird_errors.append(i)
 
     for j in weird_errors:
         dataset.pop(j)

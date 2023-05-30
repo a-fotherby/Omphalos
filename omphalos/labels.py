@@ -3,11 +3,7 @@
 
 
 def raw(dataset, output_key):
-    """Returns labels DataFrame containing raw CrunchTope output data.
-    
-    Will return a multi-indexed DataFrame, the level=1 index is the file number, and the level=0 index is a simple
-    row count. Spatial data for each input file is stored in a tidy format (tidy taking its technical meaning in
-    this case).
+    """Takes a dataset dictionary and returns xr.Dataset for a given category, with the file number as a dimension.
     """
     import xarray as xr
 

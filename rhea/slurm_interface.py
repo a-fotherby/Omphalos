@@ -47,5 +47,10 @@ def compile_results(dict_len):
     for j in fails:
         results_dict.pop(j)
 
-    fm.pickle_data_set(results_dict, 'completed_run.pkl')
+    fm.dataset_to_netcdf(results_dict)
+
+    for file in results_dict:
+        del results_dict[file].results
+
+    fm.pickle_data_set(results_dict, 'inputs.pkl')
     print(f'Files failed to run: {len(fails)}')

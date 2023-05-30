@@ -1,0 +1,32 @@
+&CatabolicPathway
+  name     = 'Fe(OH)3(2L)_DIRB'
+  reaction = -1.875 'H+'  1.0 'Fe++'  0.25 'HCO3-'  -0.125 'Acetate'
+  keq      = 13
+  biomass  = 'C5H7O2NFe(s)'
+  chi      = 1
+  bq        = -0.879
+  direction = -1
+  UseMetabolicLag = .false.
+/
+
+&CatabolicPathway
+  name     = 'Goethite_DIRB'
+  reaction = -1.875 'H+'  1.0 'Fe++'  0.25 'HCO3-'  -0.125 'Acetate'
+  keq      = 10
+  biomass  = 'C5H7O2NFe(s)'
+  chi      = 1
+  bq       = -0.879
+  direction = -1
+  UseMetabolicLag = .false.
+/
+
+&CatabolicPathway
+  name     = 'Mn_Goethite_DB'
+  reaction = -1.875 'H+'  1.0 'Fe++'  0.25 'HCO3-'  -0.125 'Acetate'
+  keq      = 10
+  biomass  = 'C5H7O2NFe(s)'
+  chi      = 1
+  bq       = -0.879
+  direction = -1
+  UseMetabolicLag = .false.
+/

@@ -1,0 +1,130 @@
+! -------------------------------------------------------------------------------------------------
+!
+!  reaction stoichiometry
+!
+! -------------------------------------------------------------------------------------------------
+
+&Aqueous
+  name          = 'Cr_Fe_redox'
+  stoichiometry = -1.0 'Fe++' -0.333 'CrO4--' -2.665 'H+' 1.0 'Fe+++' 0.333 'Cr+++'
+  keq           = 15.0
+/
+
+&Aqueous
+  name          = 'Cr53_Fe_redox'
+  stoichiometry = -1.0 'Fe++' -0.333 'Cr53O4--' -2.665 'H+' 1.0 'Fe+++' 0.333 'Cr53+++'
+  keq           = 15.0
+/
+
+!! Sulfide reduction equations from Kim 2001. (log(k_eq) for pH = 7.0) 
+
+&Aqueous
+  name          = 'Cr_H2S_redox'
+  stoichiometry = -0.333 'CrO4--' -0.125 'H2S(aq)' -1.415 'H+' 0.125 'SO4--' 0.333 'Cr+++'
+  keq           = 323.0
+/
+
+&Aqueous
+  name          = 'Cr53_H2S_redox'
+  stoichiometry = -0.333 'Cr53O4--' -0.125 'H2S(aq)' -1.415 'H+' 0.125 'SO4--' 0.333 'Cr53+++'
+  keq           = 323.0
+/
+
+&Aqueous
+  name          = 'Cr_S(s)_redox'
+  stoichiometry = -0.666 'CrO4--' -0.5 'H2S(aq)' -3.33 'H+' 0.125 'S(aq)' 0.666 'Cr+++'
+  keq           = 91.0
+/
+
+&Aqueous
+  name          = 'Cr53_S(s)_redox'
+  stoichiometry = -0.666 'Cr53O4--' -0.5 'H2S(aq)' -3.33 'H+' 0.125 'S(aq)' 0.666 'Cr53+++'
+  keq           = 91.0
+/
+
+&Aqueous
+  name          = 'Sulfate_reduction'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'SO4--'  0.125 'HS-'  0.25 'HCO3-'  -0.125 'Acetate'
+  keq           = 0
+/
+
+&Aqueous
+  name          = 'Methanogenesis'
+  type          = 'catabolic'
+  stoichiometry = -0.125 'Acetate'  -0.125 'H2O'  0.125 'HCO3-'  0.125 'Methane(aq)'
+  keq           = 0
+/
+
+! -------------------------------------------------------------------------------------------------
+!
+!  rate expressions
+!
+! -------------------------------------------------------------------------------------------------
+
+!! Fe reduction dependencies from Fendorf and Li 1996.
+&AqueousKinetics
+  name          = 'Cr_Fe_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'tot_Fe++' 0.6 'tot_CrO4--' 1.0
+/
+
+&AqueousKinetics
+  name          = 'Cr53_Fe_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'tot_Fe++' 0.6 'tot_Cr53O4--' 1.0
+/
+
+&AqueousKinetics
+  name          = 'Cr_H2S_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'H2S(aq)' 1.0 'tot_CrO4--' 1.0
+/
+
+&AqueousKinetics
+  name          = 'Cr53_H2S_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'H2S(aq)' 1.0 'tot_Cr53O4--' 1.0
+/
+
+&AqueousKinetics
+  name          = 'Cr_S(s)_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'tot_H2S(aq)' 1.0 'tot_CrO4--' 1.0
+/
+
+&AqueousKinetics
+  name          = 'Cr53_S(s)_redox'
+  type          = 'irreversible'
+  rate25C       = 0.01
+  dependence    = 'tot_H2S(aq)' 1.0 'tot_Cr53O4--' 1.0
+/
+
+&AqueousKinetics
+  name     = 'Sulfate_reduction'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'Acetate' 5.0E-06 'SO4--' 50.0E-06
+  biomass       = 'C5H7O2NSO4(s)'
+  chi           = 1.0
+  bq            = -0.937
+  direction     = -1
+/
+
+&AqueousKinetics
+  name     = 'Methanogenesis'
+  label         = 'default'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'Acetate' 5.0E-06
+  biomass       = 'C5H7O2NSO4(s)'
+  chi           = 1.0
+  bq            = -0.704
+  direction     = -1
+/

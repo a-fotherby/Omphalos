@@ -1,0 +1,302 @@
+TITLE
+Sukinda valley DIR/Cr coupled box.
+END
+
+RUNTIME
+time_units              days
+timestep_max            100
+timestep_init           1.0e-10
+time_tolerance          0.001
+hindmarsh               true
+correction_max          2.0
+debye-huckel            true
+graphics                tecplot
+master                  H+
+database                SukindaCr53.dbs
+kinetic_database        aqueous.dbs
+coordinates             rectangular
+gimrt                   true
+screen_output           10
+speciate_only           false
+END
+
+OUTPUT
+time_units            years
+spatial_profile 0.00001 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2 1.3 1.4 1.5 1.6 1.7 1.8 1.9 2.0 2.1 2.2 2.3 2.4 2.5
+END
+
+MINERALS
+Calcite               -label default      -rate  -15.0
+Chlorite              -label dissolution  -rate  -15.0
+Cr(OH)3               -label default      -rate  -15.0 !Using Fe(OH)3 value for now.
+!Cr53(OH)3             -label default      -rate  -9.43 !Using Fe(OH)3 value for now.
+Chromite              -label dissolution  -rate  -18
+!Chromite53            -label dissolution  -rate  -18
+C5H7O2NFe(s)          -label default      -rate  -8.20 
+C5H7O2NSO4(s)         -label default      -rate  -8.20 
+FeS(am)               -label default      -rate  -15.0
+Fe(OH)3(2L)           -label default      -rate  -15.0 
+Fe(OH)3(2L)_DIRB      -label DIRB         -rate  -12.2 -associate Fe(OH)3(2L)
+Mn_Goethite           -label dissolution  -rate  -18.0
+Mn_Goethite_DB        -label DIRB  -associate Mn_Goethite  -rate  -13.2
+Hematite              -label dissolution  -rate  -18.0
+Kaolinite             -label default      -rate  -19.0
+Maghemite             -label dissolution  -rate  -19.0
+Mn(OH)2(am)           -label default      -rate  -15.0
+Pyrolusite            -label default      -rate  -16.9
+Pyrolusite_Cr         -label dissolution  -rate  -16.9 -associate Pyrolusite
+Pyrolusite_Fe         -label dissolution  -rate  -16.9 -associate Pyrolusite
+Quartz                -label default      -rate  -35.5
+Siderite              -label default      -rate  -15.0
+Rhodochrosite         -label default      -rate  -15.0
+Talc                  -label dissolution  -rate  -18.0
+END
+
+AQUEOUS_KINETICS
+!Sulfate_reduction    -rate 1e-3
+!Methanogenesis       -rate 1e-3
+! All evidience suggests that this reaction is extremely rapid (e.g. 2e6 Moles/liter/year).
+! See Eary and Rai (1988), Buerge and Hug (1997).
+Cr_Fe_redox         -rate 6.358e7
+!Cr53_Fe_redox       -rate 100000
+!Cr_H2S_redox        -rate 1e-3
+!Cr53_H2S_redox      -rate 1e-3
+END
+
+!ISOTOPES
+!primary          Cr53O4-- CrO4-- 0.113386
+!primary          Cr53+++  Cr+++  0.113386
+!mineral          Cr53(OH)3 Cr(OH)3 none
+!END
+
+CONDITION        pump
+! Based on nominal anoxic geochemical environment descibed in Jin & Bethke (2011)
+units            mmol/kg             
+temperature      25.0         
+pH               charge
+Acetate          1
+Al+++            1.0e-10
+Ca++             1.0e-10
+Cr+++            1.0e-33
+CrO4--           1.0e-33
+C5H7O2NFe        1.0E-12
+C5H7O2NSO4       1.0E-12
+Cl-              1.0e-10
+Na+              1.0e-10
+HCO3-            1.0e-10
+Fe++             1.0e-10
+Fe+++            1.0e-10
+HS-              1.0e-10
+H2(aq)           1.0e-10
+Methane(aq)      1.0e-10
+Mn+++            1.0e-33
+Mn++             1.0e-33
+Mg++             1.0e-10
+NH3(aq)          1.0e-10
+NO3-             1.0e-10
+SiO2(aq)         1e-10
+O2(aq)           O2(g) 0.21
+! Dhakate (2008), Table 6 
+SO4--            1e-10
+END
+
+CONDITION upper_laterite
+! Based on nominal anoxic geochemical environment descibed in Jin & Bethke (2011)
+units            mmol/kg             
+temperature      25.0         
+pH               6.0
+Acetate          1e-10
+Al+++            1e-3
+Ca++             1.0
+Cr+++            1.0e-33
+CrO4--           0.05
+C5H7O2NFe        1.0E-12
+C5H7O2NSO4       1.0E-12
+Cl-              1.0
+Na+              charge
+HCO3-            1.0
+Fe++             1.00e-10
+Fe+++            Mn_Goethite
+HS-              1.0e-3
+H2(aq)           1.0e-9 
+Methane(aq)      1.0e-3
+Mn+++            1.0e-33
+Mn++             1.0e-33
+Mg++             1.0
+NH3(aq)          1.0e-3
+NO3-             1.0
+SiO2(aq)         Talc
+O2(aq)           O2(g) 0.00
+! Dhakate (2008), Table 6 
+SO4--            0.26
+! Mineral name <volume fraction m3/m3>
+Chromite                 0.07
+!Chromite53               7.93702e-3
+! Ferrihydrite ssa
+Cr(OH)3                  1.0e-33       ssa 221
+!Cr53(OH)3                0.113386e-10
+C5H7O2NFe(s)             5.0e-4
+C5H7O2NSO4(s)            5.0e-4
+FeS(am)                  1.00e-33      1.00
+! BET SA from O'Reilly and Hochella Jr. (2003)
+Pyrolusite               1.00e-33      ssa 7.9
+Pyrolusite_Cr            0.00          ssa 7.9
+Pyrolusite_Fe            0.00          ssa 7.9
+! Indian saprolite, Iron Oxides pg. 334. BET EGME.
+Mn_Goethite              0.70      ssa  24.0
+Mn_Goethite_DB           0.00      ssa  24.0
+! Natural F-hydrite. BET EGME Iron Oxides pg. 106. 
+Fe(OH)3(2L)              1.00e-33  ssa  221
+Fe(OH)3(2L)_DIRB         0.00      ssa  221
+! Representative value I.O.s pg. 108.
+Hematite                 0.02      ssa 12.5 
+! Maghemite presumably derived from oxidation of magnetite in parent rock.
+! T.f. use lower ssa since reaction is topotactic. See I.O.s pg. 109.
+Maghemite                0.02      ssa 15.0
+Mn(OH)2(am)              1.00e-33  ssa 200.0
+! Representative literature BET values Qin and Beckinham 2021.
+Quartz                   0.04      ssa 7.0e-2
+! 2+ Carbonates
+! Calcite SSA Qin and Beckinham (2021), representative value.
+! Chin yik thesis reports 0.335.
+Calcite                  1.00e-33      ssa 0.10
+! Literature representative value for R.crosite. See notes.
+Rhodochrosite            1.00e-33      ssa 5.0
+! Siderite SSA Qin and Beckinham (2021), representative value.
+Siderite                 1.00e-33      ssa 34.0
+Talc                     0.01   
+! Chin yik thesis value for Kaolinite.
+Kaolinite                0.04          ssa 14.31
+Chlorite                 0.04
+END
+
+FLOW
+space_units meters
+time_units day
+! Flux from Dakhate et al. (2008).
+constant_flow 0.0064
+pump 1.1574e-8 pump 20 1 1
+END
+
+POROSITY
+porosity_update          true
+END
+
+TRANSPORT
+space_units              centimeters
+time_units               seconds
+fix_diffusion            7.0e-7
+END
+
+INITIAL_CONDITIONS
+upper_laterite       1-100 1-1 1-1
+END                                    
+                                    
+BOUNDARY_CONDITIONS
+x_begin   upper_laterite                 flux
+x_end     upper_laterite                 flux
+END                                 
+
+DISCRETIZATION
+distance_units      centimeters
+xzones              100 10.0
+yzones              1   10.0
+zzones              1   10.0
+END
+
+PRIMARY_SPECIES
+H+
+Acetate
+Al+++
+Fe++
+Fe+++
+Ca++
+Cr+++
+!Cr53+++
+CrO4--
+!Cr53O4--
+Cl-
+SO4--
+HS-
+HCO3-
+SiO2(aq)
+O2(aq)
+Mn++
+Mn+++
+NH3(aq)
+NO3-
+C5H7O2NFe
+C5H7O2NSO4
+Methane(aq)
+Mg++
+END
+
+SECONDARY_SPECIES
+OH-
+Acetic_acid(aq)
+CO2(aq)
+CO3--
+! iron speciation
+! iron hydrolysis products
+FeOH+
+Fe(OH)2(aq)
+Fe(OH)3-
+Fe(OH)4--
+FeOH++
+Fe(OH)3(aq)
+Fe(OH)4-
+Fe2(OH)2++++
+! other iron speciation products
+FeCO3(aq)
+FeCl+
+FeCl++
+FeCl2(aq)
+FeCl2+
+FeNO3++
+FeSO4(aq)
+FeSO4+
+CaOH+
+CaCO3(aq)
+CaSO4(aq)
+CaHCO3+
+! manganese speciation
+! manganese hydrolysis products
+Mn++++
+MnOH+
+Mn(OH)2(aq)
+Mn(OH)3-
+Mn(OH)4--
+Mn2(OH)3+
+Mn2OH+++
+! other manganese speciation products
+MnCO3(aq)
+MnCl+
+MnCl3-
+MnHCO3+
+MnNO3+
+MnSO4(aq)
+! chromium speciation productus
+CrOH++
+Cr(OH)2+
+Cr(OH)3(aq)
+Cr(OH)4-
+Cr3(OH)4(5+)
+NH4+
+H2S(aq)
+S--
+HCrO4-
+H2CrO4(aq)
+H2SiO4--
+H4SiO4(aq)
+END
+
+TEMPERATURE
+set_temperature  25.0
+END
+
+GASES
+CO2(g)
+CH4(g)
+O2(g)
+H2(g)
+END

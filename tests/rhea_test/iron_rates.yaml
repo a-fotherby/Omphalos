@@ -1,0 +1,25 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'column.in'
+database: 'SukindaCr53.dbs'
+aqueous_database: 'aqueous.dbs'
+catabolic_pathways: 'CatabolicPathways.in'
+
+# Timeout in seconds for any one input file.
+timeout: 3600
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'upper_laterite'
+# Number of files in this run.
+number_of_files: 15
+
+nodes: 50
+
+# Options for setting parameters:
+#     linspace
+#     random_uniform
+#     constant
+#     custom
+mineral_rates:
+            Mn_Goethite_DB&DIRB:
+                    - 'linspace'
+                    - [-13.2, -11.7, 1]

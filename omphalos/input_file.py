@@ -44,7 +44,7 @@ class InputFile:
         # about maybe...
         for entry in contents:
             if entry in mineral_list:
-                self.condition_blocks[condition].mineral_volumes.update(
+                self.condition_blocks[condition].minerals.update(
                     {entry: contents[entry]})
             elif entry in gases_list:
                 self.condition_blocks[condition].gases.update(

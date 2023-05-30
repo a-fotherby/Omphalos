@@ -1,6 +1,18 @@
 """Omphalos analysis helper functions."""
 
 
+def quick_import(path, smalls_cats=None):
+    # Read in data for dict.
+    from omphalos import file_methods as fm
+
+    raw = fm.unpickle(path)
+    dataset, errors1 = filter_errors(raw)
+    for category in smalls_cats:
+        dataset = fix_smalls(dataset, category)
+
+    return dataset
+
+
 def filter_errors(dataset, verbose=False):
     pop_list = list()
     errors = dict()
@@ -46,7 +58,8 @@ def fix_smalls(dataset, category):
     for i in dataset:
         for species in dataset[i].results[category]:
             if dataset[i].results[category][species].dtype == object:
-                dataset[i].results[category][species] = dataset[i].results[category][species].astype(str).str.replace(r'\d.\d+-\d+', '0').astype(float)
+                dataset[i].results[category][species] = dataset[i].results[category][species].astype(str).str.replace(
+                    r'\d.\d+-\d+', '0').astype(float)
             else:
                 continue
 

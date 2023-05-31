@@ -49,7 +49,8 @@ Each different kind of CrunchTope spatial profile output (e.g. `volume`, `totcon
 is the name of a [netCDF4 group](https://docs.xarray.dev/en/stable/user-guide/io.html#groups).
 You can import it using `xarrray.open_dataset()`, 
 so if, for example, you wanted to import the mineral volume data for all your different simulations you would run
-`xarray.open_dataset(results.nc, group='volume)`. Data can be straight-forwardly analysed from the xarray format.
+`xarray.open_dataset(results.nc, group='volume')`.
+Data can be straight-forwardly analysed from the xarray format.
 
 The second file, `inputs.pkl` is a pickled `dict` of the CrunchTope input files used to generate the data.
 This is given so that there is a record of the parameters varied, and for debugging purposes.

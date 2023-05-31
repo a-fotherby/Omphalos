@@ -13,6 +13,49 @@
    2. You can always change it later in `omphalos/settings.py`.
 3. Activate the conda environment: `conda activate omphalos`
 
+## Quick-start
+
+To use Omphalos you need two things:
+
+1. A working CrunchTope model
+2. A `.yaml` file specifying the way in which the CrunchTope model parameters are to be varied.
+    - An example `config.yaml` is shown in the top level of this repository.
+
+### Commands
+#### Running Omphalos
+There are two main commands, each with two args. 
+`ompahlos` runs CrunchTope simulations sequentially, as is as such a legacy mode
+but forms the core functionality of the program. It's only recommended for extremely simple simulations.
+`rhea` will run CrunchTope simulations in parallel, either locally or on a slurm managed cluster.
+Most users are going to be using `rhea`, rather than `omphalos` as it is faster.
+- `omphalos config_name output_name`
+- `rhea config_name mode`
+
+The argument `config_name` is the path to the `config.yaml` for the run. 
+The arg `mode` takes one of two options, either `cluster` or `local`.
+- In the case of `cluster`, CrunchTope simulations will be submitted to nodes on a slurm managed cluster.
+This **should** work out of the box, but if you wish to tinker with the settings for the submission 
+(e.g. change memory per node and such like) then the `.sbatch` can be found in `rhea/parrallel.sbatch`.
+- `local` will run CrunchTope simulations simultaneously on your local machine.
+Because CrunchTope is single threaded, you can run as many simulations as you have cores.
+I don't recommend submitting more runs than you have cores
+as you are going to make your machine unresponsive until the simulations are done.
+
+#### Collecting the results
+
+Results come in the form of two files. 
+`results.nc` is a netCDF4 file containing all the results from the various simulations.
+Each different kind of CrunchTope spatial profile output (e.g. `volume`, `totcon`, etc.)
+is the name of a [netCDF4 group](https://docs.xarray.dev/en/stable/user-guide/io.html#groups).
+You can import it using `xarrray.open_dataset()`, 
+so if, for example, you wanted to import the mineral volume data for all your different simulations you would run
+`xarray.open_dataset(results.nc, group='volume)`. Data can be straight-forwardly analysed from the xarray format.
+
+The second file, `inputs.pkl` is a pickled `dict` of the CrunchTope input files used to generate the data.
+This is given so that there is a record of the parameters varied, and for debugging purposes.
+There is an unpickle method in `omphalos.file_methods` that takes the path to the pickle as its argument
+and will return the `dict` of `InputFile` objects. The original text file of an input file can be recovered using the `InputFile.print()` method.
+
 ## Usage
 
 ### Non-unique entries

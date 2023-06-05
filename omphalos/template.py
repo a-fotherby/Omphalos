@@ -65,14 +65,22 @@ class Template(InputFile):
             if later_files:
                 print('*** Later input files found ***')
                 for later_file in later_files:
-                    # By default we propagate the changes specified in the Omphalos config.
-                    # I.e. if we change a boundary condition we expect it to be the same in later restarts.
-                    # TODO: Varying conditions from the config over restarts.
-                    later_config = copy.deepcopy(self.config)
-                    later_config['template'] = later_file
-                    later_config['restart'] = True
-                    self.later_inputs.update({later_file: Template(later_config)})
-                    print(f'*** IMPORTED LATER FILE {later_file} ***')
+                    try:
+                        # By default we propagate the changes specified in the Omphalos config.
+                        # I.e. if we change a boundary condition we expect it to be the same in later restarts.
+                        # TODO: Varying conditions from the config over restarts.
+                        later_config = copy.deepcopy(self.config)
+                        later_config['template'] = later_file
+                        later_config['restart'] = True
+                        self.later_inputs.update({later_file: Template(later_config)})
+                        print(f'*** IMPORTED LATER FILE {later_file} ***')
+                    except FileNotFoundError:
+                        import __main__
+                        script_name = str(__main__.__file__).split('/')[-1]
+                        if script_name == 'make_restarts.py':
+                            return
+                        else:
+                            raise FileNotFoundError
             else:
                 import sys
                 sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')

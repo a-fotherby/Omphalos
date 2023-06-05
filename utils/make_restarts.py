@@ -22,11 +22,12 @@ if __name__ == '__main__':
 
     name_scheme = config['template'].rsplit('.')[0]
     for i,j in enumerate(file_dict):
-        file_dict[j].path = f'{name_scheme}{i+2}.in'
-        file_dict[j].keyword_blocks['RUNTIME'].contents['save_restart'] = [f'{name_scheme}{i+2}.rst']
+        file_dict[j].path = f'{name_scheme}_{i+2}.in'
+        file_dict[j].keyword_blocks['RUNTIME'].contents['save_restart'] = [f'{name_scheme}_{i+2}.rst']
         if i+1 == 1:
             file_dict[j].keyword_blocks['RUNTIME'].contents['restart'] = [f'{name_scheme}.rst append']
         else:
-            file_dict[j].keyword_blocks['RUNTIME'].contents['restart'] = [f'{name_scheme}{i+1}.rst append']
+            file_dict[j].keyword_blocks['RUNTIME'].contents['restart'] = [f'{name_scheme}_{i+1}.rst append']
+            del file_dict[j].keyword_blocks['RUNTIME'].contents['later_inputfiles']
 
         file_dict[j].print()

@@ -219,7 +219,7 @@ class InputFile:
             # WARNING: Will slice from the back, assuming that all failed output files are at the end
             # i.e. after a crash or timeout. I don't know why this wouldn't be the case but just in case
             # something wierd happens, maybe look here...
-            # If file formating for that output file category is bad then will try to concat nothing
+            # If file formatting for that output file category is bad then will try to concat nothing
             # and this will throw ValueError.
             #try:
             ds = xr.concat(ds_list, dim=times[:len(times)-skip_counter])

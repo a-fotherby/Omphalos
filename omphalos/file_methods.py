@@ -49,6 +49,12 @@ def parse_output(path, output, time_ref):
                 2],
             names=headers)
         ds = df.to_xarray()
+        # Check for any variables that have been parsed that are not floats. Any that are mixed datatypes are likely
+        # due to CT scientific notation for values less than 1e-100. Replace and fix. If not the problem,
+        # an error should be thrown and caught in the try-except in which this is called.
+        for variable in ds:
+            if ds[variable].dtype == object:
+                ds[variable] = ds[variable].astype(str).str.replace(r'\d.\d+-\d+', '0').astype(float)
         ds = ds.set_index(index=('X', 'Y', 'Z'))
         ds = ds.unstack('index')
 
@@ -91,9 +97,21 @@ def unpickle(file_path):
 
 def dataset_to_netcdf(dataset):
     import xarray as xr
+    from coeus.helper import fix_smalls
     from omphalos.labels import raw
+    import pathlib as pl
+
+    # Check that output file doesn't already exist.
+    path = pl.Path() / 'results.nc'
+    n = 1
+    while True:
+        if path.is_file():
+            # If it does exist, mangle name.
+            path = pl.Path() / f'results{n}.nc'
+            n += 1
+        else:
+            break
 
     for category in dataset[0].results:
         group = raw(dataset, category)
-
-        group.to_netcdf('results.nc', group=category, mode='a')
+        group.to_netcdf(path, group=category, mode='a')

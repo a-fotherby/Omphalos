@@ -35,7 +35,7 @@ The argument `config_name` is the path to the `config.yaml` for the run.
 The arg `mode` takes one of two options, either `cluster` or `local`.
 - In the case of `cluster`, CrunchTope simulations will be submitted to nodes on a slurm managed cluster.
 This **should** work out of the box, but if you wish to tinker with the settings for the submission 
-(e.g. change memory per node and such like) then the `.sbatch` can be found in `rhea/parrallel.sbatch`.
+(e.g. change memory per node and such like) then the `.sbatch` can be found in `rhea/parallel.sbatch`.
 - `local` will run CrunchTope simulations simultaneously on your local machine.
 Because CrunchTope is single threaded, you can run as many simulations as you have cores.
 I don't recommend submitting more runs than you have cores
@@ -47,7 +47,7 @@ Results come in the form of two files.
 `results.nc` is a netCDF4 file containing all the results from the various simulations.
 Each different kind of CrunchTope spatial profile output (e.g. `volume`, `totcon`, etc.)
 is the name of a [netCDF4 group](https://docs.xarray.dev/en/stable/user-guide/io.html#groups).
-You can import it using `xarrray.open_dataset()`, 
+You can import it using `xarray.open_dataset()`, 
 so if, for example, you wanted to import the mineral volume data for all your different simulations you would run
 `xarray.open_dataset(results.nc, group='volume')`.
 Data can be straight-forwardly analysed from the xarray format.

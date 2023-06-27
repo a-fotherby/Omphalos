@@ -2,8 +2,8 @@
 ### A tool for automating the design and running of geochemical modelling experiments in CrunchTope.
 
 + Simplify your geochemical modelling!
-+ Test thousands of parameter combinations with a single line of code. 
-+ Collate all your results in a single simple to use database.
++ Test thousands of parameter combinations quickly. 
++ Collate all your results in a single python datastructure.
 
 ## Installation
 
@@ -101,14 +101,115 @@ and these can also be systematically altered by Omphalos. Currently in CrunchTop
     - the catabolic pathways
 
     Each namelist can be indexed into and edited. The keywords for accessing each name list is given below 
-    but the convention is to use the namelist name with the ampersand stripped. 
+    but the convention is to use the namelist name with the ampersand stripped in `snake_case`. 
 
-    - `&aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
-    - `&aqueous_kinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
+    - `&Aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
+    - `&AqueousKinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
     - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
 
 We now turn to each of these categories to explain the generic syntax that allows access to any variable in each of these cases,
-detailing any exceptions.
+detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#Non-unique-entries).
+
+##### Keyword blocks
+
+To illustrate how this is done, we will take the example of wanting to modify the kinetic rate parameter of quartz 
+by selecting random values between 1e-15 and 1e-16.
+A use case for this kind of modification might be to do a basic form of sensitivity analysis.
+In all cases the specification starts with identifying the block, which is the right keyword followed by a colon.
+The keyword block names are *not* always just a `snake_case` version of the CrunchTope KEYWORD name due to some ambiguity.
+A table is shown here:
+
+| KEYWORD block name | Omphalos keyword |
+|--------------------|------------------|
+| TRANSPORT          | transport        |
+| FLOW               | flow             |
+| EROSION/BURIAL     | erosion/burial   |
+| MINERALS           | mineral_rates    |
+| AQUEOUS_KINETICS   | aqueous_kinetics |
+| RUNTIME            | runtime          |
+| OUTPUT             | output           |
+
+But continuing with the example:
+
+    mineral_kinetics:    
+
+Any variable inside that keyword block can then be specified
+
+    mineral_kinetics:
+        Quartz(alpha):
+            
+We then have to specify how we wish to change the parameter in our input file. 
+Omphalos has a number of built-in options for this (listed [here]), but in this case we want `random_uniform`.
+Each option has its own syntax depending on what it is, but in general it consists of a name-array pair,
+with the name specifying the option and the array containing any numerical data required, as shown below.
+
+    mineral_kinetics:
+        Quartz(alpha):
+            - 'random_uniform'
+            - [1e-16, 1e-15]
+
+If we then wanted to modify the kinetics of a second mineral, we could do at the indent level as the Quartz.
+The config file takes `#` as comments.
+
+    mineral_kinetics:
+        Quartz(alpha):
+            - 'random_uniform'
+            - [1e-16, 1e-15]
+        Kaolinite:
+            - 'random_uniform'
+            # Scream If You Wanna Go Faster!
+            - [1e-14, 1e-13]
+
+##### Condition blocks
+
+This is likely the functionality that most users are going to want out of this software.
+Condition blocks are dealt with slightly differently to keyword blocks.
+Because they refer to species listed in either GASES, MIENRALS, or PRIMARY_SPECIES blocks, 
+as well as some generic physical parameters in the condition being described (e.g. temperature)
+which all require different treatment when interpreting and modifying them, it has been prudent to split them into five sub-categories:
+
+- `concentrations`: referring to the concentrations of primary species.
+- `mineral_volumes`: referring to mineral volume fractions.
+- `mineral_ssa`: referring to mineral surface areas (either bulk or specific)
+- `gases`: referring gas species partial pressures.
+- `parameters`: referring to any other parameters, such a temperature or pH.
+
+So taking the example syntax given in the KEYWORD block explanation as an analogy,
+to uniquely identify a species in a geochemical CONDITION block, we indentify the name of the condition,
+then the sub-category (concentration, mineral volume, etc.) and then finally the species and new values.
+An example of this might systematically changing the concentration of seawater sulfate to test some different paleo-ocean compositions,
+which we will build up in the same way as before.
+First we give the name of the condition we want to modify (which you hopefully remembered to list in the Frontmatter!):
+
+    seawater:
+
+Then we specify we want to change primary species concentrations:
+
+    seawater:
+        concentrations:
+
+Then we specify the species, in this case SO4--:
+
+    seawater:
+        concentrations:
+            SO4--:
+
+And finally we specify the way in which we want to change the variable. 
+In this case lets do some different seawater states that might have existed in the past,
+and do a linear sweep over that range 
+(note that the units are set inside the input file, and here they are set to mM):
+
+    seawater:
+        concentrations:
+            SO4--:
+              - 'linspace'
+              - [1,30,1]
+
+Where the syntax for the 'linspace' is saying sweep values between 1 and 30, repeating each value 1 time
+(you may wish to repeat values if you are varying multiple species at once).
+The number of values actually generated is set by the `number_of_files` parameter in the front matter.
+
+##### Namelists
 
 
 ### Non-unique entries

@@ -78,14 +78,14 @@ All frontmatter keyword *must* be present in the config file.
 If they are not applicable (e.g. no aqueous reactions are being used), then the keyword must remain but blank,
 e.g. `aqueous_database:`.
 
-`template` - Path to the input file that will be used as a template and modified.
-`database` - Path to the thermodynamic database.
-`aqueous_database` - Path to the aqueous database.
-`catabolic_pathways` - Path to the catabolic pathways files.
-`timeout` - Maximum time for a run before it is cancelled and as much data as has been produced is collated.
-`conditions` - A list of the names of all the geochemical conditions (CONDITION blocks) that will be modified in the run.
-`number_of_files` - Number of files in the run.
-`nodes` - Number of slurm nodes to allocate to a run. Only for rhea parallel mode.
+- `template`: Path to the input file that will be used as a template and modified.
+- `database`: Path to the thermodynamic database.
+- `aqueous_database`: Path to the aqueous database.
+- `catabolic_pathways`: Path to the catabolic pathways files.
+- `timeout`: Maximum time for a run before it is cancelled and as much data as has been produced is collated.
+- `conditions`: A list of the names of all the geochemical conditions (CONDITION blocks) that will be modified in the run.
+- `number_of_files`: Number of files in the run.
+- `nodes`: Number of slurm nodes to allocate to a run. Only for rhea parallel mode.
 
 #### Configuration
 All configuration is optional and takes the form of nested lists in the config file

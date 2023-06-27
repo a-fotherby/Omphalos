@@ -85,7 +85,7 @@ e.g. `aqueous_database:`.
 - `timeout`: Maximum time for a run before it is cancelled and as much data as has been produced is collated.
 - `conditions`: A list of the names of all the geochemical conditions (CONDITION blocks) that will be modified in the run.
 - `number_of_files`: Number of files in the run.
-- `nodes`: Number of slurm nodes to allocate to a run. Only for rhea parallel mode.
+- `nodes`: Number of slurm nodes (if in parallel mode) or cores (if in local mode) to allocate to a run.
 
 #### Configuration
 All configuration is optional and takes the form of nested lists in the config file
@@ -179,7 +179,7 @@ to uniquely identify a species in a geochemical CONDITION block, we indentify th
 then the sub-category (concentration, mineral volume, etc.) and then finally the species and new values.
 An example of this might systematically changing the concentration of seawater sulfate to test some different paleo-ocean compositions,
 which we will build up in the same way as before.
-First we give the name of the condition we want to modify (which you hopefully remembered to list in the Frontmatter!):
+First, we give the name of the condition we want to modify (which you hopefully remembered to list in the Frontmatter!):
 
     seawater:
 

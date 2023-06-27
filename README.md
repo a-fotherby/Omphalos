@@ -52,12 +52,64 @@ so if, for example, you wanted to import the mineral volume data for all your di
 `xarray.open_dataset(results.nc, group='volume')`.
 Data can be straight-forwardly analysed from the xarray format.
 
+The data in the xarray object will have five dimensions. Three spatial dimension, `X`, `Y`, and 'Z', 
+a temporal dimension, `time`. It will also have a dimension representing which run the data was collected from, `file_num`.
+
 The second file, `inputs.pkl` is a pickled `dict` of the CrunchTope input files used to generate the data.
 This is given so that there is a record of the parameters varied, and for debugging purposes.
 There is an unpickle method in `omphalos.file_methods` that takes the path to the pickle as its argument
 and will return the `dict` of `InputFile` objects. The original text file of an input file can be recovered using the `InputFile.print()` method.
 
 ## Usage
+
+### Config specification
+Omphalos reconfigures CrunchTope input files based on the options specified in the `.yaml` file given in the argument `config_name`.
+An example config is given in `example.yaml`.
+The config file is split into two parts
+- The front matter, which specifies things like the database and the input file being used, etc.
+- The specification, which details how to vary each of the input files.
+
+The syntax is explained below. All keywords in the front matter must be present, even if they are left empty.
+
+### Config file syntax
+
+#### Frontmatter
+All frontmatter keyword *must* be present in the config file.
+If they are not applicable (e.g. no aqueous reactions are being used), then the keyword must remain but blank,
+e.g. `aqueous_database:`.
+
+`template` - Path to the input file that will be used as a template and modified.
+`database` - Path to the thermodynamic database.
+`aqueous_database` - Path to the aqueous database.
+`catabolic_pathways` - Path to the catabolic pathways files.
+`timeout` - Maximum time for a run before it is cancelled and as much data as has been produced is collated.
+`conditions` - A list of the names of all the geochemical conditions (CONDITION blocks) that will be modified in the run.
+`number_of_files` - Number of files in the run.
+`nodes` - Number of slurm nodes to allocate to a run. Only for rhea parallel mode.
+
+#### Configuration
+All configuration is optional and takes the form of nested lists in the config file
+which identifies what parameter in the input file (`template`) to change and how to change it.
+There are 4 major syntax groups in the input file that can be changed
+
+1. Keyword blocks. These are any block in the main input file except `CONDITION` blocks. E.g. `FLOW` or `MINERALS`.
+2. Condition blocks. These are the blocks that represent geochemical conditions in the input file 
+with the syntax `CONDITION name` where name is a user chosen name for that condition, like 'seawater', for example.
+3. Namelists. These are the auxiliary files used by CrunchTope to define specific reaction pathways, 
+and these can also be systematically altered by Omphalos. Currently in CrunchTope there exist two such files, 
+    - the aqueous database
+    - the catabolic pathways
+
+    Each namelist can be indexed into and edited. The keywords for accessing each name list is given below 
+    but the convention is to use the namelist name with the ampersand stripped. 
+
+    - `&aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
+    - `&aqueous_kinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
+    - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
+
+We now turn to each of these categories to explain the generic syntax that allows access to any variable in each of these cases,
+detailing any exceptions.
+
 
 ### Non-unique entries
 Some CrunchTope inputs don't have unique left-most values.

@@ -140,7 +140,7 @@ Any variable inside that keyword block can then be specified
         Quartz(alpha):
             
 We then have to specify how we wish to change the parameter in our input file. 
-Omphalos has a number of built-in options for this (listed [here]), but in this case we want `random_uniform`.
+Omphalos has a number of built-in options for this (listed [here](#modification-options)), but in this case we want `random_uniform`.
 Each option has its own syntax depending on what it is, but in general it consists of a name-array pair,
 with the name specifying the option and the array containing any numerical data required, as shown below.
 
@@ -241,6 +241,33 @@ This can then be modified in the usual way:
                 keq:
                     - 'random_uniform'
                     - [14, 15]
+
+
+### Modification options
+Omphalos currently has 5 options for setting parameters
+(if you want more please either open an issue or submit a pull request - 
+relevant file is `parameter_methods.py` and the dispatcher is in `generate_inputs.py`).
+In each case he number of actual values generated is determined by the `number_of_files` keyword in the frontmatter section,
+except for the `constant` keyword, where the number of values in your array must match `number_of_files`.
+As shown in the previous section, the format is two entries, one with the option name as a *string*,
+and then the relevant array of values in the next entry. For example:
+
+    indexing:
+        into:
+            variable:
+                - 'custom'
+                - [10, 40, 19, 777, 23, 17]
+
+Options are listed here:
+
+- `linspace`: Takes an array of length 3, [x, y, z] where x and y are the upper and lower bounds of the range. 
+z is the number of times a given value is repeated. E.g. 1 1 1 2 2 2 3 3 3 for z = 3.
+- `random_uniform`: Takes an array of length two, [lower, upper] for the upper and lower bounds on the uniform random sample. 
+- `constant`: Takes a float. Will be held constant over all runs.
+- `custom`: Allows for a manually specified list of input values. Takes an array of length number_of_files.
+- `fix_ratio`: Fixes the value of an input as a fixed multiple of another input parameter.
+Useful for keeping an isotope ratio fixed when the major isotope concentration is being varied.
+
 
 ### Non-unique entries
 Some CrunchTope inputs don't have unique left-most values.

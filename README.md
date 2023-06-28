@@ -98,15 +98,15 @@ with the syntax `CONDITION name` where name is a user chosen name for that condi
 <a name="namelist_info">
 3. Namelists. These are the auxiliary files used by CrunchTope to define specific reaction pathways, 
 and these can also be systematically altered by Omphalos. Currently in CrunchTope there exist two such files, 
-    - the aqueous database
-    - the catabolic pathways
+- the aqueous database
+- the catabolic pathways
 
-    Each namelist can be indexed into and edited. The keywords for accessing each name list is given below 
-    but the convention is to use the namelist name with the ampersand stripped in `snake_case`. 
+Each namelist can be indexed into and edited. The keywords for accessing each name list is given below 
+but the convention is to use the namelist name with the ampersand stripped in `snake_case`. 
 
-    - `&Aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
-    - `&AqueousKinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
-    - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
+- `&Aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
+- `&AqueousKinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
+- Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
 </a>
 We now turn to each of these categories to explain the generic syntax that allows access to any variable in each of these cases,
 detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#Non-unique-entries).

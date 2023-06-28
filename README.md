@@ -268,7 +268,7 @@ z is the number of times a given value is repeated. E.g. 1 1 1 2 2 2 3 3 3 for z
 - `fix_ratio`: Fixes the value of an input as a fixed multiple of another input parameter.
 Useful for keeping an isotope ratio fixed when the major isotope concentration is being varied.
 
-<a name="nue">
+<a id="nue">
 ### Non-unique entries
 Some CrunchTope inputs don't have unique left-most values.
 In this case, special subroutines are required to handle this in the dictionary structure employed by Omphalos.

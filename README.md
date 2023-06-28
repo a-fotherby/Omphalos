@@ -109,7 +109,7 @@ but the convention is to use the namelist name with the ampersand stripped in `s
 - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
 </a>
 We now turn to each of these categories to explain the generic syntax that allows access to any variable in each of these cases,
-detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#Nonunique-entries).
+detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#nonunique-entries).
 
 ##### Keyword blocks
 

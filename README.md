@@ -109,7 +109,7 @@ but the convention is to use the namelist name with the ampersand stripped in `s
 - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
 </a>
 We now turn to each of these categories to explain the generic syntax that allows access to any variable in each of these cases,
-detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#nue).
+detailing any exceptions. Significant exceptions in the case of "non-unique entries" are detailed [below](#Nonunique-entries).
 
 ##### Keyword blocks
 
@@ -269,7 +269,7 @@ z is the number of times a given value is repeated. E.g. 1 1 1 2 2 2 3 3 3 for z
 Useful for keeping an isotope ratio fixed when the major isotope concentration is being varied.
 
 
-### Non-unique entries {nue}
+### Nonunique entries
 Some CrunchTope inputs don't have unique left-most values.
 In this case, special subroutines are required to handle this in the dictionary structure employed by Omphalos.
 Notable cases include in the `FLOW` and `INITIAL_CONDITONS` blocks where the user may specify the same condition over non-contiguous regions,

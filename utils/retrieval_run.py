@@ -43,7 +43,8 @@ if __name__ == "__main__":
             # Call InputFile.get_results(tmp_dir)
             print(f'Retrieving file #{file}')
 
-            dir = f'run{file}'
+            dir = f'{pl.Path(args.path).parent.resolve()}/run{file}'
+            
             file_dict[file].get_results(dir)
 
     fm.dataset_to_netcdf(file_dict)

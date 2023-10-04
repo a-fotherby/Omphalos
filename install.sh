@@ -8,14 +8,15 @@ eval "$(conda shell.bash hook)"
 conda config --add channels conda-forge
 conda config --set channel_priority strict
 
-conda create env --file requirements.yml
+conda env create --file requirements.yml
 
-echo alias omphalos="$SCRIPT_DIR/omphalos/main.py" >> ~/.bashrc
-echo alias rhea="$SCRIPT_DIR/rhea/main.py" >> ~/.bashrc
+echo alias omphalos="python $SCRIPT_DIR/omphalos/main.py" >> ~/.bashrc
+echo alias rhea="python $SCRIPT_DIR/rhea/main.py" >> ~/.bashrc
 
 echo Absolute path to CrunchTope executable:
 read -r CT_PATH
 
+echo >> $SCRIPT_DIR/omphalos/settings.py
 SETTINGS = "$SCRIPT_DIR/omphalos/settings.py"
 touch $SETTINGS
 

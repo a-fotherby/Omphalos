@@ -7,7 +7,7 @@
 
 ## Installation
 
-1. Make sure conda is installed on your system: https://docs.conda.io/en/latest/
+1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
 2. Run the installation script: `./install.sh`
    1. Make sure you provide the *absolute path* to your CrunchTope executable. 
    2. You can always change it later in `omphalos/settings.py`.
@@ -165,7 +165,7 @@ The config file takes `#` as comments.
 
 This is likely the functionality that most users are going to want out of this software.
 Condition blocks are dealt with slightly differently to keyword blocks.
-Because they refer to species listed in either GASES, MIENRALS, or PRIMARY_SPECIES blocks, 
+Because they refer to species listed in either GASES, MINERALS, or PRIMARY_SPECIES blocks, 
 as well as some generic physical parameters in the condition being described (e.g. temperature)
 which all require different treatment when interpreting and modifying them, it has been prudent to split them into five sub-categories:
 
@@ -245,7 +245,7 @@ This can then be modified in the usual way:
 
 ### Modification options
 Omphalos currently has 5 options for setting parameters
-(if you want more please either open an issue or submit a pull request - 
+(if you want more please either open an issue or submit a pull request—
 relevant file is `parameter_methods.py` and the dispatcher is in `generate_inputs.py`).
 In each case he number of actual values generated is determined by the `number_of_files` keyword in the frontmatter section,
 except for the `constant` keyword, where the number of values in your array must match `number_of_files`.

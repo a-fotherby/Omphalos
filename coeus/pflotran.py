@@ -1,5 +1,6 @@
 """Utilities for working with PFLOTRAN"""
 
+
 def split_units(string):
     import re
 
@@ -14,6 +15,7 @@ def split_units(string):
         unit = '-'
 
     return variable, unit
+
 
 def extract_numbers(arr):
     import re
@@ -52,7 +54,7 @@ def h5_to_xarray(file):
     dim_lengths = {}
     # Match direction and dimension key from the file.
     # Done via and assumed order for now but could be improved to RegEx matching if required.
-    dim_direction = dict(zip(['x','y','z'], list(file['Coordinates'].keys())))
+    dim_direction = dict(zip(['x', 'y', 'z'], list(file['Coordinates'].keys())))
 
     for direction in dim_direction:
         dim_lengths.update({direction: len(file['Coordinates'][dim_direction[direction]]) - 1})
@@ -71,14 +73,14 @@ def h5_to_xarray(file):
         arr = file['Coordinates'][dim_direction[coord]][:]
         grid_step = arr[1] - arr[0]
         arr = arr[:-1]
-        arr = arr + grid_step/2
+        arr = arr + grid_step / 2
         # Split direction name and units before assignment
         dir_name, units = split_units(dim_direction[coord])
         coordinates_dict.update({dir_name: (coord, arr)})
         coord_units_dict.update({dir_name: units})
     # Assign coordinates to dimensions
     da = da.assign_coords(coordinates_dict)
-    da = da.assign_coords(time = ('time', times))
+    da = da.assign_coords(time=('time', times))
     for coord in coord_units_dict:
         da.coords[coord].attrs['units'] = coord_units_dict[coord]
     # Time unit is last letter in time index key string
@@ -90,7 +92,7 @@ def h5_to_xarray(file):
         name, unit = split_units(variable)
         da_var = copy.deepcopy(da)
         for i, time in enumerate(snapshot_keys):
-            da_var[:,:,:,i] = file[snapshot_keys[i]][variable]
+            da_var[:, :, :, i] = file[snapshot_keys[i]][variable]
             da_var.attrs['units'] = unit
         ds[name] = da_var
 

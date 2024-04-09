@@ -1,0 +1,40 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'burn.in'
+database: 'CrunchThermoddem.dbs'
+aqueous_database:
+catabolic_pathways:
+
+# Timeout in seconds for any one input file.
+timeout: 216000
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'Boundary'
+# Number of files in this run.
+number_of_files: 29
+
+nodes: 30
+
+# Options for setting parameters:
+#     linspace
+#     random_uniform
+#     constant
+#     custom
+parameters:
+  Boundary:
+    pH:
+      - 'custom'
+      - [ 8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15, 8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15,  8.15, 8.15,  8.15,  4.  ,  5.  ,  6.  ,  7.  ,  8.  ,  9.  , 10.  , 11.  , 12.  ] 
+concentrations:
+        Boundary:
+                Mg++:
+                        - 'custom'
+                        - [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0]
+                Ca++:
+                        - 'custom'
+                        - [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 20.0, 30.0, 40.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+                SO4--:
+                        - 'custom'
+                        - [30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 1.0, 10.0, 20.0, 30.0, 40.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0, 30.0]
+                HCO3-:
+                        - 'custom'
+                        - [2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.0, 2.2, 2.4, 2.6, 2.8, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4]

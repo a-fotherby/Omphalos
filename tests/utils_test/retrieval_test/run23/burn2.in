@@ -1,0 +1,217 @@
+TITLE 
+Hydrothermal Fluid Flow in a 1D model 
+END
+
+RUNTIME 
+time_units years 
+timestep_max 10 
+timestep_init 1e-10 
+time_tolerance 0.1 
+correction_max 5.0 
+debye-huckel true 
+database_sweep false 
+speciate_only false 
+screen_output 50 
+hindmarsh true 
+gimrt true 
+master H+ 
+database CrunchThermoddem.dbs 
+graphics tecplot 
+save_restart burn2.rst 
+restart burn.rst append 
+END
+
+OUTPUT 
+time_units years 
+spatial_profile 2100 
+END
+
+DISCRETIZATION 
+distance_units meters 
+xzones 500 2.0 
+END
+
+PRIMARY_SPECIES 
+H+ 
+Al+++ 
+O2(aq) 
+Mg++ 
+Ca++ 
+Fe++ 
+Fe+++ 
+HCO3- 
+Cl- 
+K+ 
+Na+ 
+SO4-- 
+H4SiO4(aq) 
+Ti(OH)4(aq) 
+END
+
+SECONDARY_SPECIES 
+Al(OH)2+ 
+AlO2- 
+AlOH++ 
+CO3-- 
+CO2(aq) 
+CaCl+ 
+CaCl2(aq) 
+CaOH+ 
+CaSO4(aq) 
+FeCl+ 
+FeCl2(aq) 
+FeOH+ 
+FeSO4(aq) 
+OH- 
+MgSO4(aq) 
+MgCO3(aq) 
+HSO4- 
+HSiO3- 
+KCl(aq) 
+KOH(aq) 
+KSO4- 
+NaOH(aq) 
+NaSO4- 
+H2(aq) 
+END
+
+GASES 
+CO2(g) 
+END
+
+BOUNDARY_CONDITIONS 
+x_begin Boundary flux 
+x_end Boundary flux 
+END
+
+TRANSPORT 
+distance_units centimeters 
+time_units seconds 
+calculate_diffusion 0.919e-05 
+END
+
+TEMPERATURE 
+read_temperaturefile on_axis_temp.txt 
+END
+
+POROSITY 
+porosity_update false 
+END
+
+INITIAL_CONDITIONS  
+Initial 1-500 1-1 1-1 
+END
+
+MINERALS 
+Forsterite -rate -10.64 -activation 18.88 
+Forsterite -label h+ 
+Fayalite -rate -10.64 -activation 18.88 
+Fayalite -label h+ 
+Microcline -rate -12.56 -activation 16.68 
+Microcline -label h+ 
+Microcline -label oh- 
+Ferrosilite(alpha) -rate -12.71 -activation 19.12 
+Enstatite(alpha) -rate -12.71 -activation 19.12 
+Diopside -rate -12.24 -activation 19.12 
+Diopside -label h+ 
+Anorthite -rate -12.56 -activation 16.68 
+Anorthite -label h+ 
+Anorthite -label oh- 
+Albite(low) -rate -11.15 -activation 16.68 
+Albite(low) -label h+ 
+Albite(low) -label oh- 
+Ilmenite -rate -14.60 -activation 15.82 
+Quartz(alpha) -rate -13.99 -activation 20.96 
+Tremolite -rate -12.52 -activation 21.03 
+Tremolite -label h+ 
+Actinolite -rate -12.52 -activation 21.03 
+Actinolite -label h+ 
+Chrysotile -rate -12.52 -activation 21.03 
+Chrysotile -label h+ 
+Talc -rate -12.52 -activation 21.03 
+Talc -label h+ 
+Hematite -rate -14.6 -activation 15.82 
+Hsaponite(Mg) -rate -12.52 -activation 21.03 
+Hsaponite(Mg) -label h+ 
+Celadonite -rate -12.52 -activation 21.03 
+Epidote -rate -12.52 -activation 21.03 
+Epidote -label h+ 
+Clinozoisite -rate -12.52 -activation 21.03 
+Clinozoisite -label h+ 
+Chamosite(Daphnite) -rate -12.52 -activation 21.03 
+Chamosite(Daphnite) -label h+ 
+Clinochlore -rate -12.52 -activation 21.03 
+Clinochlore -label h+ 
+Natrolite -rate -12.52 -activation 21.03 
+Anhydrite -rate -6.5 -activation 6.69 
+Calcite -rate -6.5 -activation 6.69 
+END
+
+FLOW 
+distance_units meters 
+time_units years 
+constant_flow 2 
+END
+
+CONDITION Initial
+units mmol/kg
+pH 8.15
+temperature 2.0
+Na+ 474
+Cl- charge
+Mg++ 52.8
+SO4-- 28.2
+Ca++ 10.3
+K+ 10.2
+HCO3- 2.06
+Al+++ 0.037e-6
+Fe+++ 1.0e-6
+Fe++ 1.0e-12
+O2(aq) 1.0e-15
+H4SiO4(aq) 0.17
+Ti(OH)4(aq) 2.09E-6
+Forsterite 0.030 ssa 1e-9
+Fayalite 0.030 ssa 1e-9
+Diopside 0.190 ssa 1e-9
+Enstatite(alpha) 0.050 ssa 1e-9
+Ferrosilite(alpha) 0.050 ssa 1e-9
+Microcline 0.010 ssa 1e-9
+Anorthite 0.258 ssa 1e-9
+Albite(low) 0.258 ssa 1e-9
+Ilmenite 0.020 ssa 1e-9
+Tremolite 1.0e-10 ssa 2e-9
+Actinolite 1.0e-10 ssa 2e-9
+Chrysotile 1.0E-10 ssa 2e-9
+Talc 1.0E-10 ssa 2e-9
+Hematite 1.0E-10 ssa 2e-9
+Quartz(alpha) 1.0E-10 ssa 2e-9
+Hsaponite(Mg) 1.0E-10 ssa 2e-9
+Celadonite 1.0e-10 ssa 2e-9
+Epidote 1.0e-10 ssa 2e-9
+Clinozoisite 1.0e-10 ssa 2e-9
+Chamosite(Daphnite) 1.0e-10 ssa 2e-9
+Clinochlore 1.0e-10 ssa 2e-9
+Natrolite 1.0e-10 ssa 2e-9
+Anhydrite 1.0E-10 ssa 2e-9
+Calcite 1.0E-10 ssa 2e-9
+END
+
+CONDITION Boundary
+units mmol/kg
+pH 7.0
+temperature 2.0
+Na+ 474
+Cl- charge
+Mg++ 50.0
+SO4-- 30.0
+Ca++ 10.0
+K+ 10.2
+HCO3- 2.4
+Al+++ 0.037e-6
+Fe+++ 1.0e-6
+Fe++ 1.0e-12
+O2(aq) 1.0e-15
+H4SiO4(aq) 0.17
+Ti(OH)4(aq) 2.09E-6
+END
+

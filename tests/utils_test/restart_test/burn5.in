@@ -1,0 +1,223 @@
+TITLE 
+Hydrothermal Fluid Flow in a 1D model 
+END
+
+RUNTIME 
+time_units years 
+timestep_max 1e-3 
+timestep_init 1e-65 
+time_tolerance 0.1 
+correction_max 5.0 
+debye-huckel true 
+database_sweep false 
+speciate_only false 
+screen_output 50 
+hindmarsh true 
+gimrt true 
+master H+ 
+database CrunchThermoddem.dbs 
+graphics tecplot 
+save_restart burn5.rst 
+restart burn4.rst append 
+END
+
+OUTPUT 
+time_units years 
+spatial_profile 4000 
+END
+
+DISCRETIZATION 
+distance_units meters 
+xzones 1000 1.0 
+END
+
+PRIMARY_SPECIES 
+H+ 
+Al+++ 
+O2(aq) 
+Mg++ 
+Ca++ 
+Fe++ 
+Fe+++ 
+HCO3- 
+Cl- 
+F- 
+K+ 
+HS- 
+Na+ 
+SO4-- 
+HPO4-- 
+NO3- 
+H4SiO4(aq) 
+Ti(OH)4(aq) 
+END
+
+SECONDARY_SPECIES 
+HNO3(aq) 
+Al(OH)2+ 
+AlO2- 
+AlOH++ 
+CO3-- 
+CO2(aq) 
+CaCl+ 
+CaCl2(aq) 
+CaOH+ 
+CaSO4(aq) 
+FeCl+ 
+FeCl2(aq) 
+FeOH+ 
+FeSO4(aq) 
+OH- 
+MgSO4(aq) 
+MgCO3(aq) 
+H2S(aq) 
+H2PO4- 
+H3PO4(aq) 
+HSO4- 
+HSiO3- 
+KCl(aq) 
+KOH(aq) 
+KSO4- 
+NH3(aq) 
+NaOH(aq) 
+NaSO4- 
+H2(aq) 
+PO4--- 
+S2O3-- 
+END
+
+GASES 
+CO2(g) 
+END
+
+MINERALS 
+Forsterite -rate -9 ssa 4e-8 
+Fayalite -rate -9 ssa 4e-8 
+Microcline -rate -9 ssa 4e-8 
+Enstatite(alpha) -rate -9 ssa 4e-8 
+Ferrosilite(alpha) -rate -9 ssa 4e-8 
+Diopside -rate -9 ssa 4e-8 
+Anorthite -rate -9 ssa 4e-8 
+Albite(low) -rate -9 ssa 4e-8 
+Ilmenite -rate -9 ssa 4e-8 
+Fluorapatite(Natur) -rate -9 ssa 4e-8 
+Quartz(alpha) -rate -9.5 ssa 4e-8 
+Brucite -rate -9.5 ssa 4e-8 
+Lizardite -rate -9.5 ssa 4e-8 
+Chrysotile -rate -9.5 ssa 4e-8 
+Talc -rate -9.5 ssa 4e-8 
+Hydrotalcite -rate -9.5 ssa 4e-8 
+Hsaponite(Mg) -rate -9.5 ssa 4e-8 
+Hsaponite(Ca) -rate -9.5 ssa 4e-8 
+Hsaponite(Na) -rate -9.5 ssa 4e-8 
+Celadonite -rate -9.5 ssa 4e-8 
+Chamosite(Daphnite) -rate -9.5 ssa 4e-8 
+Clinochlore -rate -9.5 ssa 4e-8 
+Natrolite -rate -9.5 ssa 4e-8 
+FeS(am) -rate -9.5 ssa 4e-8 
+Anhydrite -rate -9.5 ssa 4e-8 
+Gypsum -rate -9.5 ssa 4e-8 
+MgSO4 -rate -9.5 ssa 4e-8 
+Calcite -rate -9.5 ssa 4e-8 
+END
+
+BOUNDARY_CONDITIONS 
+x_begin Boundary Dirichlet 
+x_end Boundary flux 
+END
+
+TRANSPORT 
+distance_units centimeters 
+time_units seconds 
+calculate_diffusion 0.919e-05 
+END
+
+TEMPERATURE 
+set_temperature 2.0 
+read_temperaturefile on_axis_temp.txt 
+END
+
+POROSITY 
+porosity_update false 
+END
+
+INITIAL_CONDITIONS  
+Initial 1-1000 1-1 1-1 
+END
+
+FLOW 
+distance_units meters 
+time_units years 
+constant_flow 2 
+END
+
+CONDITION Initial
+pH 8.15
+HCO3- 2.4E-3
+Mg++ 0.0528
+Al+++ 0.037e-6
+Fe++ 2.600e-8
+Fe+++ 1.000e-14
+Ca++ 0.0103
+SO4-- 0.0282
+Cl- charge
+Na+ 4.740e-01
+K+ 1.200e-02
+H4SiO4(aq) 0.17e-3
+O2(aq) 1.0e-15
+F- 6.8E-5
+HPO4-- 1.700e-06
+HS- 1.0E-10
+NO3- 3.9e-5
+Ti(OH)4(aq) 2.09E-9
+Forsterite 4e-4
+Fayalite 4e-4
+Diopside 4e-4
+Enstatite(alpha) 4e-4
+Ferrosilite(alpha) 4e-4
+Microcline 4e-4
+Anorthite 4e-4
+Albite(low) 4e-4
+Ilmenite 4e-4
+Fluorapatite(Natur) 4e-4
+Brucite 1.0E-10 ssa 1.0
+Lizardite 1.0E-10 ssa 4e-4
+Chrysotile 1.0E-10 ssa 4e-4
+Talc 1.0E-10 ssa 4e-4
+Hydrotalcite 1.0E-10 ssa 4e-4
+Quartz(alpha) 1.0E-10 ssa 1.0
+Hsaponite(Mg) 1.0E-10 ssa 4e-4
+Hsaponite(Ca) 1.0E-10 ssa 4e-4
+Hsaponite(Na) 1.0E-10 ssa 4e-4
+Celadonite 1.0e-10 ssa 4e-4
+Chamosite(Daphnite) 1.0e-10 ssa 4e-4
+Clinochlore 1.0e-10 ssa 4e-4
+Natrolite 1.0e-10 ssa 4e-4
+FeS(am) 1.0e-10 ssa 4e-4
+Anhydrite 1.0E-10 ssa 4e-4
+Gypsum 1.0E-10 ssa 4e-4
+MgSO4 1.0E-10 ssa 4e-4
+Calcite 1.0E-10 ssa 4e-4
+END
+
+CONDITION Boundary
+pH 8.15
+HCO3- 2.4E-3
+O2(aq) 1.0e-15
+Mg++ 0.0528
+Al+++ 0.037e-6
+Fe++ 2.600e-8
+Fe+++ 1.000e-14
+Ca++ 0.0103
+K+ 1.200e-02
+F- 6.8E-5
+SO4-- 0.0282
+HPO4-- 1.700e-06
+HS- 1.0E-10
+Na+ 4.740e-01
+Cl- charge
+NO3- 3.9e-5
+H4SiO4(aq) 0.17e-3
+Ti(OH)4(aq) 2.09E-9
+END
+

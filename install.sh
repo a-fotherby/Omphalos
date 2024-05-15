@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # One-liner for script directory (for edge case where someone doesn't cd into Omphalos to run the install.
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; )";

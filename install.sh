@@ -22,6 +22,6 @@ touch $SETTINGS
 
 echo '# Global settings for Omphalos' >> $SETTINGS
 echo crunch_dir = \'"$CT_PATH"\' >> $SETTINGS
-echo omphalos_dir = "$SCRIPT_DIR" >> $SETTINGS
+echo omphalos_dir = \'"$SCRIPT_DIR"\' >> $SETTINGS
 
 source ~/.bashrc

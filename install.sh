@@ -17,7 +17,7 @@ echo Absolute path to CrunchTope executable:
 read -r CT_PATH
 
 echo >> $SCRIPT_DIR/omphalos/settings.py
-SETTINGS = "$SCRIPT_DIR/omphalos/settings.py"
+export SETTINGS="$SCRIPT_DIR/omphalos/settings.py"
 touch $SETTINGS
 
 echo '# Global settings for Omphalos' >> $SETTINGS

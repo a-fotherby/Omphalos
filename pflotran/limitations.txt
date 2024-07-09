@@ -1,0 +1,12 @@
+1. Currently, the system only allows for modification of CONSTRAINT blocks. If one wants to modify more types of blocks, they
+need to be added to cards.editable(). Other cards may (will) require special parsing as PFLOTRAN has a much more complex
+structure than CrunchTope. All other blocks not in this list are copy and pasted from template.verbatim
+
+2. This also means that currently you can not modify anything in the SIMULATION block.
+
+3. Nesting structure of PFLOTRAN is difficult to deal with. Currently, only one skip-noskip is allowed per block.
+
+4. A 'block' (i.e. card) for the purposes defined here is anything that ends with an END statement. A \ does not
+consitute the end of a block.
+    4.1 Duplicate \ in a block relies on an expoit where PFLOTRAN doesn't mind if you mangle \ with characters afterwards.
+

@@ -1,0 +1,66 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'sukinda_column.in'
+database: 'SukindaCr53.dbs'
+aqueous_database: 'aqueous.dbs'
+catabolic_pathways: 'CatabolicPathways.in'
+# Timeout in seconds for any one input file.
+timeout: 60
+
+nodes: 100
+
+# conditions must match geochemical condition names in concentration dict
+conditions:
+        - 'boundary'
+        - 'initial'
+# Number of files in this run.
+number_of_files: 10
+
+# Options for setting parameters:
+#     linspace
+#     random_uniform
+#     constant
+#     custom
+
+concentrations:
+        boundary:
+                SO4--:
+                - 'random_uniform'
+                - [0, 30]
+                Acetate:
+                - 'random_uniform'
+                - [0, 30]
+mineral_volumes:
+        initial:
+                Ferrihydrite_DIRB:
+                - 'random_uniform'
+                - [0.001, 0.1]
+mineral_rates:
+        Cr(OH)3&default:
+        - 'random_uniform'
+        - [-9.93, -8.93]
+        #Cr53(OH)3:
+        #- 'fix_ratio'
+        #- 'Cr(OH)3'
+        #- 1
+        Ferrihydrite_DIRB&DIRB:
+        - 'random_uniform'
+        - [-8.7, -7.7]  
+
+aqueous_kinetics:
+        Cr_Fe_redox:
+        - 'random_uniform'
+        - [10000000, 50000000]
+          #Cr53_Fe_redox:
+          #- 'fix_ratio'
+          #- 'Cr_Fe_redox'
+          #- 0.9972963839
+        Sulfate_reduction:
+        - 'random_uniform'
+        - [1000, 10000]
+
+namelists:
+  aqueous:
+    Cr_Fe_redox:
+      keq:
+        - 'random_uniform'
+        - [5.0, 5.5]

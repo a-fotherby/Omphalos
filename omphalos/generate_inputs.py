@@ -142,7 +142,7 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                     file_dict[file].keyword_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
 
     if not rhea:
-        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
+        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
         # Check for a temperature file specification and copy it to tmp if there.
         try:
             if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:

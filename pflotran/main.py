@@ -8,8 +8,8 @@ if __name__ == '__main__':
     import yaml
     from settings import omphalos_path
     sys.path.insert(0, os.path.abspath(f'{omphalos_path}'))
-    import omphalos.run as run
-    from omphalos.template import Template
+    import run
+    from template import Template
 
     parser = argparse.ArgumentParser()
     parser.add_argument('config_path', type=str, help='YAML file containing options.')
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")
         for file in file_dict:
-            file_dict[file].path = f'{tmp_dir}{file_dict[file].path}{file}'
+            file_dict[file].path = f'{tmp_dir}{file}{file_dict[file].path}'
             file_dict[file].print()
 
         sys.exit()
@@ -43,18 +43,5 @@ if __name__ == '__main__':
 
     # Convert file dict to single xarray for saving as a netCDF4
     print('*** Writing results to results.nc ***')
-    fm.dataset_to_netcdf(file_dict)
-
-    # Delete data from the InputFile object.
-    # I know this seems a little round-about, but either way when collecting the data the data needs to be assembled
-    # into the per-file data for each category, and then concatenated along the file number axis.
-    # Whether this is done in the InputFile object itself or some other dict is neither here nor there and there is
-    # little point in rewriting the code just to elide that one slightly inelegant detail.
-
-    for file in file_dict:
-        del file_dict[file].results
-
-    # Pickle the data.
-    print(f"*** Writing InputFile record to {args.output_name} ***")
-    fm.pickle_data_set(file_dict, f'{args.output_name}')
-    print("*** Run complete ***")
+    ds = fm.dataset_to_netcdf(file_dict)
+    ds.to_netcdf('results.nc')

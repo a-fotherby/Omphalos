@@ -16,10 +16,10 @@ class KeywordBlock:
         from omphalos.generate_inputs import get_config_array
 
         # Extract corresponding input file block name and the position of the variable to be modified.
-        if species_type:
-            raise KeywordBlockModificationError('KeywordBlock has no species_type')
-            import sys
-            sys.exit()
+        #if species_type:
+        #    raise KeywordBlockModificationError('KeywordBlock has no species_type')
+        #    import sys
+        #    sys.exit()
 
         array = self.contents[entry]
 
@@ -58,6 +58,7 @@ class ConditionBlock(KeywordBlock):
             species_type = 'mineral_volumes'
         
         contents = self.__getattribute__(species_type)
+        print(species_type)
 
         array = contents[entry]
         array[mod_pos] = str(value)

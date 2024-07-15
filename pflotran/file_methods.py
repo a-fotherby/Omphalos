@@ -118,8 +118,11 @@ def dataset_to_netcdf(dataset):
             n += 1
         else:
             break
+    ds = dataset[0].results
+    for key in dataset:
+        if key == 0:
+            continue
+        else:
+            ds = xr.concat([ds, dataset[key].results], dim='file_num')
 
-    for category in dataset[0].results:
-        dataset = fix_smalls(dataset, category)
-        group = raw(dataset, category)
-        group.to_netcdf(path, group=category, mode='a')
+    return ds

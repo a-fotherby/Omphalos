@@ -4,10 +4,10 @@
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
 CT_IDs = {'runtime': ['RUNTIME', -1],
           'output': ['OUTPUT', slice(None)],
-          'concentrations': ['geochemical condition', -1],
+          'concentrations': ['geochemical condition', 0],
           'mineral_volumes': ['geochemical condition', 0],
-          'mineral_ssa': ['geochemical condition', -1],
-          'parameters': ['geochemical condition', -1],
+          'mineral_ssa': ['geochemical condition', 1],
+          'parameters': ['geochemical condition', 0],
           'gases': ['geochemical condition', -1],
           'mineral_rates': ['MINERALS', -1],
           'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
@@ -16,11 +16,6 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'erosion/burial': ['EROSION/BURIAL', -1],
           'namelists': [None]
           }
-
-CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
-           'aqueous_kinetics': ['aqueous_database', 'AqueousKinetics'],
-           'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
-
 
 def get_block_changes(block, num_files):
     block_changes = {}
@@ -47,22 +42,7 @@ def evaluate_config(config):
     # Cycle through each known keyword block.
     # If the keyword block key is found in the config then proceed to modify the input files.
     for block in CT_IDs:
-        # Check if we should run namelists code:
-        if block == 'namelists' and block in config:
-            modified_nmls = {}
-            for nml_type in CT_NMLs:
-                if nml_type in config['namelists']:
-                    nml_block = config['namelists'][nml_type]
-                    block_changes = {}
-                    for reaction in nml_block:
-                        reaction_block = nml_block[reaction]
-                        block_changes.update({reaction: get_block_changes(reaction_block, num_files)})
-
-                    modified_nmls.update({nml_type: block_changes})
-
-            modified_params.update({'namelists': modified_nmls})
-
-        elif block in config:
+        if block in config:
             # Handle differently depending on whether this is a geochemical condition:
             # Extra layer of nesting to deal with naming for geochemical conditions.
             if CT_IDs[block][0] == 'geochemical condition':
@@ -84,10 +64,6 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     the specified condition. """
     import subprocess
 
-    if template.config['conditions'] is not None:
-        for condition in template.config['conditions']:
-            template.sort_condition_block(condition)
-
     file_dict = template.make_dict()
 
     if override_num != -1:
@@ -97,40 +73,21 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
 
     modified_params = evaluate_config(template.config)
 
-    if template.config['conditions'] is not None:
-        for file in file_dict:
-            for condition in template.config['conditions']:
-                file_dict[file].sort_condition_block(condition)
-
     # For every entry in the modified_params dict update the input file.
     for block in modified_params:
         if CT_IDs[block][0] == 'geochemical condition':
             condition_dict = modified_params[block]
             mod_pos = CT_IDs[block][1]
             for condition in condition_dict:
+                print(condition)
                 condition_block = condition_dict[condition]
                 for entry in condition_block:
                     change_list = condition_block[entry]
                     for file in file_dict:
                         file_num = file_dict[file].file_num
-                        file_dict[file].condition_blocks[condition].modify(entry, change_list[file_num], mod_pos,
-                                                                           species_type=block)
-        elif block == 'namelists':
-            namelist_dict = modified_params['namelists']
-            for nml_type in namelist_dict:
-                nml_name = CT_NMLs[nml_type][0]
-                list_name = CT_NMLs[nml_type][1]
-                reactions = namelist_dict[nml_type]
-                for reaction_name in reactions:
-                    reaction = reactions[reaction_name]
-                    for parameter in reaction:
-                        change_list = reaction[parameter]
-                        for file in file_dict:
-                            file_num = file_dict[file].file_num
-                            namelist = file_dict[file].__getattribute__(nml_name)
-                            reaction_namelist = namelist.find_reaction(list_name, reaction_name)
-                            reaction_namelist[parameter] = change_list[file_num]
-
+                        file_dict[file].editable_blocks['constraint'][condition].modify(entry, change_list[file_num],
+                                                                                        mod_pos,
+                                                                                        species_type=block)
         else:
             keyword_dict = modified_params[block]
             block_name = CT_IDs[block][0]
@@ -139,15 +96,15 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                 change_list = keyword_dict[entry]
                 for file in file_dict:
                     file_num = file_dict[file].file_num
-                    file_dict[file].keyword_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
+                    file_dict[file].editable_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
 
     if not rhea:
         subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
         # Check for a temperature file specification and copy it to tmp if there.
         try:
-            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-                subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
-                                f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
+            if template.editable_blocks['TEMPERATURE'].contents['read_temperaturefile']:
+                subprocess.run(['cp', f'{template.editable_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
+                                f'{tmp_dir}/{template.editable_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
         except KeyError:
             pass
 

@@ -40,7 +40,7 @@ def h5_to_xarray(file):
     try:
         file['Provenance']['PFLOTRAN']
     except KeyError:
-        print("Are you this is a PFLOTRAN file?")
+        print("Are you sure this is a PFLOTRAN file?")
 
     # Get keys for time snapshots
     keys = file.keys()

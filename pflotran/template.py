@@ -1,4 +1,3 @@
-from omphalos.keyword_block import KeywordBlock
 from pflotran.input_file import InputFile
 
 
@@ -9,11 +8,12 @@ class Template(InputFile):
         import copy
         import cards
 
-        super().__init__(config['template'], {}, {}, {}, {}, 0)
+        super().__init__(config['template'], {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.
         # FLOW, INITIAL_CONDITION, and ISOTOPES have their own methods.
 
         self.config = config
+        self.editable_blocks = {}
         self.later_inputs = {}
         self.raw = self.read_file(self.path)
         self.error_code = 0
@@ -41,7 +41,7 @@ class Template(InputFile):
         #if not self.config['restart']:
         #    # Check for restarts.
         #    try:
-        #        later_files = self.keyword_blocks['RUNTIME'].contents['later_inputfiles']
+        #        later_files = self.editable_blocks['RUNTIME'].contents['later_inputfiles']
         #    except KeyError:
         #        return
         #    if later_files:
@@ -98,17 +98,10 @@ class Template(InputFile):
 
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
 
-        # Wrap non-unique blocks up into dict for convenience.
-        non_unique_blocks = {'REGION': self.region, 'CHARACTERISTIC_CURVES': self.characteristic_curves,
-                             'FLOW_CONDITION': self.flow_condition, 'MATERIAL_PROPERTY': self.material_property,
-                             'TRANSPORT_CONDITION': self.transport_condition, 'CONSTRAINT': self.constraint}
-
         for file in file_dict:
             # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of
             # string attributes.
-            file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.keyword_blocks, non_unique_blocks,
-                                                      self.aqueous_database, self.catabolic_pathways,
-                                                      self.later_inputs))
+            file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.editable_blocks, self.verbatim, self.later_inputs))
             file_dict[file].file_num = file
 
         return file_dict
@@ -220,7 +213,7 @@ class Template(InputFile):
         return big_block
 
     def find_blocks(self, start_string, end_string='END', whitespace=True):
-        import omphalos.file_methods as fm
+        import file_methods as fm
         import numpy as np
         # Get all instances of the keyword in question, in a numpy array.
         block_start = fm.search_file(self.raw, start_string, allow_white_space=whitespace)
@@ -240,10 +233,10 @@ class Template(InputFile):
         Assigns each block to a dictionary in the InputFile object specifically for that condition type.
         The key for each dictionary entry is the condition name specified in the input file.
         """
+        from keyword_block import KeywordBlock
         import numpy as np
 
         block_start, block_end = self.find_blocks(card)
-        print(block_start, block_end)
 
         non_unique_blocks = {}
         for start, end in zip(block_start, block_end):
@@ -279,6 +272,7 @@ class Template(InputFile):
         then it is overwritten the second time. Therefor regions can be used to uniquely identify condition
         coupler blocks. This requires a special parser.
         """
+        from keyword_block import KeywordBlock
         import numpy as np
 
         block_start, block_end = self.find_blocks(condition_coupler, whitespace=False)

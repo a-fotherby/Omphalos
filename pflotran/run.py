@@ -11,35 +11,29 @@ def run_dataset(file_dict, tmp_dir, timeout):
 def input_file(input_file, file_num, tmp_dir, timeout):
     # Print the file. Run it in CT. Collect the results, and assign to a
     # Results object in the InputFile object.
-
-    import os
-    input_file.path = os.getcwd() + '/' + tmp_dir + input_file.path
+    from pathlib import Path
+    input_file.path = Path(Path.cwd() / Path(tmp_dir) / input_file.path)
     input_file.print()
     if input_file.later_inputs:
         for name in input_file.later_inputs:
-            input_file.later_inputs[name].path = os.getcwd() + '/' + tmp_dir + input_file.later_inputs[name].path
+            input_file.later_inputs[name].path = Path(Path.cwd() + '/' + tmp_dir + input_file.later_inputs[name].path)
             input_file.later_inputs[name].print()
-    if input_file.aqueous_database:
-        input_file.aqueous_database.print(
-            tmp_dir + input_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0])
-    if input_file.catabolic_pathways:
-        input_file.catabolic_pathways.print(tmp_dir + 'CatabolicPathways.in')
 
-    crunchtope(input_file, file_num, timeout, tmp_dir)
+    pflotran(input_file, file_num, timeout, tmp_dir)
 
     return input_file
 
 
-def crunchtope(input_file, file_num, timeout, tmp_dir):
+def pflotran(input_file, file_num, timeout, tmp_dir):
     import sys
     import pexpect as pexp
     from omphalos.settings import crunch_dir
 
-    command = f'{crunch_dir} {input_file.path}'
+    command = f'mpirun -n 11 /Users/angus/soft/pflotran/src/pflotran/pflotran -pflotranin {input_file.path}'
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 
-    errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'divide by zero', 'NaN']
+    errors = ['Stopping!', 'Simulation failed.  Exiting!', 'divide by zero', 'NaN']
 
     error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2], errors[3]])
 
@@ -54,6 +48,10 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
         # File threw an error.
         print(f'Error {error_code} encountered.')
         input_file.error_code = error_code
+        try:
+            input_file.get_results(tmp_dir)
+        except (FileNotFoundError):
+            pass
         # Clean the temp directory ready the next input file.
         clean_dir(tmp_dir, input_file.path)
 
@@ -64,6 +62,5 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
 
 def clean_dir(tmp_dir, file_name):
     import subprocess
-    subprocess.run(['rm', "*.tec"], cwd=tmp_dir)
-    subprocess.run(['rm', "*.out"], cwd=tmp_dir)
+    subprocess.run(['rm', "*.h5"], cwd=tmp_dir)
     subprocess.run(['rm', file_name], cwd=tmp_dir)

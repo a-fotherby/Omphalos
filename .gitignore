@@ -3,6 +3,9 @@
 
 .idea
 
+# Ignore test outputs
+run*/
+
 # Ignore local settings.py
 settings.py
 

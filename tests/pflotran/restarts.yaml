@@ -1,0 +1,99 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'burn.in'
+aqueous_database:
+catabolic_pathways:
+
+number_of_files: 8
+
+conditions:
+  - 'Initial'
+
+# Options for setting parameters:
+#     linspace
+#     custom
+#     constant
+#     custom
+runtime:
+  timestep_max:
+    - 'custom'
+    - [10,1e-2,1e-2,1e-2,1e-2,1e-2,1e-2,3e-3]
+
+output:
+  spatial_profile:
+    - 'custom'
+    - [[2100], [2200], [2300], [2350], [2400], [2500], [2600, 2700, 2800, 2900, 3000, 4000], [5000, 6000, 7000]]
+
+mineral_ssa:
+  Initial:
+    Forsterite:                   
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Fayalite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Microcline:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Enstatite(alpha):
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Ferrosilite(alpha):
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Diopside:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Anorthite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Albite(low):
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Ilmenite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Chrysotile:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Tremolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Actinolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Talc:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Hematite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Quartz(alpha):
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Hsaponite(Mg):
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Celadonite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Epidote:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Clinozoisite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Chamosite(Daphnite):
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Clinochlore:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Natrolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Anhydrite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Calcite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]

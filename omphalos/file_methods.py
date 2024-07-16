@@ -112,7 +112,7 @@ def dataset_to_netcdf(dataset):
         else:
             break
 
-    for category in dataset[0].results:
+    for category in dataset[next(iter(dataset))].results:
         dataset = fix_smalls(dataset, category)
         group = raw(dataset, category)
         group.to_netcdf(path, group=category, mode='a')

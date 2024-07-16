@@ -12,8 +12,6 @@ if __name__ == '__main__':
     path = os.path.dirname(path)
     sys.path.insert(0, os.path.abspath(f'{path}'))
     import argparse
-    from omphalos.template import Template
-    from omphalos import generate_inputs as gi
     import slurm_interface as si
     import subprocess
     import yaml
@@ -22,7 +20,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
     parser.add_argument('run_type', type=str, help='Type of run, either local or cluster.')
+    parser.add_argument('-p', '--pflotran', action='store_true')
     args = parser.parse_args()
+
+    if args.pflotran:
+        from pflotran.template import Template
+        from pflotran import generate_inputs as gi
+    else:
+        from omphalos.template import Template
+        from omphalos import generate_inputs as gi
 
     # Define procedural file generation name scheme at top for consistency.
     # Do not change as this is not passed to slurm_exec.py

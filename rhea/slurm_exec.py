@@ -8,13 +8,20 @@ tmp_dir -- temporary directory for running input files. Must be unique.
 from context import omphalos
 
 
-def execute(file_num, config):
+def execute(file_num, config, pflo):
     import signal
+    from pathlib import Path
     import subprocess
-    import omphalos.file_methods as fm
-    from omphalos.template import Template
-    import omphalos.run as run
     import os
+
+    if pflo:
+        import pflotran.file_methods as fm
+        from pflotran.template import Template
+        import pflotran.run as run
+    else:
+        import omphalos.run as run
+        import omphalos.file_methods as fm
+        from omphalos.template import Template
 
     cwd = f'{os.getcwd()}/'
     name = config['template']
@@ -29,27 +36,35 @@ def execute(file_num, config):
     if catabolic_pathways is not None:
         config.update({'catabolic_pathways': f'{cwd}{tmp_dir}{catabolic_pathways}'}) 
     input_file = Template(config)
-    input_file.path = config['template']
+    input_file.path = Path(config['template'])
 
-    run.crunchtope(input_file, file_num, config['timeout'], tmp_dir)
+    if pflo:
+        run.pflotran(input_file, file_num, config['timeout'], tmp_dir)
+    else:
+        run.crunchtope(input_file, file_num, config['timeout'], tmp_dir)
 
     return input_file
 
 
 if __name__ == '__main__':
     import argparse
-    import omphalos.file_methods as fm
     import yaml
 
     parser = argparse.ArgumentParser()
     parser.add_argument("file_num", help="Input file dict key.")
     parser.add_argument("config_path", help="Omphalos config file.")
+    parser.add_argument('-p', '--pflotran', action='store_true')
     args = parser.parse_args()
+
+    if args.pflotran:
+        import pflotran.file_methods as fm
+    else:
+        import omphalos.file_methods as fm
 
     with open(args.config_path) as file:
         config = yaml.safe_load(file)
 
-    input_file = execute(args.file_num, config)
+    input_file = execute(args.file_num, config, args.pflotran)
     print(f'File {args.file_num} returned to __main__.')
 
     # Hotwired directory name for now as it hasn't been passed through for now.

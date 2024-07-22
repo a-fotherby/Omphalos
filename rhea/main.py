@@ -6,7 +6,8 @@ config -- new option, specifies YAML file containing template modification optio
 """
 
 if __name__ == '__main__':
-    import os, sys
+    import os
+    import sys
 
     path = os.path.dirname(__file__)
     path = os.path.dirname(path)
@@ -48,25 +49,28 @@ if __name__ == '__main__':
     subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
     subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'],
                    shell=True, executable='/bin/bash')
-    if config['aqueous_database'] is not None:
-        subprocess.run([
-                           f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'],
-                       shell=True, executable='/bin/bash')
-    if config['catabolic_pathways'] is not None:
-        subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: '
-                        f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-    try:
-        if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-            t_file = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
-            subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
-                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-            if template.later_inputs:
-                for file in template.later_inputs:
-                    t_file = template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
-                    subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
-                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-    except KeyError:
+    if args.pflotran:
         pass
+    else:
+        if config['aqueous_database'] is not None:
+            subprocess.run([
+                f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'],
+                shell=True, executable='/bin/bash')
+        if config['catabolic_pathways'] is not None:
+            subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: '
+                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+        try:
+            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
+                t_file = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
+                subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
+                                f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+                if template.later_inputs:
+                    for file in template.later_inputs:
+                        t_file = template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
+                        subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
+                                        f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+        except KeyError:
+            pass
 
     for file in file_dict:
         file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
@@ -81,7 +85,11 @@ if __name__ == '__main__':
     print(f'All files generated and directories prepped. Time elapsed: {t_stop - t_start}')
     if args.run_type == 'local':
         nodes = config['nodes']
-        subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+        if args.pflotran:
+            subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py -p {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+        else:
+            subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+
         si.compile_results(dict_size+1)
     elif args.run_type == 'cluster':
         si.submit(args.path_to_config, config['nodes'], dict_size)

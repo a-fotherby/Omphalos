@@ -27,7 +27,7 @@ def submit(path_to_config, nodes, number_of_files):
     import os
     cwd = (os.path.dirname(__file__))
     subprocess.run([f'sbatch', f'-n{nodes}', f'{cwd}/parallel.sbatch'],
-                   env=dict(DICT_LEN=str(number_of_files), PATH_TO_CONFIG=path_to_config))
+                   env=dict(DICT_LEN=str(number_of_files), PATH_TO_CONFIG=path_to_config),)
 
 
 def compile_results(dict_len):

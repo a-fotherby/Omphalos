@@ -1,4 +1,4 @@
-"""Methods to handle invoking CrunchTope on an InputFile object."""
+"""Methods to handle invoking pflotran on an InputFile object."""
 
 
 def run_dataset(file_dict, tmp_dir, timeout):
@@ -27,9 +27,9 @@ def input_file(input_file, file_num, tmp_dir, timeout):
 def pflotran(input_file, file_num, timeout, tmp_dir):
     import sys
     import pexpect as pexp
-    from omphalos.settings import crunch_dir
+    from pflotran.settings import pflotran_dir
 
-    command = f'mpirun -n 11 /Users/angus/soft/pflotran/src/pflotran/pflotran -pflotranin {input_file.path}'
+    command = f'mpirun -n 11 {pflotran_dir} -pflotranin {input_file.path}'
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 

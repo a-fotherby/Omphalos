@@ -16,8 +16,9 @@ class InputFile:
     """Highest level object, representing a single PFLOTRAN input file."""
 
     def __init__(self, path, editable_blocks, verbatim, restarts):
+        from pathlib import Path
         # Non-unique block dispatcher
-        self.path = path
+        self.path = Path(path)
         self.editable_blocks = editable_blocks
         self.verbatim = verbatim
         self.results = dict()
@@ -32,7 +33,7 @@ class InputFile:
     def print(self):
         """Writes out a populated input file to a CrunchTope readable *.in file.
         """
-        import keyword_block
+        import pflotran.keyword_block as keyword_block
 
         def get_block_contents(f, nested_dict):
             if isinstance(nested_dict, keyword_block.KeywordBlock):

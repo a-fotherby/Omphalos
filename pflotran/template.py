@@ -6,7 +6,7 @@ class Template(InputFile):
 
     def __init__(self, config):
         import copy
-        import cards
+        import pflotran.cards as cards
 
         super().__init__(config['template'], {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.
@@ -123,7 +123,7 @@ class Template(InputFile):
         first instance of that keyword for assignment.
         """
         import numpy as np
-        from omphalos import keyword_block as kb
+        import pflotran.keyword_block as kb
 
         block_start, block_end = self.find_blocks(keyword)
         # Set the block type using the keyword in question.
@@ -162,7 +162,7 @@ class Template(InputFile):
         return block
 
     def get_big_block(self, block_cards):
-        import cards
+        import pflotran.cards as cards
         import re
 
         def search_card(card_name):
@@ -213,7 +213,7 @@ class Template(InputFile):
         return big_block
 
     def find_blocks(self, start_string, end_string='END', whitespace=True):
-        import file_methods as fm
+        import pflotran.file_methods as fm
         import numpy as np
         # Get all instances of the keyword in question, in a numpy array.
         block_start = fm.search_file(self.raw, start_string, allow_white_space=whitespace)
@@ -233,7 +233,7 @@ class Template(InputFile):
         Assigns each block to a dictionary in the InputFile object specifically for that condition type.
         The key for each dictionary entry is the condition name specified in the input file.
         """
-        from keyword_block import KeywordBlock
+        from pflotran.keyword_block import KeywordBlock
         import numpy as np
 
         block_start, block_end = self.find_blocks(card)
@@ -272,7 +272,7 @@ class Template(InputFile):
         then it is overwritten the second time. Therefor regions can be used to uniquely identify condition
         coupler blocks. This requires a special parser.
         """
-        from keyword_block import KeywordBlock
+        from pflotran.keyword_block import KeywordBlock
         import numpy as np
 
         block_start, block_end = self.find_blocks(condition_coupler, whitespace=False)

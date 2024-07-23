@@ -26,8 +26,6 @@ class Template(InputFile):
         except KeyError:
             self.config['restart'] = False
 
-        big_blocks = ['simulation_blocks', 'subsurface_blocks']
-        block_cards = [cards.simulation(), cards.subsurface()]
         big_blocks = ['editable_blocks']
         cards_to_edit = [cards.editable()]
         for block_name, card in zip(big_blocks, cards_to_edit):
@@ -138,13 +136,13 @@ class Template(InputFile):
                 # line removed due to commenting.
                 try:
                     line_list = self.raw[a].split()
-                    if line_list[0] == '\\':
-                       line_list[0].append('_'*mangle_count)
-                       mangle_count += 1
+                    if line_list[0].strip() == '/':
+                        line_list[0] = line_list[0] + ('_'*mangle_count)
+                        mangle_count += 1
 
                     keyword_dict.update({line_list[0]: line_list[1:]})
 
-                    keys_to_remove = [key for key in range(block_start, block_end + 1) if key in self.verbatim]
+                    keys_to_remove = [key for key in range(block_start[0], block_end[-1] + 1) if key in self.verbatim]
 
                     for key in keys_to_remove:
                         value = self.verbatim.pop(key)
@@ -168,7 +166,6 @@ class Template(InputFile):
         def search_card(card_name):
             for value in self.raw.values():
                 if re.match(f'\s*{card_name}', value):
-                    print(card_name)
                     card = self.get_card(card_name)
                     return card
                 else:
@@ -244,6 +241,7 @@ class Template(InputFile):
             block_name = self.raw[start].split()[1]
             block = KeywordBlock(card)
             keyword_dict = {}
+            mangle_count = 0
             for a in np.arange(start, end):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
                 # Commented lines are removed but line number index is preserved.
@@ -251,7 +249,12 @@ class Template(InputFile):
                 # missing line removed due to commenting.
                 try:
                     line_list = self.raw[a].split()
+                    if line_list[0].strip() == '/':
+                        line_list[0] = line_list[0] + ('_'*mangle_count)
+                        mangle_count += 1
+
                     keyword_dict.update({line_list[0]: line_list[1:]})
+
                     keys_to_remove = [key for key in range(block_start[0], block_end[-1] + 1) if key in self.verbatim]
 
                     for key in keys_to_remove:

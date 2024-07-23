@@ -2,19 +2,12 @@
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
-CT_IDs = {'runtime': ['RUNTIME', -1],
-          'output': ['OUTPUT', slice(None)],
-          'concentrations': ['geochemical condition', 0],
+CT_IDs = {'concentrations': ['geochemical condition', 0],
           'mineral_volumes': ['geochemical condition', 0],
           'mineral_ssa': ['geochemical condition', 1],
           'parameters': ['geochemical condition', 0],
           'gases': ['geochemical condition', -1],
-          'mineral_rates': ['MINERALS', -1],
-          'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
-          'flow': ['FLOW', 0],
-          'transport': ['TRANSPORT', -1],
-          'erosion/burial': ['EROSION/BURIAL', -1],
-          'namelists': [None]
+          'time': ['time', 0],
           }
 
 def get_block_changes(block, num_files):
@@ -64,7 +57,10 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     the specified condition. """
     import subprocess
 
-    file_dict = template.make_dict()
+    if template.restart == True:
+        file_dict = {0: template}
+    else:
+        file_dict = template.make_dict()
 
     if override_num != -1:
         # Do it to all files so that accidental call is obvious.
@@ -79,7 +75,6 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
             condition_dict = modified_params[block]
             mod_pos = CT_IDs[block][1]
             for condition in condition_dict:
-                print(condition)
                 condition_block = condition_dict[condition]
                 for entry in condition_block:
                     change_list = condition_block[entry]
@@ -101,12 +96,6 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     if not rhea:
         subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
         # Check for a temperature file specification and copy it to tmp if there.
-        try:
-            if template.editable_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-                subprocess.run(['cp', f'{template.editable_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
-                                f'{tmp_dir}/{template.editable_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
-        except KeyError:
-            pass
 
     if template.later_inputs:
         for file in file_dict:

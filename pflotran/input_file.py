@@ -56,12 +56,11 @@ class InputFile:
                 for line in self.verbatim.values():
                     f.write(f'{line}\n')
             for key in subsurface_blocks:
-                print(key)
                 get_block_contents(f, subsurface_blocks[key])
 
             f.write('END_SUBSURFACE')
 
-    def get_results(self, tmp_dir):
+    def get_results(self):
         from pathlib import Path
         import h5py as h5
 

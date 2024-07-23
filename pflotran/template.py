@@ -6,7 +6,10 @@ class Template(InputFile):
 
     def __init__(self, config):
         import copy
+        import os
         import pflotran.cards as cards
+        import yaml
+        import generate_inputs as gi
 
         super().__init__(config['template'], {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.
@@ -14,6 +17,7 @@ class Template(InputFile):
 
         self.config = config
         self.editable_blocks = {}
+        self.restart = False
         self.later_inputs = {}
         self.raw = self.read_file(self.path)
         self.error_code = 0
@@ -24,6 +28,7 @@ class Template(InputFile):
             if self.config['restart']:
                 pass
         except KeyError:
+            pass
             self.config['restart'] = False
 
         big_blocks = ['editable_blocks']
@@ -35,35 +40,39 @@ class Template(InputFile):
         last_line, _ = self.find_blocks('END_SUBSURFACE', 'END_SUBSURFACE')
         self.verbatim.pop(last_line[0])
 
-        # Check template is not a restart file to avoid infinite recursion.
-        #if not self.config['restart']:
-        #    # Check for restarts.
-        #    try:
-        #        later_files = self.editable_blocks['RUNTIME'].contents['later_inputfiles']
-        #    except KeyError:
-        #        return
-        #    if later_files:
-        #        print('*** Later input files found ***')
-        #        for later_file in later_files:
-        #            try:
-        #                # By default we propagate the changes specified in the Omphalos config.
-        #                # I.e. if we change a boundary condition we expect it to be the same in later restarts.
-        #                # TODO: Varying conditions from the config over restarts.
-        #                later_config = copy.deepcopy(self.config)
-        #                later_config['template'] = later_file
-        #                later_config['restart'] = True
-        #                self.later_inputs.update({later_file: Template(later_config)})
-        #                print(f'*** IMPORTED LATER FILE {later_file} ***')
-        #            except FileNotFoundError:
-        #                import __main__
-        #                script_name = str(__main__.__file__).split('/')[-1]
-        #                if script_name == 'make_restarts.py':
-        #                    return
-        #                else:
-        #                    raise FileNotFoundError
-        #    else:
-        #        import sys
-        #        sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')
+        #Check template is not a restart file to avoid infinite recursion.
+        if not self.config['restart']:
+            # Check for restarts.
+            restarts_path = 'restarts.yaml'
+            if os.path.exists(restarts_path):
+                print('***  restarts.yaml found ***')
+                with open((restarts_path), 'r') as f:
+                    restarts_config = yaml.safe_load(f)
+                    number_of_restarts = restarts_config['number_of_restarts']
+                    restart_template = copy.deepcopy(self)
+                    restart_template.config = restarts_config
+                    restart_template.config['number_of_files'] = number_of_restarts
+                    restarts_dict = gi.configure_input_files(restart_template, 'tmp')
+                    print(restarts_dict)
+                    for file in restarts_dict:
+                        try:
+                            # By default we propagate the changes specified in the Omphalos config.
+                            # I.e. if we change a boundary condition we expect it to be the same in later restarts.
+                            # TODO: Varying conditions from the config over restarts.
+                            restarts_dict[file].restart = True
+                            restarts_dict[file].config = self.config
+                            print(f'*** IMPORTED LATER FILE {file} ***')
+                        except FileNotFoundError:
+                            import __main__
+                            script_name = str(__main__.__file__).split('/')[-1]
+                            if script_name == 'make_restarts.py':
+                                return
+                            else:
+                                raise FileNotFoundError
+                    self.later_inputs.update(restarts_dict)
+            else:
+                import sys
+                sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')
 
     @staticmethod
     def read_file(path):

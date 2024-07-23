@@ -16,7 +16,7 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     input_file.print()
     if input_file.later_inputs:
         for name in input_file.later_inputs:
-            input_file.later_inputs[name].path = Path(Path.cwd() + '/' + tmp_dir + input_file.later_inputs[name].path)
+            input_file.later_inputs[name].path = Path(Path.cwd()/tmp_dir/input_file.later_inputs[name].path)
             input_file.later_inputs[name].print()
 
     pflotran(input_file, file_num, timeout, tmp_dir)
@@ -27,9 +27,9 @@ def input_file(input_file, file_num, tmp_dir, timeout):
 def pflotran(input_file, file_num, timeout, tmp_dir):
     import sys
     import pexpect as pexp
-    from pflotran.settings import pflotran_dir
+    from pflotran.settings import pflotran_path
 
-    command = f'mpirun -n 11 {pflotran_dir} -pflotranin {input_file.path}'
+    command = f'mpirun -n 11 {pflotran_path} -pflotranin {input_file.path}'
     process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
     process.logfile = sys.stdout
 

@@ -18,7 +18,10 @@ def verbatim():
 
 
 def editable():
-    cards = {'constraint': 'CONSTRAINT', }
+    cards = {'constraint': 'CONSTRAINT', 
+            'time': 'TIME',
+             #'restart': 'RESTART',
+             }
 
     return cards
 

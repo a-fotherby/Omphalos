@@ -9,7 +9,7 @@ class Template(InputFile):
         import os
         import pflotran.cards as cards
         import yaml
-        import generate_inputs as gi
+        import pflotran.generate_inputs as gi
 
         super().__init__(config['template'], {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.

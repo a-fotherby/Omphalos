@@ -3,6 +3,7 @@ template: '/Users/angus/work/Omphalos/tests/pflotran_restarts/chem_model.in'
 database: 'hanford.dat'
 
 number_of_restarts: 8
+number_of_files: 8
 
 conditions:
   - 'inlet_constraint'

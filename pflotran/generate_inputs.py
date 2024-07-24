@@ -106,8 +106,6 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     return file_dict
 
 
-def add_restart_block(input_file, restart_index):
-
 
 def get_config_array(spec, params, num_files, *, ref_vars=None):
     """Extract a value to assign from the config file.

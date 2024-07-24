@@ -1,0 +1,89 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: '/Users/angus/work/Omphalos/tests/pflotran_restarts/chem_model.in'
+database: 'hanford.dat'
+
+number_of_restarts: 8
+
+conditions:
+  - 'inlet_constraint'
+  - 'initial_constraint'
+  - 'empty'
+
+# Options for setting parameters:
+#     linspace
+#     custom
+#     constant
+#     custom
+#
+
+time:
+  FINAL_TIME:
+    - 'custom'
+    - [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+mineral_ssa:
+  initial_constraint:
+    Forsterite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Fayalite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Diopside:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Hedenbergite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Anorthite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Albite:
+      - 'custom'
+      - [1e-9, 3e-9, 1e-8, 2e-8, 3e-8, 4e-8, 4e-8, 4e-8]
+    Tremolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Actinolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Chrysotile:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Talc:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Hematite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Quartz:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Saponite-Mg:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Celadonite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Epidote:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Clinozoisite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Chamosite-7A:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Clinochlore-7A:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Natrolite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Anhydrite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]
+    Calcite:
+      - 'custom'
+      - [2e-9, 6e-9, 2e-8, 4e-8, 5e-8, 8e-8, 8e-8, 8e-8]

@@ -1,0 +1,55 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: '/Users/angus/work/Omphalos/tests/pflotran_restarts/chem_model.in'
+database: 'hanford.dat'
+aqueous_database:
+catabolic_pathways:
+
+# Timeout in seconds for any one input file.
+timeout: 734400
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'inlet_constraint'
+    - 'initial_constraint'
+    - 'empty'
+# Number of files in this run.
+number_of_files: 1
+
+nodes: 30
+
+# Options for setting parameters:
+#     linspace
+#     random_uniform
+#     constant
+#     custom
+parameters:
+  inlet_constraint:
+    H+:
+      - 'custom'
+      - [8.15]
+concentrations:
+        inlet_constraint:
+                Mg++:
+                        - 'custom'
+                        - [0.01] 
+                Ca++:
+                        - 'custom'
+                        - [0.01] 
+                SO4--:
+                        - 'custom'
+                        - [0.03]
+                HCO3-:
+                        - 'custom'
+                        - [0.0024]
+        initial_constraint:
+                Mg++:
+                        - 'custom'
+                        - [0.01]
+                Ca++:
+                        - 'custom'
+                        - [0.01]
+                SO4--:
+                        - 'custom'
+                        - [0.03]
+                HCO3-:
+                        - 'custom'
+                        - [0.0024]

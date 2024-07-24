@@ -94,8 +94,7 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                     file_dict[file].editable_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
 
     if not rhea:
-        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
-        # Check for a temperature file specification and copy it to tmp if there.
+        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}/{template.config["database"]}'])
 
     if template.later_inputs:
         for file in file_dict:
@@ -105,6 +104,9 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                 file_dict[file].later_inputs.update({key: later_file})
 
     return file_dict
+
+
+def add_restart_block(input_file, restart_index):
 
 
 def get_config_array(spec, params, num_files, *, ref_vars=None):

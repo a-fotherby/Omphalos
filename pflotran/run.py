@@ -12,14 +12,20 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     # Print the file. Run it in CT. Collect the results, and assign to a
     # Results object in the InputFile object.
     from pathlib import Path
-    input_file.path = Path(Path.cwd() / Path(tmp_dir) / input_file.path)
+    input_file.path = Path.cwd() / tmp_dir / input_file.path.name
     input_file.print()
     if input_file.later_inputs:
         for name in input_file.later_inputs:
-            input_file.later_inputs[name].path = Path(Path.cwd()/tmp_dir/input_file.later_inputs[name].path)
+            input_file.later_inputs[name].path = Path.cwd() / tmp_dir / f'{name}_{input_file.later_inputs[name].path.name}'
             input_file.later_inputs[name].print()
+    
 
-    pflotran(input_file, file_num, timeout, tmp_dir)
+    if input_file.later_inputs != {}:
+        for file in input_file.later_inputs:
+            pflotran(input_file.later_inputs[file], file_num, timeout, tmp_dir)
+        concat_results(input_file)
+    else: 
+        pflotran(input_file, file_num, timeout, tmp_dir)
 
     return input_file
 
@@ -40,7 +46,7 @@ def pflotran(input_file, file_num, timeout, tmp_dir):
     if error_code == 0:
         # Successful run.
         # Make a results object that is an attribute of the InputFile object.
-        input_file.get_results(tmp_dir)
+        input_file.get_results()
         print(f'File {file_num} outputs recorded.')
         clean_dir(tmp_dir, input_file.path)
 
@@ -49,7 +55,7 @@ def pflotran(input_file, file_num, timeout, tmp_dir):
         print(f'Error {error_code} encountered.')
         input_file.error_code = error_code
         try:
-            input_file.get_results(tmp_dir)
+            input_file.get_results()
         except (FileNotFoundError):
             pass
         # Clean the temp directory ready the next input file.
@@ -57,6 +63,13 @@ def pflotran(input_file, file_num, timeout, tmp_dir):
 
     print('File {} complete.'.format(file_num))
 
+    return input_file
+
+def concat_results(input_file):
+    import xarray as xr
+    later_inputs_list = [input_file.later_inputs[name].results for name in input_file.later_inputs]
+    results = xr.concat(later_inputs_list, dim='time')
+    input_file.results = results
     return input_file
 
 

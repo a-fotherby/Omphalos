@@ -10,3 +10,5 @@ structure than CrunchTope. All other blocks not in this list are copy and pasted
 consitute the end of a block.
     4.1 Duplicate \ in a block relies on an expoit where PFLOTRAN doesn't mind if you mangle \ with characters afterwards.
 
+5. Restarts are now detected by the presense of a 'results.yaml' in the working directory.
+Restart file names work by prepending the stem with a number and an _.

@@ -11,6 +11,7 @@ if __name__ == '__main__':
     import run
     from template import Template
     from pathlib import Path
+    import shutil
 
     parser = argparse.ArgumentParser()
     parser.add_argument('config_path', type=str, help='YAML file containing options.')
@@ -19,6 +20,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     tmp_dir = 'tmp'
+    # Check if tmp_dir exists in the current working directory and create it if not
+    if not os.path.exists(tmp_dir):
+        os.makedirs(tmp_dir)
 
     # Import config file.
     with open(args.config_path) as file:
@@ -27,6 +31,13 @@ if __name__ == '__main__':
     # Import template file.
     print('*** Importing template file ***')
     template = Template(config)
+    # Check if the file exists in the tmp directory
+    file_path = os.path.join(tmp_dir, config['database'])
+    if os.path.exists(file_path):
+        pass
+    else:
+        shutil.copy(config['database'], tmp_dir)
+
     # Get a dictionary of input files.
     print('*** Generating input files ***')
     file_dict = gi.configure_input_files(template, tmp_dir)

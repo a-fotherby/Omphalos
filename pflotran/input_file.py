@@ -28,6 +28,7 @@ class InputFile:
         # 3 = charge balance error
         # 4 = singular matrix encountered
         self.error_code = 0
+        self.restart = False
         self.later_inputs = restarts
 
     def print(self):
@@ -45,7 +46,6 @@ class InputFile:
 
             return
 
-        import copy
         with open(self.path, 'w') as f:
             # Print simulation block.
             # Ensure that the dictionary is unpacked in the right order so that the file has the right syntax.
@@ -55,10 +55,25 @@ class InputFile:
             if self.verbatim:
                 for line in self.verbatim.values():
                     f.write(f'{line}\n')
+                    if line == 'SIMULATION' and self.restart == True:
+                        self.add_restart_block(f)
             for key in subsurface_blocks:
                 get_block_contents(f, subsurface_blocks[key])
 
             f.write('END_SUBSURFACE')
+    
+    def add_restart_block(self, f):
+        restart_index = self.path.name.split('_', 1)[0]
+        name_stem = self.path.stem.split('_', 1)[1]
+        if restart_index == '0':
+            return
+        else:
+            f.write('RESTART\n')
+            f.write(f'  FILENAME {int(restart_index)-1}_{name_stem}-restart.chk\n')
+            f.write('/\n')
+        
+            
+    
 
     def get_results(self):
         from pathlib import Path

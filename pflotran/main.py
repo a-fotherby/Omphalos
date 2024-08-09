@@ -49,7 +49,7 @@ if __name__ == '__main__':
             file_dict[file].print()
             if file_dict[file].later_inputs:
                 for name in file_dict[file].later_inputs:
-                    file_dict[file].later_inputs[name].path = Path.cwd() / tmp_dir / f'{name}_{file_dict[file].later_inputs[name].path.name}'
+                    file_dict[file].later_inputs[name].path = Path(file_dict[file].later_inputs[name].path.parent/tmp_dir/f'{file}_{name}.in')
                     print(file_dict[file].later_inputs[name].path)
                     file_dict[file].later_inputs[name].print()
 

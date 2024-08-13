@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
     parser.add_argument('run_type', type=str, help='Type of run, either local or cluster.')
     parser.add_argument('-p', '--pflotran', action='store_true')
+    parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
 
     if args.pflotran:
@@ -42,36 +43,29 @@ if __name__ == '__main__':
     file_dict = gi.configure_input_files(template, 'foo', rhea=True)
 
     dict_size = len(file_dict)-1
-
+    # Start timer for directory preparation and submission
     t_start = time()
 
-    print(f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}')
-    subprocess.run([f'parallel "mkdir {dir_name}{{1}}" ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-    subprocess.run([f'parallel "cp {config["database"]} {dir_name}{{1}}/{config["database"]}" ::: {{0..{dict_size}}}'],
-                   shell=True, executable='/bin/bash')
-    if args.pflotran:
-        pass
-    else:
-        if config['aqueous_database'] is not None:
-            subprocess.run([
-                f'parallel "cp {config["aqueous_database"]} {dir_name}{{1}}/{config["aqueous_database"]}" ::: {{0..{dict_size}}}'],
-                shell=True, executable='/bin/bash')
-        if config['catabolic_pathways'] is not None:
-            subprocess.run([f'parallel "cp {config["catabolic_pathways"]} {dir_name}{{1}}/{config["catabolic_pathways"]}" ::: '
-                            f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-        try:
-            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-                t_file = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
-                subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
-                                f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-                if template.later_inputs:
-                    for file in template.later_inputs:
-                        t_file = template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0]
-                        subprocess.run([f'parallel "cp {t_file} {dir_name}{{1}}/{t_file}" ::: '
-                                        f'{{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-        except KeyError:
-            pass
+    # Get list of temperature file names
+    temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
+    if template.later_inputs:
+        for file in template.later_inputs:
+            temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
 
+    # Run directory preparation script
+    subprocess.run(f'sbatch --array=0-{dict_size} 
+                    --export=CONFIG_PATH={args.part_to_config},
+                    DATABASE_NAME={config['database']},
+                    AQUEOUS_DATABASE={config['aqueous_database']},
+                    CATABOLIC_PATHWAYS={config['catabolic_pathways']},
+                    TEMPERATURE_FILES={temperature_files},
+                    PFLOTRAN={args.pflotran},
+                    prep_directories.sh')
+
+    # TODO: DIRECTORIES NEED TO BE MADE BEFORE THIS IS RUN!
+    # TODO: FORK DIRECTORY PREPARATION OUT TO A SEPERATE .SH SCRIPT!
+    # TODO: Might be able to combine thay with the local directory prep in that case to avoid repeated code.
+    # Print files to prepped directories
     for file in file_dict:
         file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
         file_dict[file].print()
@@ -83,15 +77,21 @@ if __name__ == '__main__':
     t_stop = time()
     
     print(f'All files generated and directories prepped. Time elapsed: {t_stop - t_start}')
+    if args.debug:
+        exit('Debug mode: files generated and directories prepped. Exiting before submission.')
     if args.run_type == 'local':
         nodes = config['nodes']
+        # Run instances using parallel
         if args.pflotran:
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py -p {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
         else:
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
-
+        # Compile results
         si.compile_results(dict_size+1)
     elif args.run_type == 'cluster':
-        si.submit(args.path_to_config, config['nodes'], dict_size)
+        subprocess.run(f'sbatch --array=0-{dict_size} 
+                        --export=CONFIG_PATH={args.path_to_config},
+                        PFLOTRAN={args.pflotran},
+                        run_input_file.sh')
     else:
         print('ERROR: run_type must be either local or cluster')

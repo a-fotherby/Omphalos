@@ -35,65 +35,70 @@ def h5_to_xarray(file):
     :param file: h5 file object
     :return: xarray.DataArray
     """
-    import copy
     import xarray as xr
-    try:
-        file['Provenance']['PFLOTRAN']
-    except KeyError:
-        print("Are you sure this is a PFLOTRAN file?")
+    import numpy as np
+    import re
 
-    # Get keys for time snapshots
-    keys = file.keys()
-    values_to_remove = ['Coordinates', 'Provenance']
-    snapshot_keys = [x for x in keys if x not in values_to_remove]
-    # Convert snapshot key names to time steps
-    times = sorted(extract_numbers(snapshot_keys))
+    # Specify the path to your .h5 file
 
-    # Get dataset shape
-    time_dim_length = len(snapshot_keys)
-    dim_lengths = {}
-    # Match direction and dimension key from the file.
-    # Done via and assumed order for now but could be improved to RegEx matching if required.
-    dim_direction = dict(zip(['x', 'y', 'z'], list(file['Coordinates'].keys())))
+    # Initialize dictionaries to hold the data variables and coordinates
+    data_vars = {}
+    coords = {}
 
-    for direction in dim_direction:
-        dim_lengths.update({direction: len(file['Coordinates'][dim_direction[direction]]) - 1})
-    dim_lengths.update({'time': len(snapshot_keys)})
+    # Open the .h5 file using h5py
+    # Extract coordinates from the 'Coordinates' group and compute cell-centered coordinates
+    for coord_name in file['Coordinates']:
+        boundary_coords = file['Coordinates'][coord_name][:]
+        cell_center_coords = (boundary_coords[:-1] + boundary_coords[1:]) / 2
+        coords[coord_name] = cell_center_coords
+    
+    # Identify all time groups (assuming they start with 'Time')
+    time_groups = [key for key in file.keys() if key.startswith('Time:')]
+    time_points = []
+    all_data = {}
 
-    da = xr.DataArray()
-    # Add dimensions
-    da = da.expand_dims(dim=dim_lengths)
-    # Add coordinates
-    # Need to convert to 'point' rather than block format, so must get offset array
-    # Assume grid is regular
-    coordinates_dict = {}
-    coord_units_dict = {}
-    for coord in dim_direction:
-        # Since grid is regular, remove last element and offset values by 1/2 interval
-        arr = file['Coordinates'][dim_direction[coord]][:]
-        grid_step = arr[1] - arr[0]
-        arr = arr[:-1]
-        arr = arr + grid_step / 2
-        # Split direction name and units before assignment
-        dir_name, units = split_units(dim_direction[coord])
-        coordinates_dict.update({dir_name: (coord, arr)})
-        coord_units_dict.update({dir_name: units})
-    # Assign coordinates to dimensions
-    da = da.assign_coords(coordinates_dict)
-    da = da.assign_coords(time=('time', times))
-    for coord in coord_units_dict:
-        da.coords[coord].attrs['units'] = coord_units_dict[coord]
-    # Time unit is last letter in time index key string
-    da.coords['time'].attrs['units'] = snapshot_keys[0][-1]
+    # Iterate over each time group to extract data
+    for time_group in time_groups:
+        # Extract the time value from the group name
+        time_value = float(time_group.split(':')[1].strip().split()[0])
+        time_points.append(time_value)
+        
+        # Extract data for each variable within the time group
+        for data_name in file[time_group]:
+            if data_name not in all_data:
+                all_data[data_name] = []
+            all_data[data_name].append(file[time_group][data_name][:])
 
-    ds = xr.Dataset()
-    # Now dimensionality and coordinates have been constructed, populate with data
-    for variable in file[snapshot_keys[0]].keys():
-        name, unit = split_units(variable)
-        da_var = copy.deepcopy(da)
-        for i, time in enumerate(snapshot_keys):
-            da_var[:, :, :, i] = file[snapshot_keys[i]][variable]
-            da_var.attrs['units'] = unit
-        ds[name] = da_var
+    # Sort time points and reorder data accordingly
+    sorted_indices = np.argsort(time_points)
+    sorted_time_points = np.array(time_points)[sorted_indices]
+
+    # Convert lists to numpy arrays and sort them by time
+    for data_name in all_data:
+        data_array = np.array(all_data[data_name])
+        all_data[data_name] = data_array[sorted_indices]
+    
+    # Add data variables to the xarray dataset, organized by the 'time' dimension
+    for data_name, data_array in all_data.items():
+        # Use regex to separate the variable name and units
+        match = re.match(r"(.+?)\s*\[(.+?)\]", data_name)
+        if match:
+            var_name, units = match.groups()
+        else:
+            var_name, units = data_name, None
+        
+        # Add variable data and units to the dataset
+        data_vars[var_name] = (['time', 'x', 'y', 'z'], data_array, {'units': units})
+
+    # Create an xarray Dataset
+    ds = xr.Dataset(
+        data_vars=data_vars,
+        coords={
+            'time': sorted_time_points,
+            'x': coords['X [m]'],
+            'y': coords['Y [m]'],
+            'z': coords['Z [m]']
+        }
+    )
 
     return ds

@@ -16,7 +16,7 @@ if __name__ == '__main__':
     import slurm_interface as si
     import subprocess
     import yaml
-    from time import time
+    import time
 
     parser = argparse.ArgumentParser()
     parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
@@ -44,23 +44,71 @@ if __name__ == '__main__':
 
     dict_size = len(file_dict)-1
     # Start timer for directory preparation and submission
-    t_start = time()
+    t_start = time.time()
 
     # Get list of temperature file names
-    temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
-    if template.later_inputs:
-        for file in template.later_inputs:
-            temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
+    try: 
+        temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
+        if template.later_inputs:
+            for file in template.later_inputs:
+                temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
+    except KeyError:
+        temperature_files = ""
 
     # Run directory preparation script
-    subprocess.run(f'sbatch --array=0-{dict_size} 
-                    --export=CONFIG_PATH={args.part_to_config},
-                    DATABASE_NAME={config['database']},
-                    AQUEOUS_DATABASE={config['aqueous_database']},
-                    CATABOLIC_PATHWAYS={config['catabolic_pathways']},
-                    TEMPERATURE_FILES={temperature_files},
-                    PFLOTRAN={args.pflotran},
-                    prep_directories.sh')
+    sbatch_command = [
+        "sbatch", 
+        "--partition=iSALE",
+        "--nodelist=node06",
+        f"--array=0-{dict_size}",
+        f"--export=CONFIG_PATH={args.path_to_config},DATABASE_NAME={config['database']},AQUEOUS_DATABASE={config['aqueous_database']},CATABOLIC_PATHWAYS={config['catabolic_pathways']},TEMPERATURE_FILES={temperature_files}, PFLOTRAN={args.pflotran}",
+        f"{path}/rhea/prep_directories.sh"
+    ]
+
+    # Run the sbatch command and capture the output
+    try:
+        # Run the sbatch command
+        result = subprocess.run(sbatch_command, check=True, capture_output=True, text=True)
+        
+        # Get the job ID from the output
+        output = result.stdout
+        print("Directory prep command executed successfully.")
+        print("Output:", output)
+        
+        # Assuming output contains something like "Submitted batch job 123456"
+        job_id = output.strip().split()[-1]
+        print("Job ID:", job_id)
+        
+        # Wait for the job to complete by checking its status with squeue
+        job_running = True
+        while job_running:
+            # Check the job status using squeue
+            squeue_command = ["squeue", "--job", job_id]
+            squeue_result = subprocess.run(squeue_command, capture_output=True, text=True)
+            
+            # If the job is no longer in the queue, squeue returns an empty string
+            if job_id not in squeue_result.stdout:
+                job_running = False
+            else:
+                # Sleep for a few seconds before checking again
+                print(f"Job {job_id} for directory population is still running. Checking again in 10 seconds...")
+                time.sleep(10)
+        
+        print(f"Job {job_id} has completed.")
+
+    except subprocess.CalledProcessError as e:
+        # Handle the error if sbatch command fails
+        print("Error occurred while running sbatch command.")
+        print("Return code:", e.returncode)
+        print("Error output:", e.stderr)
+        
+
+    #try:
+    #    subprocess.run(command, check=True)
+    #except FileNotFoundError:
+    #    print("Command or script not found.")
+    #except subprocess.CalledProcessError as e:
+    #    print(f"Command failed with exit code {e.returncode}")
 
     # TODO: DIRECTORIES NEED TO BE MADE BEFORE THIS IS RUN!
     # TODO: FORK DIRECTORY PREPARATION OUT TO A SEPERATE .SH SCRIPT!
@@ -74,7 +122,7 @@ if __name__ == '__main__':
                 file_dict[file].later_inputs[later_file].path = f'{dir_name}{file}/{file_dict[file].later_inputs[later_file].path}'
                 file_dict[file].later_inputs[later_file].print()
 
-    t_stop = time()
+    t_stop = time.time()
     
     print(f'All files generated and directories prepped. Time elapsed: {t_stop - t_start}')
     if args.debug:
@@ -89,9 +137,7 @@ if __name__ == '__main__':
         # Compile results
         si.compile_results(dict_size+1)
     elif args.run_type == 'cluster':
-        subprocess.run(f'sbatch --array=0-{dict_size} 
-                        --export=CONFIG_PATH={args.path_to_config},
-                        PFLOTRAN={args.pflotran},
-                        run_input_file.sh')
+        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN={args.pflotran},ALL --partition=iSALE --nodelist=node06 {path}/rhea/run_input_file.sbatch'
+        result = subprocess.run(submit_runs, shell=True)
     else:
         print('ERROR: run_type must be either local or cluster')

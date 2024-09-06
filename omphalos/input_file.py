@@ -167,7 +167,7 @@ class InputFile:
                 try:
                     coord_pairs = coord_string.split()
                     for i, coords in enumerate(coord_pairs):
-                        result = re.findall("\d+", coords)
+                        result = re.findall(r"\d+", coords)
                         result = list(map(int, result))
                         condition_region[i] = result
 

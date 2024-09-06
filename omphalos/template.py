@@ -304,7 +304,7 @@ class Template(InputFile):
                 try:
                     line_list = self.raw[a].split()
                     # Regex extracts keys as unique coordinate sets.
-                    key = re.findall("\d+-\d+", self.raw[a])
+                    key = re.findall(r"\d+-\d+", self.raw[a])
                     key = ' '.join(key)
                     # Check to see if the fix keyword has been invoked.
                     if line_list[-1] == 'fix':
@@ -364,7 +364,7 @@ class Template(InputFile):
                         try:
                             line_list = self.raw[a].split()
                             # Regex extracts keys as unique coordinate sets.
-                            key = re.findall("\d+-\d+", self.raw[a])
+                            key = re.findall(r"\d+-\d+", self.raw[a])
                             key = ' '.join((line_list[0], ' '.join(key)))
                             # Check to see if the fix keyword has been invoked.
                             if line_list[-1] == 'fix':

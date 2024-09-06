@@ -58,8 +58,6 @@ if __name__ == '__main__':
     # Run directory preparation script
     sbatch_command = [
         "sbatch", 
-        "--partition=iSALE",
-        "--nodelist=node06",
         f"--array=0-{dict_size}",
         f"--export=CONFIG_PATH={args.path_to_config},DATABASE_NAME={config['database']},AQUEOUS_DATABASE={config['aqueous_database']},CATABOLIC_PATHWAYS={config['catabolic_pathways']},TEMPERATURE_FILES={temperature_files}, PFLOTRAN={args.pflotran}",
         f"{path}/rhea/prep_directories.sh"
@@ -137,7 +135,7 @@ if __name__ == '__main__':
         # Compile results
         si.compile_results(dict_size+1)
     elif args.run_type == 'cluster':
-        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN={args.pflotran},ALL --partition=iSALE --nodelist=node06 {path}/rhea/run_input_file.sbatch'
+        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN={args.pflotran},ALL {path}/rhea/run_input_file.sbatch'
         result = subprocess.run(submit_runs, shell=True)
     else:
         print('ERROR: run_type must be either local or cluster')

@@ -55,62 +55,75 @@ if __name__ == '__main__':
     except KeyError:
         temperature_files = ""
 
-    # Run directory preparation script
-    sbatch_command = [
-        "sbatch", 
-        f"--array=0-{dict_size}",
-        f"--export=CONFIG_PATH={args.path_to_config},DATABASE_NAME={config['database']},AQUEOUS_DATABASE={config['aqueous_database']},CATABOLIC_PATHWAYS={config['catabolic_pathways']},TEMPERATURE_FILES={temperature_files}, PFLOTRAN={args.pflotran}",
-        f"{path}/rhea/prep_directories.sh"
-    ]
+    if args.run_type == 'cluster':
+        # Run directory preparation script
+        sbatch_command = [
+            "sbatch", 
+            f"--array=0-{dict_size}",
+            f"--export=CONFIG_PATH={args.path_to_config},DATABASE_NAME={config['database']},AQUEOUS_DATABASE={config['aqueous_database']},CATABOLIC_PATHWAYS={config['catabolic_pathways']},TEMPERATURE_FILES={temperature_files}, PFLOTRAN={args.pflotran}",
+            f"{path}/rhea/prep_directories.sh"
+        ]
 
-    # Run the sbatch command and capture the output
-    try:
-        # Run the sbatch command
-        result = subprocess.run(sbatch_command, check=True, capture_output=True, text=True)
-        
-        # Get the job ID from the output
-        output = result.stdout
-        print("Directory prep command executed successfully.")
-        print("Output:", output)
-        
-        # Assuming output contains something like "Submitted batch job 123456"
-        job_id = output.strip().split()[-1]
-        print("Job ID:", job_id)
-        
-        # Wait for the job to complete by checking its status with squeue
-        job_running = True
-        while job_running:
-            # Check the job status using squeue
-            squeue_command = ["squeue", "--job", job_id]
-            squeue_result = subprocess.run(squeue_command, capture_output=True, text=True)
+        # Run the sbatch command and capture the output
+        try:
+            # Run the sbatch command
+            result = subprocess.run(sbatch_command, check=True, capture_output=True, text=True)
             
-            # If the job is no longer in the queue, squeue returns an empty string
-            if job_id not in squeue_result.stdout:
-                job_running = False
-            else:
-                # Sleep for a few seconds before checking again
-                print(f"Job {job_id} for directory population is still running. Checking again in 10 seconds...")
-                time.sleep(10)
-        
-        print(f"Job {job_id} has completed.")
+            # Get the job ID from the output
+            output = result.stdout
+            print("Directory prep command executed successfully.")
+            print("Output:", output)
+            
+            # Assuming output contains something like "Submitted batch job 123456"
+            job_id = output.strip().split()[-1]
+            print("Job ID:", job_id)
+            
+            # Wait for the job to complete by checking its status with squeue
+            job_running = True
+            while job_running:
+                # Check the job status using squeue
+                squeue_command = ["squeue", "--job", job_id]
+                squeue_result = subprocess.run(squeue_command, capture_output=True, text=True)
+                
+                # If the job is no longer in the queue, squeue returns an empty string
+                if job_id not in squeue_result.stdout:
+                    job_running = False
+                else:
+                    # Sleep for a few seconds before checking again
+                    print(f"Job {job_id} for directory population is still running. Checking again in 10 seconds...")
+                    time.sleep(10)
+            
+            print(f"Job {job_id} has completed.")
 
-    except subprocess.CalledProcessError as e:
-        # Handle the error if sbatch command fails
-        print("Error occurred while running sbatch command.")
-        print("Return code:", e.returncode)
-        print("Error output:", e.stderr)
-        
+        except subprocess.CalledProcessError as e:
+            # Handle the error if sbatch command fails
+            print("Error occurred while running sbatch command.")
+            print("Return code:", e.returncode)
+            print("Error output:", e.stderr)
+    
+    elif args.run_type == 'local':
 
-    #try:
-    #    subprocess.run(command, check=True)
-    #except FileNotFoundError:
-    #    print("Command or script not found.")
-    #except subprocess.CalledProcessError as e:
-    #    print(f"Command failed with exit code {e.returncode}")
+        env_dict = {
+        "CONFIG_PATH": args.path_to_config,
+        "DATABASE_NAME": config["database"],
+        "AQUEOUS_DATABASE": config["aqueous_database"],
+        "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
+        "TEMPERATURE_FILES": temperature_files,
+        "PFLOTRAN": ""}
 
-    # TODO: DIRECTORIES NEED TO BE MADE BEFORE THIS IS RUN!
-    # TODO: FORK DIRECTORY PREPARATION OUT TO A SEPERATE .SH SCRIPT!
-    # TODO: Might be able to combine thay with the local directory prep in that case to avoid repeated code.
+        local_command = ('parallel '
+                         'env SLURM_ARRAY_TASK_ID={} '
+                         f'{path}/rhea/prep_directories.sh '
+                            f'::: {{0..{dict_size}}}')
+        print(local_command)
+
+        # Run directory preparation script
+        subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')
+
+    else:
+        print('ERROR: run_type must be either local or cluster')
+        sys.exit(1)
+
     # Print files to prepped directories
     for file in file_dict:
         file_dict[file].path = f'{dir_name}{file}/{config["template"]}'

@@ -48,14 +48,11 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
         # Make a results object that is an attribute of the InputFile object.
         input_file.get_results(tmp_dir)
         print(f'File {file_num} outputs recorded.')
-        clean_dir(tmp_dir, input_file.path)
 
     else:
         # File threw an error.
         print(f'Error {error_code} encountered.')
         input_file.error_code = error_code
-        # Clean the temp directory ready the next input file.
-        clean_dir(tmp_dir, input_file.path)
 
     print('File {} complete.'.format(file_num))
 

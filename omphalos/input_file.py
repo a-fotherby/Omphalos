@@ -194,7 +194,7 @@ class InputFile:
         times = [float(a) for a in times]
         times = pd.Index(data=times, name='time')
 
-        bad_cats = ['MineralPercent', 'velocityx', 'velocityy', 'velocityz', 'MineralVolfraction', 'gases_conc']
+        bad_cats = ['MineralPercent', 'velocityx', 'velocityy', 'velocityz', 'MineralVolfraction', 'gases_conc', 'Temperature']
         categories = fm.data_cats(tmp_dir)
         
         for bad_cat in bad_cats:

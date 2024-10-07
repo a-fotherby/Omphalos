@@ -72,7 +72,7 @@ class Template(InputFile):
                     self.later_inputs.update(restarts_dict)
             else:
                 import sys
-                sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')
+                print('restart.yaml not found. Continuing without restarts.')
 
     @staticmethod
     def read_file(path):

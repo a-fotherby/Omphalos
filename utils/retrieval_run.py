@@ -48,4 +48,3 @@ if __name__ == "__main__":
             file_dict[file].get_results(dir)
 
     fm.dataset_to_netcdf(file_dict)
-    fm.pickle_data_set(file_dict, 'retrieval_run.pkl')

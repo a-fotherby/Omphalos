@@ -52,5 +52,4 @@ def compile_results(dict_len):
     for file in results_dict:
         del results_dict[file].results
 
-    fm.pickle_data_set(results_dict, 'inputs.pkl')
     print(f'Files failed to run: {len(fails)}')

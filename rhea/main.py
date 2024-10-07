@@ -52,8 +52,14 @@ if __name__ == '__main__':
         if template.later_inputs:
             for file in template.later_inputs:
                 temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
-    except KeyError:
-        temperature_files = ""
+    except (KeyError, AttributeError) as e:
+        # Handle case for hard coded temeperature file in PFLOTRAN
+        if os.path.exists('temperature.h5'):
+            temperature_files.append('temperature.h5')
+            print('temperature.h5 found.')
+        else:
+            print('No temperature files found in template.')
+            temperature_files = ""
 
     if args.run_type == 'cluster':
         # Run directory preparation script
@@ -103,6 +109,15 @@ if __name__ == '__main__':
     
     elif args.run_type == 'local':
 
+        # Quick bodge
+        if config['aqueous_database'] == None:
+            config['aqueous_database'] = ""
+        
+        if config['catabolic_pathways'] == None:
+            config['catabolic_pathways'] = ""
+        if type(temperature_files) == list:
+            temperature_files = ' '.join(temperature_files)
+
         env_dict = {
         "CONFIG_PATH": args.path_to_config,
         "DATABASE_NAME": config["database"],
@@ -115,7 +130,6 @@ if __name__ == '__main__':
                          'env SLURM_ARRAY_TASK_ID={} '
                          f'{path}/rhea/prep_directories.sh '
                             f'::: {{0..{dict_size}}}')
-        print(local_command)
 
         # Run directory preparation script
         subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')

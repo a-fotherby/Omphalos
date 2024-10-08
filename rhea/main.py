@@ -47,6 +47,7 @@ if __name__ == '__main__':
     t_start = time.time()
 
     # Get list of temperature file names
+    temperature_files = []
     try: 
         temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
         if template.later_inputs:
@@ -124,8 +125,13 @@ if __name__ == '__main__':
         "AQUEOUS_DATABASE": config["aqueous_database"],
         "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
         "TEMPERATURE_FILES": temperature_files,
+        "RESTART_FILE": config["restart_file"],
         "PFLOTRAN": ""}
 
+        if args.pflotran:
+            env_dict["PFLOTRAN"] = "TRUE"
+
+        print(env_dict)
         local_command = ('parallel '
                          'env SLURM_ARRAY_TASK_ID={} '
                          f'{path}/rhea/prep_directories.sh '
@@ -156,7 +162,11 @@ if __name__ == '__main__':
         nodes = config['nodes']
         # Run instances using parallel
         if args.pflotran:
-            subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py -p {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+            #subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py -p {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+            for file in file_dict:
+                env = os.environ.copy()
+                subprocess.run([f'python {path}/rhea/slurm_exec.py -p {file} {args.path_to_config}'], shell=True, env=env, executable='/bin/zsh')
+                print(f'File {file} complete.')
         else:
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
         # Compile results

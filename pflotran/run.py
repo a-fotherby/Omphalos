@@ -32,35 +32,16 @@ def input_file(input_file, file_num, tmp_dir, timeout):
 
 def pflotran(input_file, file_num, timeout, tmp_dir):
     import sys
-    import pexpect as pexp
+    import subprocess as sp
     from pflotran.settings import pflotran_path
 
-    command = f'mpirun -n 11 {pflotran_path} -pflotranin {input_file.path}'
-    process = pexp.spawn(command, timeout=timeout, cwd=tmp_dir, encoding='utf-8')
-    process.logfile = sys.stdout
+    command = ['mpirun', '-n', '24', pflotran_path, '-pflotranin', input_file.path]
+    sp.run(command)
 
-    errors = ['Stopping!', 'Simulation failed.  Exiting!', 'divide by zero', 'NaN']
-
-    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2], errors[3]])
-
-    if error_code == 0:
-        # Successful run.
-        # Make a results object that is an attribute of the InputFile object.
-        input_file.get_results()
-        print(f'File {file_num} outputs recorded.')
-        clean_dir(tmp_dir, input_file.path)
-
-    else:
-        # File threw an error.
-        print(f'Error {error_code} encountered.')
-        input_file.error_code = error_code
-        try:
-            input_file.get_results()
-        except (FileNotFoundError):
-            pass
-        # Clean the temp directory ready the next input file.
-        clean_dir(tmp_dir, input_file.path)
-
+    # Successful run.
+    # Make a results object that is an attribute of the InputFile object.
+    input_file.get_results()
+    print(f'File {file_num} outputs recorded.')
     print('File {} complete.'.format(file_num))
 
     return input_file

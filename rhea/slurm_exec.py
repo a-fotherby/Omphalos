@@ -15,10 +15,13 @@ def execute(file_num, config, pflo):
     import os
 
     if pflo:
+        print("Running in PFLOTRAN mode")
+        import sys
         import pflotran.file_methods as fm
         from pflotran.template import Template
         import pflotran.run as run
     else:
+        print("Running in CrunchTope mode")
         import omphalos.run as run
         import omphalos.file_methods as fm
         from omphalos.template import Template
@@ -49,6 +52,8 @@ def execute(file_num, config, pflo):
 if __name__ == '__main__':
     import argparse
     import yaml
+    import site
+    site.addsitedir(site.getusersitepackages())
 
     parser = argparse.ArgumentParser()
     parser.add_argument("file_num", help="Input file dict key.")
@@ -66,8 +71,3 @@ if __name__ == '__main__':
 
     input_file = execute(args.file_num, config, args.pflotran)
     print(f'File {args.file_num} returned to __main__.')
-
-    # Hotwired directory name for now as it hasn't been passed through for now.
-    fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')
-
-    print(f'File {args.file_num} pickled.')

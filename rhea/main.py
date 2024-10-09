@@ -50,6 +50,7 @@ if __name__ == '__main__':
     temperature_files = []
     try: 
         temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
+        print(f'Temperature file found:{temperature_files}') 
         if template.later_inputs:
             for file in template.later_inputs:
                 temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
@@ -64,17 +65,35 @@ if __name__ == '__main__':
 
     if args.run_type == 'cluster':
         # Run directory preparation script
+        # Quick bodge
+        for key in config:
+            if config[key] == None:
+                config[key] = ''
+        if type(temperature_files) == list:
+            temperature_files = ' '.join(temperature_files)
+
+        env_dict = {
+        "CONFIG_PATH": args.path_to_config,
+        "DATABASE_NAME": config["database"],
+        "AQUEOUS_DATABASE": config["aqueous_database"],
+        "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
+        "TEMPERATURE_FILES": temperature_files,
+        "RESTART_FILE": config["restart_file"],
+        "PFLOTRAN": ""}
+
+        if args.pflotran:
+            env_dict["PFLOTRAN"] = "TRUE"
+
+        print(env_dict)
         sbatch_command = [
             "sbatch", 
             f"--array=0-{dict_size}",
-            f"--export=CONFIG_PATH={args.path_to_config},DATABASE_NAME={config['database']},AQUEOUS_DATABASE={config['aqueous_database']},CATABOLIC_PATHWAYS={config['catabolic_pathways']},TEMPERATURE_FILES={temperature_files}, PFLOTRAN={args.pflotran}",
-            f"{path}/rhea/prep_directories.sh"
-        ]
+            f"{path}/rhea/prep_directories.sh"]
 
         # Run the sbatch command and capture the output
         try:
             # Run the sbatch command
-            result = subprocess.run(sbatch_command, check=True, capture_output=True, text=True)
+            result = subprocess.run(sbatch_command, check=True, env=env_dict, capture_output=True, text=True)
             
             # Get the job ID from the output
             output = result.stdout
@@ -171,8 +190,9 @@ if __name__ == '__main__':
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
         # Compile results
         si.compile_results(dict_size+1)
+
     elif args.run_type == 'cluster':
-        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN={args.pflotran},ALL {path}/rhea/run_input_file.sbatch'
+        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN="{args.pflotran}",ALL {path}/rhea/run_input_file.sbatch'
         result = subprocess.run(submit_runs, shell=True)
     else:
         print('ERROR: run_type must be either local or cluster')

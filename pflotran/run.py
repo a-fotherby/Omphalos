@@ -35,7 +35,7 @@ def pflotran(input_file, file_num, timeout, tmp_dir):
     import subprocess as sp
     from pflotran.settings import pflotran_path
 
-    command = ['mpirun', '-n', '24', pflotran_path, '-pflotranin', input_file.path]
+    command = ['/home/angus/soft/petsc_pf6/linux-gnu-debug/bin/mpirun', '-n', '24', pflotran_path, '-pflotranin', input_file.path]
     sp.run(command)
 
     # Successful run.

@@ -35,6 +35,7 @@ class Template(InputFile):
         cards_to_edit = [cards.editable()]
         for block_name, card in zip(big_blocks, cards_to_edit):
             big_block = self.get_big_block(card)
+            print(big_block)
             setattr(self, block_name, big_block)
 
         last_line, _ = self.find_blocks('END_SUBSURFACE', 'END_SUBSURFACE')
@@ -53,7 +54,6 @@ class Template(InputFile):
                     restart_template.config = restarts_config
                     restart_template.config['number_of_files'] = number_of_restarts
                     restarts_dict = gi.configure_input_files(restart_template, 'tmp')
-                    print(restarts_dict)
                     for file in restarts_dict:
                         try:
                             # By default we propagate the changes specified in the Omphalos config.
@@ -203,11 +203,11 @@ class Template(InputFile):
 
         big_block = process_nested_dict(block_cards)
 
-        # Get condition couplers as they require special processing.
-        for condition_coupler in cards.condition_couplers():
-            big_block.update({condition_coupler: {}})
-            condition_couplers = self.get_condition_couplers(cards.condition_couplers()[condition_coupler])
-            big_block[condition_coupler].update(condition_couplers)
+        ## Get condition couplers as they require special processing.
+        #for condition_coupler in cards.condition_couplers():
+        #    big_block.update({condition_coupler: {}})
+        #    condition_couplers = self.get_condition_couplers(cards.condition_couplers()[condition_coupler])
+        #    big_block[condition_coupler].update(condition_couplers)
 
         # Get mineral kinetics as require special handling.
         if 'chemistry' in big_block and 'minerals' in big_block['chemistry']:

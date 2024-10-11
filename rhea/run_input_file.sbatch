@@ -6,13 +6,23 @@
 #SBATCH --mail-type=END
 #SBATCH --mail-user=af606@cam.ac.uk
 #SBATCH --job-name="rhea"
+#SBATCH --nodes=2                      # Number of nodes
+#SBATCH --ntasks=16                    # Total number of tasks (MPI processes)
+#SBATCH --cpus-per-task=4              # Number of CPUs per task (for multi-threaded tasks)
 
 # Load necessary modules (if required)
-module load Python-bundle-PyPI/2023.06-GCCcore-12.3.0
+module load Python/3.10.8-GCCcore-12.2.0
+module load METIS/5.1.0-GCCcore-12.2.0
+module load XZ/5.2.7-GCCcore-12.2.0
+module load OpenMPI/4.1.5-GCC-12.2.0
 
 config_path=$CONFIG_PATH
 pflotran=$PFLOTRAN
 
+if [ "$pflotran" == "True" ]; then
+    python /home/af606/Omphalos/rhea/slurm_exec.py -p $SLURM_ARRAY_TASK_ID $config_path
+else
+    python /home/af606/Omphalos/rhea/slurm_exec.py $SLURM_ARRAY_TASK_ID $config_path
+fi
 # Use SLURM_ARRAY_TASK_ID to select the input file
-python /home/af606/Omphalos/rhea/slurm_exec.py $SLURM_ARRAY_TASK_ID $config_path 
 

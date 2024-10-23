@@ -21,6 +21,7 @@ if [ "${pflotran}" ]; then
         done
     fi
 else
+    cp ${restart_file} run${SLURM_ARRAY_TASK_ID}/
     if [ "${aqueous_database}" ]; then
         cp ${aqueous_database} run${SLURM_ARRAY_TASK_ID}/
     fi

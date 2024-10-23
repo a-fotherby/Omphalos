@@ -6,9 +6,9 @@
 #SBATCH --mail-type=END
 #SBATCH --mail-user=af606@cam.ac.uk
 #SBATCH --job-name="rhea"
-#SBATCH --nodes=2                      # Number of nodes
-#SBATCH --ntasks=16                    # Total number of tasks (MPI processes)
-#SBATCH --cpus-per-task=4              # Number of CPUs per task (for multi-threaded tasks)
+#SBATCH --nodes=1                      # Number of nodes
+#SBATCH --ntasks=1                    # Total number of tasks (MPI processes)
+#SBATCH --cpus-per-task=1              # Number of CPUs per task (for multi-threaded tasks)
 
 # Load necessary modules (if required)
 module load Python/3.10.8-GCCcore-12.2.0

@@ -30,28 +30,27 @@ def extract_numbers(arr):
     return numbers
 
 
+
+import xarray as xr
+import numpy as np
+import re
+import h5py
+
 def h5_to_xarray(file):
     """ Method to convert h5 file to xarray. Specific to PFLOTRAN output.
-    :param file: h5 file object
-    :return: xarray.DataArray
+    :param file: Open h5 file object
+    :return: xarray.Dataset
     """
-    import xarray as xr
-    import numpy as np
-    import re
-
-    # Specify the path to your .h5 file
-
     # Initialize dictionaries to hold the data variables and coordinates
     data_vars = {}
     coords = {}
 
-    # Open the .h5 file using h5py
     # Extract coordinates from the 'Coordinates' group and compute cell-centered coordinates
     for coord_name in file['Coordinates']:
         boundary_coords = file['Coordinates'][coord_name][:]
         cell_center_coords = (boundary_coords[:-1] + boundary_coords[1:]) / 2
         coords[coord_name] = cell_center_coords
-    
+
     # Identify all time groups (assuming they start with 'Time')
     time_groups = [key for key in file.keys() if key.startswith('Time:')]
     time_points = []
@@ -60,9 +59,15 @@ def h5_to_xarray(file):
     # Iterate over each time group to extract data
     for time_group in time_groups:
         # Extract the time value from the group name
-        time_value = float(time_group.split(':')[1].strip().split()[0])
-        time_points.append(time_value)
+        time_value_str = time_group.split(':')[1].strip().split()[0]
+
+        # Handle potential "transport_cut_to_failure" suffix
+        if "transport_cut_to_failure" in time_group:
+            continue
         
+        time_value = float(time_value_str)
+        time_points.append(time_value)
+
         # Extract data for each variable within the time group
         for data_name in file[time_group]:
             if data_name not in all_data:
@@ -77,7 +82,7 @@ def h5_to_xarray(file):
     for data_name in all_data:
         data_array = np.array(all_data[data_name])
         all_data[data_name] = data_array[sorted_indices]
-    
+
     # Add data variables to the xarray dataset, organized by the 'time' dimension
     for data_name, data_array in all_data.items():
         # Use regex to separate the variable name and units
@@ -86,18 +91,18 @@ def h5_to_xarray(file):
             var_name, units = match.groups()
         else:
             var_name, units = data_name, None
-        
+
         # Add variable data and units to the dataset
-        data_vars[var_name] = (['time', 'x', 'y', 'z'], data_array, {'units': units})
+        data_vars[var_name] = (['time', 'x', 'y', 'z'], data_array, {'units': units} if units else {})
 
     # Create an xarray Dataset
     ds = xr.Dataset(
         data_vars=data_vars,
         coords={
             'time': sorted_time_points,
-            'x': coords['X [m]'],
-            'y': coords['Y [m]'],
-            'z': coords['Z [m]']
+            'x': coords.get('X [m]', None),
+            'y': coords.get('Y [m]', None),
+            'z': coords.get('Z [m]', None)
         }
     )
 

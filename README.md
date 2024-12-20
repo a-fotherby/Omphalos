@@ -24,7 +24,7 @@ To use Omphalos you need two things:
 ### Commands
 #### Running Omphalos
 There are two main commands, each with two args. 
-`ompahlos` runs CrunchTope simulations sequentially, as is as such a legacy mode
+`omphalos` runs CrunchTope simulations sequentially, as is as such a legacy mode
 but forms the core functionality of the program. It's only recommended for extremely simple simulations.
 `rhea` will run CrunchTope simulations in parallel, either locally or on a slurm managed cluster.
 Most users are going to be using `rhea`, rather than `omphalos` as it is faster.
@@ -52,7 +52,7 @@ so if, for example, you wanted to import the mineral volume data for all your di
 `xarray.open_dataset(results.nc, group='volume')`.
 Data can be straight-forwardly analysed from the xarray format.
 
-The data in the xarray object will have five dimensions. Three spatial dimension, `X`, `Y`, and 'Z', 
+The data in the xarray object will have five dimensions. Three spatial dimension, `X`, `Y`, and `Z`, 
 a temporal dimension, `time`. It will also have a dimension representing which run the data was collected from, `file_num`.
 
 The second file, `inputs.pkl` is a pickled `dict` of the CrunchTope input files used to generate the data.
@@ -82,6 +82,7 @@ e.g. `aqueous_database:`.
 - `database`: Path to the thermodynamic database.
 - `aqueous_database`: Path to the aqueous database.
 - `catabolic_pathways`: Path to the catabolic pathways files.
+- `restart_file`: Leave as blank string unless restart functionality is required.
 - `timeout`: Maximum time for a run before it is cancelled and as much data as has been produced is collated.
 - `conditions`: A list of the names of all the geochemical conditions (CONDITION blocks) that will be modified in the run.
 - `number_of_files`: Number of files in the run.

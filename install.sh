@@ -10,8 +10,8 @@ conda config --set channel_priority strict
 
 conda env create --file requirements.yml
 
-echo alias omphalos="python $SCRIPT_DIR/omphalos/main.py" >> ~/.bashrc
-echo alias rhea="python $SCRIPT_DIR/rhea/main.py" >> ~/.bashrc
+echo alias omphalos="python $SCRIPT_DIR/omphalos/main.py" >> ~/.zshrc
+echo alias rhea="python $SCRIPT_DIR/rhea/main.py" >> ~/.zshrc
 
 echo Absolute path to CrunchTope executable:
 read -r CT_PATH
@@ -24,4 +24,4 @@ echo '# Global settings for Omphalos' >> $SETTINGS
 echo crunch_dir = \'"$CT_PATH"\' >> $SETTINGS
 echo omphalos_dir = \'"$SCRIPT_DIR"\' >> $SETTINGS
 
-source ~/.bashrc
+source ~/.zshrc

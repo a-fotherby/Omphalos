@@ -3,6 +3,7 @@ template: 'test.in'
 database: 'hanford.dat'
 aqueous_database:
 catabolic_pathways:
+restart_file: ''
 
 # Timeout in seconds for any one input file.
 timeout: 734400

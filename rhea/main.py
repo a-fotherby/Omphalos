@@ -151,11 +151,14 @@ if __name__ == '__main__':
             env_dict["PFLOTRAN"] = "TRUE"
 
         print(env_dict)
-        local_command = ('parallel '
+        # Get parallel directory
+        parallel_exec = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
+        parallel_exec = parallel_exec.stdout.strip()
+
+        local_command = (f'{parallel_exec} '
                          'env SLURM_ARRAY_TASK_ID={} '
                          f'{path}/rhea/prep_directories.sh '
                             f'::: {{0..{dict_size}}}')
-
         # Run directory preparation script
         subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')
 

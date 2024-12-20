@@ -151,7 +151,10 @@ if __name__ == '__main__':
             env_dict["PFLOTRAN"] = "TRUE"
 
         print(env_dict)
-        local_command = ('parallel '
+        parallel_exec = subprocess.run('which parallel',shell=True,text=True,capture_output=True).stdout.strip()
+        print(parallel_exec)
+
+        local_command = (f'{parallel_exec} '
                          'env SLURM_ARRAY_TASK_ID={} '
                          f'{path}/rhea/prep_directories.sh '
                             f'::: {{0..{dict_size}}}')
@@ -189,6 +192,7 @@ if __name__ == '__main__':
         else:
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
         # Compile results
+        print(dict_size)
         si.compile_results(dict_size+1)
 
     elif args.run_type == 'cluster':

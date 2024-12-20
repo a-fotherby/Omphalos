@@ -71,3 +71,5 @@ if __name__ == '__main__':
 
     input_file = execute(args.file_num, config, args.pflotran)
     print(f'File {args.file_num} returned to __main__.')
+
+    fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')

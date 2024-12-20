@@ -6,8 +6,8 @@ if __name__ == '__main__':
     import generate_inputs as gi
     import argparse
     import yaml
-    from settings import omphalos_path
-    sys.path.insert(0, os.path.abspath(f'{omphalos_path}'))
+    from settings import omphalos_dir
+    sys.path.insert(0, os.path.abspath(f'{omphalos_dir}'))
     import run
     from template import Template
     from pathlib import Path

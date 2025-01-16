@@ -152,12 +152,12 @@ if __name__ == '__main__':
 
         print(env_dict)
         # Using Parallel to create directories:
-        Get parallel directory
+        # Get parallel directory
         parallel_exec = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
         parallel_exec = parallel_exec.stdout.strip()
 
         local_command = (f'{parallel_exec} env SLURM_ARRAY_TASK_ID={{}} {path}/rhea/prep_directories.sh ::: {{0..{dict_size}}}')
-        Run directory preparation script
+        # Run directory preparation script
         subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')
         
         # Using xargs to create directories:
@@ -210,7 +210,6 @@ if __name__ == '__main__':
             # python_exec = subprocess.run('which python', shell=True, capture_output=True, text=True)
             # python_exec = python_exec.stdout.strip()
             # xargs_command = ['echo','-e', str(task_input), '|', 'xargs', '-n', '1','-P', str(nodes), '-I', '{}', python_exec, path + '/rhea/slurm_exec.py', '{}',  str(args.path_to_config)]
-            # print(' '.join(xargs_command))
             # subprocess.run(
             #     ' '.join(xargs_command),
             #     env=env_dict,  # Pass the custom environment variables

@@ -5,13 +5,13 @@ SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && 
 
 eval "$(conda shell.bash hook)"
 
-conda config --add channels conda-forge
-conda config --set channel_priority strict
+#conda config --add channels conda-forge
+#conda config --set channel_priority strict
 
-conda env create --file requirements.yml
+#conda env create --file requirements.yml
 
-echo alias omphalos="python $SCRIPT_DIR/omphalos/main.py" >> ~/.zshrc
-echo alias rhea="python $SCRIPT_DIR/rhea/main.py" >> ~/.zshrc
+echo alias omphalos=\"python $SCRIPT_DIR/omphalos/main.py\" >> ~/.zshrc
+echo alias rhea=\"python $SCRIPT_DIR/rhea/main.py\" >> ~/.zshrc
 
 echo Absolute path to CrunchTope executable:
 read -r CT_PATH

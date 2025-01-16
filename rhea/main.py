@@ -151,16 +151,29 @@ if __name__ == '__main__':
             env_dict["PFLOTRAN"] = "TRUE"
 
         print(env_dict)
-        # Get parallel directory
+        # Using Parallel to create directories:
+        Get parallel directory
         parallel_exec = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
         parallel_exec = parallel_exec.stdout.strip()
 
-        local_command = (f'{parallel_exec} '
-                         'env SLURM_ARRAY_TASK_ID={} '
-                         f'{path}/rhea/prep_directories.sh '
-                            f'::: {{0..{dict_size}}}')
-        # Run directory preparation script
+        local_command = (f'{parallel_exec} env SLURM_ARRAY_TASK_ID={{}} {path}/rhea/prep_directories.sh ::: {{0..{dict_size}}}')
+        Run directory preparation script
         subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')
+        
+        # Using xargs to create directories:
+        # task_ids = [str(i) for i in range(dict_size+1)]
+        # task_input = '"'+'\\n'.join(task_ids)+'\\n'+'"'
+        # script_path = path + '/rhea/prep_directories.sh'
+        # xargs_command = ['echo','-e', str(task_input), '|', 'xargs', '-n', '1', '-P', '4', '-I', '{}', 'env', 'SLURM_ARRAY_TASK_ID={}', script_path]
+        # try:
+        #  # Start the xargs process
+        #     subprocess.run(
+        #         ' '.join(xargs_command),
+        #         env=env_dict,  # Pass the custom environment variables
+        #         shell=True,
+        #         executable='/bin/zsh')
+        # except Exception as e:
+        #     print(f"An error occurred: {e}")
 
     else:
         print('ERROR: run_type must be either local or cluster')
@@ -190,7 +203,19 @@ if __name__ == '__main__':
                 subprocess.run([f'python {path}/rhea/slurm_exec.py -p {file} {args.path_to_config}'], shell=True, env=env, executable='/bin/zsh')
                 print(f'File {file} complete.')
         else:
+            #Using Parallel:
             subprocess.run([f'parallel -P {nodes} python {path}/rhea/slurm_exec.py {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+            
+            #Using xargs to run crunchtope in a parallel manner:
+            # python_exec = subprocess.run('which python', shell=True, capture_output=True, text=True)
+            # python_exec = python_exec.stdout.strip()
+            # xargs_command = ['echo','-e', str(task_input), '|', 'xargs', '-n', '1','-P', str(nodes), '-I', '{}', python_exec, path + '/rhea/slurm_exec.py', '{}',  str(args.path_to_config)]
+            # print(' '.join(xargs_command))
+            # subprocess.run(
+            #     ' '.join(xargs_command),
+            #     env=env_dict,  # Pass the custom environment variables
+            #     shell=True,
+            #     executable='/bin/zsh')
         # Compile results
         print(dict_size)
         si.compile_results(dict_size+1)

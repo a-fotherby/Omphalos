@@ -13,7 +13,8 @@ debye-huckel            true
 graphics                tecplot
 master                  H+
 database                SukindaCr53.dbs
-kinetic_database        aqueous.dbs
+aqueousdatabase         aqueous.dbs
+catabolicdatabase       CatabolicPathways.in
 coordinates             rectangular
 gimrt                   true
 screen_output           10

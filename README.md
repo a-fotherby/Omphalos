@@ -17,8 +17,8 @@
 1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
 2. Open PowerShell as administrator (if needed for Conda)
 3. Run:
-`Set-ExecutionPolicy Bypass -Scope Process -Force
-./install.ps1`
+`Set-ExecutionPolicy Bypass -Scope Process -Force`
+`./install.ps1`
 
 ## Quick-start
 

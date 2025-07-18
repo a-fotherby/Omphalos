@@ -13,7 +13,8 @@
    2. You can always change it later in `omphalos/settings.py`.
 3. Activate the conda environment: `conda activate omphalos`
 
-### Installation on Windows **UNTESTED**
+## Installation on Windows 
+**UNTESTED**
 1. Make sure conda (miniconda) is installed on your system (see above).
 2. Open PowerShell as administrator (if needed for Conda)
 3. Run:<br>

@@ -5,13 +5,20 @@
 + Test thousands of parameter combinations quickly. 
 + Collate all your results in a single python datastructure.
 
-## Installation
+## Installation on Linux/Mac
 
 1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
 2. Run the installation script: `./install.sh`
    1. Make sure you provide the *absolute path* to your CrunchTope executable. 
    2. You can always change it later in `omphalos/settings.py`.
 3. Activate the conda environment: `conda activate omphalos`
+
+### Installation on Windows **UNTESTED**
+1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
+2. Open PowerShell as administrator (if needed for Conda)
+3. Run:
+`Set-ExecutionPolicy Bypass -Scope Process -Force
+./install.ps1`
 
 ## Quick-start
 

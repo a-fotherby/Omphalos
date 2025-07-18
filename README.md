@@ -59,6 +59,8 @@ so if, for example, you wanted to import the mineral volume data for all your di
 `xarray.open_dataset(results.nc, group='volume')`.
 Data can be straight-forwardly analysed from the xarray format.
 
+*For examples on how to visualise your data look at the Example Plotting jupyter notebook in the Utils folder.*
+
 The data in the xarray object will have five dimensions. Three spatial dimension, `X`, `Y`, and `Z`, 
 a temporal dimension, `time`. It will also have a dimension representing which run the data was collected from, `file_num`.
 

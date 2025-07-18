@@ -263,7 +263,7 @@ This can then be modified in the usual way:
 Omphalos currently has 5 options for setting parameters
 (if you want more please either open an issue or submit a pull request—
 relevant file is `parameter_methods.py` and the dispatcher is in `generate_inputs.py`).
-In each case he number of actual values generated is determined by the `number_of_files` keyword in the frontmatter section,
+In each case the number of actual values generated is determined by the `number_of_files` keyword in the frontmatter section,
 except for the `constant` keyword, where the number of values in your array must match `number_of_files`.
 As shown in the previous section, the format is two entries, one with the option name as a *string*,
 and then the relevant array of values in the next entry. For example:

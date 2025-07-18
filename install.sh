@@ -37,10 +37,10 @@ esac
 
 eval "$(conda shell.bash hook)"
 
-#conda config --add channels conda-forge
-#conda config --set channel_priority strict
+conda config --add channels conda-forge
+conda config --set channel_priority strict
 
-#conda env create --file requirements.yml
+conda env create --file requirements.yml
 
 # Add alias if not already present
 if grep -Fxq "$ALIAS_omphalos" "$CONFIG_FILE"; then

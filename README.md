@@ -242,7 +242,7 @@ So if we take changing the equilibrium constant for sulfate reduction as our exa
             sulfate_reduction:
 
 Which gets us into the namelist for that particular reaction.
-We can then change the rate by indexing the name for the equilibreum constant, in this case `keq`:
+We can then change the rate by indexing the name for the equilibrium constant, in this case `keq`:
     
     namelist:
         aqueous:

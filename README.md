@@ -14,15 +14,16 @@
 3. Activate the conda environment: `conda activate omphalos`
 
 ### Installation on Windows **UNTESTED**
-1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
+1. Make sure conda (miniconda) is installed on your system (see above).
 2. Open PowerShell as administrator (if needed for Conda)
-3. Run:
+3. Run:<br>
 `Set-ExecutionPolicy Bypass -Scope Process -Force`<br>
 `./install.ps1`
+4. Activate the conda environment: `conda activate omphalos`
 
 ## Citation
 
-**If you use Omphalos in published work, please cite the original paper which it was first developed for:**
+**If you use Omphalos in published work, please cite the original paper which it was first developed for:
 
 Fotherby, A; Bradbury, HJ; Druhan, JL; Turchyn, AV. (2023). An emulation-based approach for interrogating reactive transport models. *Geoscientific Model Development*, doi:[10.5194/gmd-16-7059-2023](https://doi.org/10.5194/gmd-16-7059-2023)
 
@@ -50,9 +51,8 @@ The arg `mode` takes one of two options, either `cluster` or `local`.
 This **should** work out of the box, but if you wish to tinker with the settings for the submission 
 (e.g. change memory per node and such like) then the `.sbatch` can be found in `rhea/parallel.sbatch`.
 - `local` will run CrunchTope simulations simultaneously on your local machine.
-Because CrunchTope is single threaded, you can run as many simulations as you have cores.
-I don't recommend submitting more runs than you have cores
-as you are going to make your machine unresponsive until the simulations are done.
+Because CrunchTope is single threaded, you can run as many simultaneous simulations as you have cores (further runs are then run as soon as a previous run finishes). The number of cores you wish to use is set in the configuration file.
+I don't recommend using more nodes than you have cores as you are going to make your machine unresponsive until the simulations are done.
 
 #### Collecting the results
 
@@ -111,8 +111,7 @@ There are 4 major syntax groups in the input file that can be changed
 1. Keyword blocks. These are any block in the main input file except `CONDITION` blocks. E.g. `FLOW` or `MINERALS`.
 2. Condition blocks. These are the blocks that represent geochemical conditions in the input file 
 with the syntax `CONDITION name` where name is a user chosen name for that condition, like 'seawater', for example.
-<a name="namelist_info">
-3. Namelists. These are the auxiliary files used by CrunchTope to define specific reaction pathways, 
+3. Namelists. <a name="namelist_info">These are the auxiliary files used by CrunchTope to define specific reaction pathways, 
 and these can also be systematically altered by Omphalos. Currently in CrunchTope there exist two such files, 
 - the aqueous database
 - the catabolic pathways
@@ -120,7 +119,7 @@ and these can also be systematically altered by Omphalos. Currently in CrunchTop
 Each namelist can be indexed into and edited. The keywords for accessing each name list is given below 
 but the convention is to use the namelist name with the ampersand stripped in `snake_case`. 
 
-- `&Aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous'
+- `&Aqueous` which details the reaction stoichiometry in the aqueous database is referenced in the config file as `aqueous`
 - `&AqueousKinetics` which gives the reaction kinetics is accessed using `aqueous_kinetics`.
 - Entries in the catabolic pathways file are accessed using `catabolic_pathways`.
 </a>

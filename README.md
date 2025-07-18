@@ -24,7 +24,7 @@
 
 If you use Omphalos in published work, please cite the original paper which it was first developed for:
 
-Fotherby, A; Bradbury, HJ; Druhan, JL; Turchyn, AV. (2023). An emulation-based approach for interrogating reactive transport models. *Geoscientific Model Development* doi:[10.5194/gmd-16-7059-2023](https://doi.org/10.5194/gmd-16-7059-2023)
+Fotherby, A; Bradbury, HJ; Druhan, JL; Turchyn, AV. (2023). An emulation-based approach for interrogating reactive transport models. *Geoscientific Model Development*, doi:[10.5194/gmd-16-7059-2023](https://doi.org/10.5194/gmd-16-7059-2023)
 
 ## Quick-start
 

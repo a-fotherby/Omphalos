@@ -25,6 +25,7 @@ ALIAS_rhea="alias rhea=\"python $SCRIPT_DIR/rhea/main.py\""
 case "$USER_SHELL" in
     bash)
         CONFIG_FILE="$HOME/.bashrc"
+        CONFIG_FILE="$HOME/.bash_profile"
         ;;
     zsh)
         CONFIG_FILE="$HOME/.zshrc"
@@ -53,7 +54,7 @@ fi
 
 # Extract the path from the alias output
 source $CONFIG_FILE
-CT_PATH=$(which crunchtope 2>/dev/null | sed -n 's/^crunchtope: aliased to //p')
+CT_PATH=$(which crunchtope 2>/dev/null | sed -e 's/^crunchtope: aliased to //' | xargs)
 
 if [ -n "$CT_PATH" ]; then
     echo "CrunchTope path identified: $CT_PATH"

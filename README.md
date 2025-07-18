@@ -17,7 +17,7 @@
 1. Make sure conda (miniconda) is installed on your system: https://docs.conda.io/en/latest/
 2. Open PowerShell as administrator (if needed for Conda)
 3. Run:
-`Set-ExecutionPolicy Bypass -Scope Process -Force`
+`Set-ExecutionPolicy Bypass -Scope Process -Force`<br>
 `./install.ps1`
 
 ## Quick-start
@@ -59,10 +59,10 @@ so if, for example, you wanted to import the mineral volume data for all your di
 `xarray.open_dataset(results.nc, group='volume')`.
 Data can be straight-forwardly analysed from the xarray format.
 
-*For examples on how to visualise your data look at the Example Plotting jupyter notebook in the Utils folder.*
-
 The data in the xarray object will have five dimensions. Three spatial dimension, `X`, `Y`, and `Z`, 
 a temporal dimension, `time`. It will also have a dimension representing which run the data was collected from, `file_num`.
+
+**For examples on how to visualise your data look at the Example Plotting jupyter notebook in the Utils folder.**
 
 The second file, `inputs.pkl` is a pickled `dict` of the CrunchTope input files used to generate the data.
 This is given so that there is a record of the parameters varied, and for debugging purposes.

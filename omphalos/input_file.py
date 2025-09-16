@@ -85,6 +85,15 @@ class InputFile:
                             line.insert(3, coord)
                             line.append('\n')
                             f.write(' '.join(line))
+                        elif (entry.find('pump') != -1) and self.keyword_blocks[block].contents[entry][-1] != 'default':
+                            line = copy.deepcopy(
+                                self.keyword_blocks[block].contents[entry])
+                            keyword = entry.split('&', 1)[0]
+                            coords = entry.split('&')[1:]
+                            line.insert(0, keyword)
+                            line[3:6] = coords
+                            line.append('\n')
+                            f.write(' '.join(line))
                         else:
                             line = copy.deepcopy(
                                 self.keyword_blocks[block].contents[entry])

@@ -381,6 +381,13 @@ class Template(InputFile):
                             print(
                                 'BaseException: this is normally due to a commented line in the input file. If it is '
                                 'not, something has gone really wrong!')
+                    elif self.raw[a].split()[0] == "pump":
+                        try:
+                            line_list = self.raw[a].split()
+                            newpumpname = f'{line_list[0]}&{line_list[3]}&{line_list[4]}&{line_list[5]}'
+                            keyword_dict.update({newpumpname: line_list[1:]})
+                        except BaseException:
+                            pass
                     else:
                         try:
                             line_list = self.raw[a].split()

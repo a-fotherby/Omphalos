@@ -35,7 +35,6 @@ class Template(InputFile):
         cards_to_edit = [cards.editable()]
         for block_name, card in zip(big_blocks, cards_to_edit):
             big_block = self.get_big_block(card)
-            print(big_block)
             setattr(self, block_name, big_block)
 
         last_line, _ = self.find_blocks('END_SUBSURFACE', 'END_SUBSURFACE')
@@ -89,7 +88,7 @@ class Template(InputFile):
                 # Input files edited on UNIX systems have newline characters that must be stripped.
                 # Also strip any trailing whitespace.
                 # Look to see if line is a comment, including potential indents.
-                if re.match('\s*#', line):
+                if re.match(r'\s*#', line):
                     # It's a commented line, so don't import.
                     pass
                 else:
@@ -174,7 +173,7 @@ class Template(InputFile):
 
         def search_card(card_name):
             for value in self.raw.values():
-                if re.match(f'\s*{card_name}', value):
+                if re.match(rf'\s*{card_name}', value):
                     card = self.get_card(card_name)
                     return card
                 else:

@@ -1,0 +1,23 @@
+program: rifle_xgboost.py
+command:
+  - ${env}
+  - python3
+  - ${program}
+  - ${args}
+method: bayes
+metric:
+    name: eval-mphe
+    goal: minimize
+parameters:
+    eta:
+        min: 0.001
+        max: 0.1
+    l1:
+        min: 0
+        max: 1
+    l2:
+        min: 0
+        max: 10
+    max_depth:
+        min: 4
+        max: 10

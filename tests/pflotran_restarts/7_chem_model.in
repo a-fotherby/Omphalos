@@ -1,0 +1,1017 @@
+SIMULATION
+RESTART
+  FILENAME 6_chem_model-restart.chk
+/
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE TH
+    /
+    SUBSURFACE_TRANSPORT transport
+      MODE GIRT
+    /
+  /
+  CHECKPOINT
+  /
+END
+
+SUBSURFACE
+
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+  /
+END
+
+NUMERICAL_METHODS TRANSPORT
+  NEWTON_SOLVER
+  /
+END
+
+
+GRID
+  TYPE structured
+  ORIGIN 0.d0 0.d0 0.d0
+  NXYZ 50 1 50
+  BOUNDS
+    0    0  0
+    1500  100  1500
+  /
+END
+
+
+FLUID_PROPERTY
+  DIFFUSION_COEFFICIENT 1.d-9
+END
+
+
+EOS WATER
+  DENSITY IF97
+  ENTHALPY IF97
+END
+
+MATERIAL_PROPERTY sheeted_dykes
+  ID 1
+  POROSITY 0.01
+  TORTUOSITY 1.0d0
+  PERMEABILITY
+    PERM_ISO 2e-15
+  /
+  CHARACTERISTIC_CURVES cc1
+  THERMAL_CONDUCTIVITY_DRY 1.82
+  THERMAL_CONDUCTIVITY_WET 1.82
+  SPECIFIC_HEAT 800
+  ROCK_DENSITY 2700
+END
+
+MATERIAL_PROPERTY pillows
+  ID 2
+  POROSITY 0.01
+  TORTUOSITY 1.0d0
+  PERMEABILITY
+    PERM_ISO 200.d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+  THERMAL_CONDUCTIVITY_DRY 1.82
+  THERMAL_CONDUCTIVITY_WET 1.82
+  SPECIFIC_HEAT 800
+  ROCK_DENSITY 2700
+END
+
+
+MATERIAL_PROPERTY altered_pillows
+  ID 3
+  POROSITY 0.01
+  TORTUOSITY 1.0d0
+  PERMEABILITY
+    PERM_ISO 200.d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+  THERMAL_CONDUCTIVITY_DRY 1.82
+  THERMAL_CONDUCTIVITY_WET 1.82
+  SPECIFIC_HEAT 800
+  ROCK_DENSITY 2700
+END
+
+MATERIAL_PROPERTY low_perm
+  ID 4
+  POROSITY 0.01
+  TORTUOSITY 1.0d0
+  PERMEABILITY
+    PERM_ISO 0.2d-15
+  /
+  CHARACTERISTIC_CURVES cc1
+  THERMAL_CONDUCTIVITY_DRY 1.82
+  THERMAL_CONDUCTIVITY_WET 1.82
+  SPECIFIC_HEAT 800
+  ROCK_DENSITY 2700
+END
+
+
+CHARACTERISTIC_CURVES cc1
+  skip
+  SATURATION_FUNCTION VAN_GENUCHTEN
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.8d0
+    ALPHA 1.d-4
+  /
+  PERMEABILITY_FUNCTION MUALEM_VG_LIQ
+    LIQUID_RESIDUAL_SATURATION 0.1d0
+    M 0.8d0
+  /
+  noskip
+  DEFAULT
+END
+
+
+OUTPUT
+  SNAPSHOT_FILE
+    FORMAT HDF5
+    PERIODIC TIME 100 y
+    VARIABLES
+      TEMPERATURE
+      LIQUID_PRESSURE
+      LIQUID_DENSITY
+      LIQUID_SATURATION
+      LIQUID_VISCOSITY
+      PERMEABILITY
+      POROSITY
+    /
+  /
+  VELOCITY_AT_CENTER
+END
+
+
+
+REGION all
+  COORDINATES
+    0.d0 0.d0 0.d0
+    1500 1.d2 1500
+  /
+END
+
+REGION downwelling
+  COORDINATES
+    175  0.d0 1090
+    1500 1.d2 1500
+  /
+END
+
+REGION upwelling
+  COORDINATES
+    0    0.d0 1090
+    60   1.d2 1500
+  /
+END
+
+
+REGION low_perm
+  COORDINATES
+    60   0.d0 1090
+    175  1.d2 1500
+  /
+END
+
+
+REGION reaction_zone
+  COORDINATES
+    0.d0  0.d0  0.d0
+    1500  1.d2  1.d0
+  /
+  FACE BOTTOM
+END
+
+
+REGION seafloor
+  COORDINATES
+    0.00d0 0.d0  1499
+    1500   1.d2  1500
+  /
+  FACE TOP
+END
+
+
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0 0.d0 1500.d0
+  LIQUID_PRESSURE 3.d7
+  TEMPERATURE 2
+  GRADIENT
+     TEMPERATURE -6.67d-4 0 -0.2
+  /
+END
+
+FLOW_CONDITION seafloor
+  TYPE
+    LIQUID_PRESSURE HYDROSTATIC
+    TEMPERATURE DIRICHLET
+  /
+  DATUM 0.d0 0.d0 1500.d0
+  LIQUID_PRESSURE 3.d7
+  TEMPERATURE 2.d0
+END
+
+FLOW_CONDITION magma_lens
+  TYPE
+    LIQUID_FLUX NEUMANN
+    TEMPERATURE DIRICHLET
+  /
+  TEMPERATURE 350.d0
+  LIQUID_FLUX 0.d0
+END
+
+
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  TRANSPORT_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION seafloor
+  TRANSPORT_CONDITION seafloor
+  REGION seafloor
+END
+
+BOUNDARY_CONDITION
+  FLOW_CONDITION magma_lens
+  TRANSPORT_CONDITION empty
+  REGION reaction_zone
+END
+
+
+STRATA
+  REGION all
+  MATERIAL sheeted_dykes
+END
+
+STRATA
+  REGION upwelling
+  MATERIAL altered_pillows
+END
+
+STRATA
+  REGION downwelling
+  MATERIAL pillows
+END
+
+STRATA
+  REGION low_perm
+  MATERIAL low_perm
+END
+
+CHEMISTRY
+  PRIMARY_SPECIES
+    H+
+    Al+++
+    O2(aq)
+    Mg++
+    Ca++
+    Fe++
+    Fe+++
+    HCO3-
+    Cl-
+    K+
+    Na+
+    SO4--
+    SiO2(aq)
+    Ti(OH)4(aq)
+  /
+  SECONDARY_SPECIES
+    OH-
+    Al(OH)2+
+    AlO2-
+    AlOH++
+    CO3--
+    CO2(aq)
+    CaCl+
+    CaCl2(aq)
+    CaSO4(aq)
+    FeCl+
+    FeCl2(aq)
+    MgCO3(aq)
+    HSO4-
+    HSiO3-
+    KCl(aq)
+    KSO4-
+    NaOH(aq)
+    H2(aq)
+  /
+  PASSIVE_GAS_SPECIES
+    CO2(g)
+    O2(g)
+  /
+  MINERALS
+    Forsterite
+    Fayalite
+    Diopside
+    Hedenbergite
+    Anorthite
+    Albite
+
+    Tremolite
+    Actinolite
+
+    Chrysotile
+    Talc
+
+    Hematite
+
+    Quartz
+
+    Saponite-Mg
+    Celadonite
+
+    Epidote
+    Clinozoisite
+
+    Chamosite-7A
+    Clinochlore-7A
+
+    Natrolite
+
+    Anhydrite
+    Calcite
+  /
+  MINERAL_KINETICS
+    Forsterite
+      PREFACTOR
+        RATE_CONSTANT -10.64d0
+        ACTIVATION_ENERGY 79.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -6.85d0
+        ACTIVATION_ENERGY 67.2d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.470
+        /
+      /
+    /
+    Fayalite
+      PREFACTOR
+        RATE_CONSTANT -10.64d0
+        ACTIVATION_ENERGY 79.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -6.85d0
+        ACTIVATION_ENERGY 67.2d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.470
+        /
+      /
+    /
+    Diopside
+      PREFACTOR
+        RATE_CONSTANT -12.24d0
+        ACTIVATION_ENERGY 80.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -8.54d0
+        ACTIVATION_ENERGY 80.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.60
+        /
+      /
+    /
+    Hedenbergite
+      PREFACTOR
+        RATE_CONSTANT -12.24d0
+        ACTIVATION_ENERGY 80.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -8.54d0
+        ACTIVATION_ENERGY 80.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.60
+        /
+      /
+    /
+    Anorthite
+      PREFACTOR
+        RATE_CONSTANT -12.56d0
+        ACTIVATION_ENERGY 69.8d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -10.16d0
+        ACTIVATION_ENERGY 65.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.457
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT -15.60d0
+        ACTIVATION_ENERGY 71.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA -0.572
+        /
+      /
+    /
+    Albite
+      PREFACTOR
+        RATE_CONSTANT -11.15d0
+        ACTIVATION_ENERGY 69.8d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -10.16d0
+        ACTIVATION_ENERGY 65.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.457
+        /
+      /
+      PREFACTOR
+        RATE_CONSTANT -15.60d0
+        ACTIVATION_ENERGY 71.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA -0.572
+        /
+      /
+    /
+
+    skip
+    Tremolite
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+    Actinolite
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Chrysotile
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+    Talc
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Hematite
+      PREFACTOR
+        RATE_CONSTANT -14.6
+        ACTIVATION_ENERGY 66.2d3
+      /
+    /
+
+    Quartz
+      PREFACTOR
+        RATE_CONSTANT -13.99
+        ACTIVATION_ENERGY 87.7d3
+      /
+    /
+
+    Saponite-Mg
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+    Celadonite
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Epidote
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+    Clinozoisite
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Chamosite-7A
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+    Clinochlore-7A
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Natrolite
+      PREFACTOR
+        RATE_CONSTANT -12.52d0
+        ACTIVATION_ENERGY 88.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -11.11d0
+        ACTIVATION_ENERGY 88.0d3
+        PREFACTOR_SPECIES H+
+          ALPHA 0.5
+        /
+      /
+    /
+
+    Anhydrite
+      PREFACTOR
+        RATE_CONSTANT -6.5d0
+        ACTIVATION_ENERGY 28.0d3
+      /
+    /
+    Calcite
+      PREFACTOR
+        RATE_CONSTANT -6.74d0
+        ACTIVATION_ENERGY 66.0d3
+      /
+      PREFACTOR
+        RATE_CONSTANT -2.71d0
+        ACTIVATION_ENERGY 67.0d3
+        PREFACTOR_SPECIES HCO3-
+          ALPHA 1.63
+        /
+      /
+    /
+    noskip
+  /
+  DATABASE hanford.dat
+  LOG_FORMULATION
+  ACTIVITY_COEFFICIENTS TIMESTEP
+  OUTPUT
+    TOTAL
+    ALL
+    PH
+    MINERAL_SATURATION_INDEX
+  /
+END
+
+
+TRANSPORT_CONDITION initial
+  TYPE ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 initial_constraint
+  /
+END
+
+TRANSPORT_CONDITION seafloor
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 inlet_constraint
+  /
+END
+
+TRANSPORT_CONDITION empty
+  TYPE DIRICHLET_ZERO_GRADIENT
+  CONSTRAINT_LIST
+    0.d0 empty
+  /
+END
+
+
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+
+
+INITIAL_CONDITION
+FLOW_CONDITION initial
+TRANSPORT_CONDITION initial
+REGION all
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION seafloor
+TRANSPORT_CONDITION seafloor
+REGION seafloor
+END
+
+BOUNDARY_CONDITION
+FLOW_CONDITION magma_lens
+TRANSPORT_CONDITION empty
+REGION reaction_zone
+END
+
+STRATA
+REGION all
+MATERIAL sheeted_dykes
+END
+
+STRATA
+REGION upwelling
+MATERIAL altered_pillows
+END
+
+STRATA
+REGION downwelling
+MATERIAL pillows
+END
+
+STRATA
+REGION low_perm
+MATERIAL low_perm
+END
+
+CONSTRAINT initial_constraint 
+CONCENTRATIONS 
+H+ 8.15 P 
+Al+++ 0.037d-9 T 
+O2(aq) 1.0d-18 T 
+Mg++ 0.01 T 
+Ca++ 0.01 T 
+Fe++ 1.0d-15 T 
+Fe+++ 1.0d-9 T 
+HCO3- 0.0024 T 
+Cl- 474d-3 Z 
+K+ 10.2d-3 T 
+Na+ 474d-3 T 
+SO4-- 0.03 T 
+SiO2(aq) 0.17d-3 T 
+Ti(OH)4(aq) 2.09d-9 T 
+/ 
+MINERALS 
+Forsterite 0.0415 4e-8 cm^2/g 
+Fayalite 0.0070 4e-8 cm^2/g 
+Diopside 0.315 4e-8 cm^2/g 
+Hedenbergite 0.050 4e-8 cm^2/g 
+Anorthite 0.3825 4e-8 cm^2/g 
+Albite 0.1625 4e-8 cm^2/g 
+skip 
+Tremolite 1.0e-10 8e-8 cm^2/g 
+Actinolite 1.0e-10 8e-8 cm^2/g 
+Chrysotile 1.0E-10 8e-8 cm^2/g 
+Talc 1.0E-10 8e-8 cm^2/g 
+Hematite 1.0E-10 8e-8 cm^2/g 
+Quartz 1.0E-10 8e-8 cm^2/g 
+Saponite-Mg 1.0E-10 8e-8 cm^2/g 
+Celadonite 1.0e-10 8e-8 cm^2/g 
+Epidote 1.0e-10 8e-8 cm^2/g 
+Clinozoisite 1.0e-10 8e-8 cm^2/g 
+Chamosite-7A 1.0e-10 8e-8 cm^2/g 
+Clinochlore-7A 1.0e-10 8e-8 cm^2/g 
+Natrolite 1.0e-10 8e-8 cm^2/g 
+Anhydrite 1.0E-10 8e-8 cm^2/g 
+Calcite 1.0E-10 8e-8 cm^2/g 
+noskip 
+/_ 
+END
+
+CONSTRAINT inlet_constraint 
+CONCENTRATIONS 
+H+ 8.15 P 
+Al+++ 0.037d-9 T 
+O2(aq) 1.0d-18 T 
+Mg++ 0.01 T 
+Ca++ 0.01 T 
+Fe++ 1.0d-15 T 
+Fe+++ 1.0d-9 T 
+HCO3- 0.0024 T 
+Cl- 474d-3 Z 
+K+ 10.2d-3 T 
+Na+ 474d-3 T 
+SO4-- 0.03 T 
+SiO2(aq) 0.17d-3 T 
+Ti(OH)4(aq) 2.09d-9 T 
+/ 
+END
+
+CONSTRAINT empty 
+CONCENTRATIONS 
+H+ 1.d-15 T 
+Al+++ 1.d-15 T 
+O2(aq) 1.d-15 T 
+Mg++ 1.d-15 T 
+Ca++ 1.d-15 T 
+Fe++ 1.d-15 T 
+Fe+++ 1.d-15 T 
+HCO3- 1.d-15 T 
+Cl- 1.d-15 T 
+K+ 1.d-15 T 
+Na+ 1.d-15 T 
+SO4-- 1.d-15 T 
+SiO2(aq) 1.d-15 T 
+Ti(OH)4(aq) 1.d-15 T 
+/ 
+END
+
+TIME 
+FINAL_TIME 8 y 
+MAXIMUM_TIMESTEP_SIZE 5000 y 
+END
+
+INITIAL_CONDITION 
+FLOW_CONDITION initial 
+TRANSPORT_CONDITION initial 
+REGION all 
+END
+
+BOUNDARY_CONDITION 
+FLOW_CONDITION seafloor 
+TRANSPORT_CONDITION seafloor 
+REGION seafloor 
+END
+
+BOUNDARY_CONDITION 
+FLOW_CONDITION magma_lens 
+TRANSPORT_CONDITION empty 
+REGION reaction_zone 
+END
+
+STRATA 
+REGION all 
+MATERIAL sheeted_dykes 
+END
+
+STRATA 
+REGION upwelling 
+MATERIAL altered_pillows 
+END
+
+STRATA 
+REGION downwelling 
+MATERIAL pillows 
+END
+
+STRATA 
+REGION low_perm 
+MATERIAL low_perm 
+END
+
+END_SUBSURFACE

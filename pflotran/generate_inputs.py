@@ -120,7 +120,7 @@ def get_config_array(spec, params, num_files, *, ref_vars=None):
                 fix_ratio to other parameters in your KeywordBlock, or to species of the same type, e.g. an aqueous
                 species or mineral etc.
     """
-    import omphalos.parameter_methods as pm
+    import core.parameter_methods as pm
 
     dispatch = {'linspace': pm.linspace,
                 'random_uniform': pm.random_uniform,
@@ -133,9 +133,10 @@ def get_config_array(spec, params, num_files, *, ref_vars=None):
     # Look at first entry to determine behaviour.
     try:
         array = dispatch[spec](params, num_files)
-    except KeyError:
-        print('ConfigError: Unknown parameter setting. Abort.')
-        import sys
-        sys.exit()
+    except KeyError as e:
+        raise ValueError(
+            f'ConfigError: Unknown parameter setting "{spec}". '
+            f'Valid options are: {list(dispatch.keys())}'
+        ) from e
 
     return array

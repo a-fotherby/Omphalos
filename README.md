@@ -446,24 +446,7 @@ If you use Omphalos in published work, please cite:
 
 ---
 
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for new functionality
-4. Ensure all tests pass (`pytest tests/ -v`)
-5. Submit a pull request
-
----
-
 ## License
 
 Copyright © Angus Fotherby & Harold Bradbury (2019-2025). All rights reserved.
 
----
-
-<p align="center">
-  <sub>Built with science in mind</sub>
-</p>

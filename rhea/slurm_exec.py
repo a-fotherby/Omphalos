@@ -1,22 +1,32 @@
 """Script to run Omphalos inside slurm.
-Expects command line args in order
 
-dict_name -- name of the pickle file where the data has been stored as *.pickle
-tmp_dir -- temporary directory for running input files. Must be unique.
-
+Expects command line args in order:
+    file_num -- the file number to run
+    config_path -- path to the Omphalos config file
 """
-from context import omphalos
+
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 
 def execute(file_num, config, pflo):
-    import signal
-    from pathlib import Path
-    import subprocess
-    import os
+    """Execute a single input file.
 
+    Args:
+        file_num: File number to run
+        config: Configuration dictionary
+        pflo: Whether to use PFLOTRAN mode
+
+    Returns:
+        InputFile object with results
+    """
     if pflo:
         print("Running in PFLOTRAN mode")
-        import sys
         import pflotran.file_methods as fm
         from pflotran.template import Template
         import pflotran.run as run
@@ -26,25 +36,27 @@ def execute(file_num, config, pflo):
         import omphalos.file_methods as fm
         from omphalos.template import Template
 
-    cwd = f'{os.getcwd()}/'
+    cwd = Path.cwd()
     name = config['template']
     aqueous_database = config['aqueous_database']
     catabolic_pathways = config['catabolic_pathways']
-    tmp_dir = f'run{file_num}/'
+    tmp_dir = Path(f'run{file_num}')
+
     # overwrite config['template'] entry to fix file reading
     # same for other files that must be read in
-    config.update({'template': f'{cwd}{tmp_dir}{name}'}) 
+    config.update({'template': str(cwd / tmp_dir / name)})
     if aqueous_database is not None:
-        config.update({'aqueous_database': f'{cwd}{tmp_dir}{aqueous_database}'}) 
+        config.update({'aqueous_database': str(cwd / tmp_dir / aqueous_database)})
     if catabolic_pathways is not None:
-        config.update({'catabolic_pathways': f'{cwd}{tmp_dir}{catabolic_pathways}'}) 
+        config.update({'catabolic_pathways': str(cwd / tmp_dir / catabolic_pathways)})
+
     input_file = Template(config)
     input_file.path = Path(config['template'])
 
     if pflo:
-        run.pflotran(input_file, file_num, config['timeout'], tmp_dir)
+        run.pflotran(input_file, file_num, config['timeout'], str(tmp_dir))
     else:
-        run.crunchtope(input_file, file_num, config['timeout'], tmp_dir)
+        run.crunchtope(input_file, file_num, config['timeout'], str(tmp_dir))
 
     return input_file
 

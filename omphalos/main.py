@@ -1,14 +1,19 @@
+"""Main entry point for running Omphalos (CrunchTope) simulations."""
 
 if __name__ == '__main__':
-    import sys
-    import os
-    import file_methods as fm
-    import generate_inputs as gi
     import argparse
+    import sys
+    from pathlib import Path
+
+    # Add parent directory to path for imports
+    _project_root = Path(__file__).resolve().parent.parent
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+
     import yaml
-    from settings import omphalos_dir
-    sys.path.insert(0, os.path.abspath(f'{omphalos_dir}'))
-    import omphalos.run as run
+    from omphalos import file_methods as fm
+    from omphalos import generate_inputs as gi
+    from omphalos import run
     from omphalos.template import Template
 
     parser = argparse.ArgumentParser()
@@ -17,7 +22,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--debug', action='store_true')
     args = parser.parse_args()
 
-    tmp_dir = 'tmp/'
+    tmp_dir = Path('tmp')
+    tmp_dir.mkdir(exist_ok=True)
 
     # Import config file.
     with open(args.config_path) as file:
@@ -26,20 +32,21 @@ if __name__ == '__main__':
     # Import template file.
     print('*** Importing template file ***')
     template = Template(config)
+
     # Get a dictionary of input files.
     print('*** Generating input files ***')
-    file_dict = gi.configure_input_files(template, tmp_dir)
+    file_dict = gi.configure_input_files(template, str(tmp_dir) + '/')
 
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")
         for file in file_dict:
-            file_dict[file].path = f'{tmp_dir}{file_dict[file].path}{file}'
+            file_dict[file].path = tmp_dir / f'{file_dict[file].path}{file}'
             file_dict[file].print()
 
         sys.exit()
     else:
         print('*** Begin running input files... ***')
-        run.run_dataset(file_dict, tmp_dir, config['timeout'])
+        run.run_dataset(file_dict, str(tmp_dir) + '/', config['timeout'])
 
     # Convert file dict to single xarray for saving as a netCDF4
     print('*** Writing results to results.nc ***')
@@ -56,5 +63,5 @@ if __name__ == '__main__':
 
     # Pickle the data.
     print(f"*** Writing InputFile record to {args.output_name} ***")
-    fm.pickle_data_set(file_dict, f'{args.output_name}')
+    fm.pickle_data_set(file_dict, args.output_name)
     print("*** Run complete ***")

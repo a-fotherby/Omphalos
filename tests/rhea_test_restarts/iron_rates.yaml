@@ -1,0 +1,48 @@
+# template can either be specified as either the relative or absolute path to the inputs.
+template: 'column.in'
+database: 'SukindaCr53.dbs'
+aqueous_database: 'aqueous.dbs'
+catabolic_pathways: 'CatabolicPathways.in'
+restart_file: ''
+
+# Timeout in seconds for any one input file.
+timeout: 3600
+# conditions must match geochemical condition names in concentration dict
+conditions:
+    - 'upper_laterite'
+    - 'pump'
+# Number of files in this run (parallel runs).
+number_of_files: 15
+
+nodes: 50
+
+# Staged restart configuration
+# Each parallel run will execute 2 sequential stages, with restart files
+# passed between them.
+restart_chain:
+    stages: 2
+
+# Options for setting parameters:
+#     linspace       - varies linearly across parallel runs
+#     random_uniform - random values across parallel runs
+#     constant       - same value for all runs
+#     custom         - explicit list of values
+#     staged         - varies across sequential stages (requires restart_chain)
+
+mineral_rates:
+        Mn_Goethite_DB&DIRB:
+                - 'linspace'
+                - [-13.2, -11.7, 1]
+
+# Staged concentrations
+# Stage 0: Ca++ = 0.5 mmol/kg, Acetate = 0.1 mmol/kg
+# Stage 1: Ca++ = 2.0 mmol/kg, Acetate = 5.0 mmol/kg
+concentrations:
+    upper_laterite:
+        Ca++:
+            - 'staged'
+            - [0.5, 2.0]
+    pump:
+        Acetate:
+            - 'staged'
+            - [0.1, 5.0]

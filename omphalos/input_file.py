@@ -15,6 +15,7 @@ class InputFile:
         # 4 = singular matrix encountered
         self.error_code = 0
         self.later_inputs = restarts
+        self.stage_num = None  # Stage index for staged restart runs
 
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,

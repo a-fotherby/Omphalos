@@ -50,13 +50,35 @@ def execute(file_num, config, pflo):
     if catabolic_pathways is not None:
         config.update({'catabolic_pathways': str(cwd / tmp_dir / catabolic_pathways)})
 
-    input_file = Template(config)
-    input_file.path = Path(config['template'])
+    # Check for staged restart runs
+    if not pflo and 'restart_chain' in config and config['restart_chain']:
+        print(f"Running staged execution for run {file_num}")
+        num_stages = config['restart_chain']['stages']
+        base_name = name.rsplit('.', 1)[0]
+        ext = name.rsplit('.', 1)[1] if '.' in name else 'in'
 
-    if pflo:
-        run.pflotran(input_file, file_num, config['timeout'], str(tmp_dir))
+        # Build stages_dict by reading pre-printed staged input files
+        stages_dict = {}
+        for stage_num in range(num_stages):
+            stage_path = str(cwd / tmp_dir / f'{base_name}_stage{stage_num}.{ext}')
+            stage_config = config.copy()
+            stage_config['template'] = stage_path
+            stage_config['restart'] = True  # Prevent Template from importing later_inputfiles
+            stage_file = Template(stage_config)
+            stage_file.file_num = int(file_num)
+            stage_file.stage_num = stage_num
+            stage_file.later_inputs = {}  # Clear any later_inputs, stages are handled separately
+            stages_dict[stage_num] = stage_file
+
+        input_file = run.run_staged_input(stages_dict, int(file_num), str(tmp_dir), config['timeout'])
     else:
-        run.crunchtope(input_file, file_num, config['timeout'], str(tmp_dir))
+        input_file = Template(config)
+        input_file.path = Path(config['template'])
+
+        if pflo:
+            run.pflotran(input_file, file_num, config['timeout'], str(tmp_dir))
+        else:
+            run.crunchtope(input_file, file_num, config['timeout'], str(tmp_dir))
 
     return input_file
 

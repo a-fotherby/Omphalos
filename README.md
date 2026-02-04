@@ -300,6 +300,7 @@ namelists:
 | `constant` | Fixed value | `value` |
 | `custom` | Custom list | `[v1, v2, v3, ...]` |
 | `fix_ratio` | Ratio to another param | `[ref_param, multiplier]` |
+| `staged` | Stage-varying values | `[v_stage0, v_stage1, ...]` |
 
 **Examples:**
 
@@ -328,6 +329,88 @@ pH:
 species_C:
   - 'fix_ratio'
   - [species_A, 0.1]
+```
+
+### Staged Restarts
+
+Omphalos supports two-dimensional parameter variation through staged restarts:
+- **Outer dimension (parallel)**: Independent runs with different initial conditions (e.g., `linspace`, `random_uniform`)
+- **Inner dimension (sequential)**: Restart stages within each run where parameters can change at specific stages
+
+This is useful for simulating scenarios where conditions change over time, such as shifts in boundary conditions or perturbation experiments.
+
+#### Configuration
+
+To enable staged restarts, add a `restart_chain` section to your config file:
+
+```yaml
+# Frontmatter (as usual)
+template: 'input_file.in'
+database: 'database.dbs'
+number_of_files: 10    # Parallel runs (outer dimension)
+nodes: 4
+
+# Staged restart configuration
+restart_chain:
+    stages: 3          # Sequential stages (inner dimension)
+
+# Parameter specification
+concentrations:
+    seawater:
+        SO4--:
+            - 'linspace'       # Varies across parallel runs
+            - [1, 30]
+        Ca++:
+            - 'staged'         # Varies across sequential stages
+            - [10.0, 15.0, 20.0]   # One value per stage
+```
+
+#### How it works
+
+When `restart_chain` is specified:
+
+1. For each parallel run, Omphalos generates one input file per stage (e.g., `input_stage0.in`, `input_stage1.in`, `input_stage2.in`)
+2. Each stage's input file has:
+   - `save_restart` directive (except the final stage) to save state for the next stage
+   - `restart` directive (except the first stage) to load state from the previous stage
+3. Stages execute sequentially within each parallel run
+4. Results from all stages are concatenated along the time dimension
+
+#### Execution flow
+
+```
+rhea config.yaml local
+      |
+      v
+[Parallel across runs]
+  run0 --> stage0 -> stage1 -> stage2 --> results
+  run1 --> stage0 -> stage1 -> stage2 --> results
+  run2 --> stage0 -> stage1 -> stage2 --> results
+      |
+      v
+compile_results() --> results.nc
+```
+
+#### Combining with other parameter methods
+
+The `staged` method can be combined with other parameter methods. Parameters using `linspace`, `random_uniform`, etc. will vary across parallel runs but remain constant across stages within each run. Parameters using `staged` will vary across stages but have the same stage-values across all parallel runs.
+
+```yaml
+restart_chain:
+    stages: 2
+
+concentrations:
+    condition_a:
+        SO4--:
+            - 'linspace'      # Different value in each parallel run
+            - [1, 30]
+        Ca++:
+            - 'staged'        # Same across runs, different per stage
+            - [0.5, 2.0]
+    condition_b:
+        Acetate:
+            - 'staged'        # Multiple conditions can use staged
+            - [0.1, 5.0]
 ```
 
 ---

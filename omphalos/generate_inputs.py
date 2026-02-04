@@ -22,20 +22,25 @@ CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
 
 
-def get_block_changes(block, num_files):
+def get_block_changes(block, num_files, stage_num=None):
     block_changes = {}
     for entry in block:
         change = block[entry]
         # Generate the list of values for all input files.
-        change_list = get_config_array(change[0], change[1], num_files)
+        change_list = get_config_array(change[0], change[1], num_files, stage_num=stage_num)
         block_changes.update({entry: change_list})
 
     return block_changes
 
 
-def evaluate_config(config):
+def evaluate_config(config, stage_num=None):
     """Parse and evaluate the config file, returning a nested dictionary containing all the values needed to modify
-    the InputFiles comprising the dataset. """
+    the InputFiles comprising the dataset.
+
+    Args:
+        config: The config yaml file, as a dict.
+        stage_num: Optional stage index for staged parameter methods.
+    """
     modified_params = {}
     num_files = config['number_of_files']
 
@@ -56,7 +61,7 @@ def evaluate_config(config):
                     block_changes = {}
                     for reaction in nml_block:
                         reaction_block = nml_block[reaction]
-                        block_changes.update({reaction: get_block_changes(reaction_block, num_files)})
+                        block_changes.update({reaction: get_block_changes(reaction_block, num_files, stage_num=stage_num)})
 
                     modified_nmls.update({nml_type: block_changes})
 
@@ -68,11 +73,11 @@ def evaluate_config(config):
             if CT_IDs[block][0] == 'geochemical condition':
                 block_changes = {}
                 for condition in config[block]:
-                    condition_changes = get_block_changes(config[block][condition], num_files)
+                    condition_changes = get_block_changes(config[block][condition], num_files, stage_num=stage_num)
                     block_changes.update({condition: condition_changes})
 
             else:
-                block_changes = get_block_changes(config[block], num_files)
+                block_changes = get_block_changes(config[block], num_files, stage_num=stage_num)
 
             modified_params.update({block: block_changes})
 
@@ -161,18 +166,16 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     return file_dict
 
 
-def get_config_array(spec, params, num_files, *, ref_vars=None):
+def get_config_array(spec, params, num_files, *, ref_vars=None, stage_num=None):
     """Extract a value to assign from the config file.
 
     Args:
-    entry -- A specific entry in a keyword block.
-    config -- The config yaml file, as a dict.
-    config_entry -- A top level dictionary entry in the config file, e.g. concetration, containing one or more species to be modified.
-    file_num -- The number identifying the InputFile being modified.
-    ref_vars -- The rest of the keyword block, in case it needs to be referred to. This is really just for the fix_ratio
-                case and is a bit of a hot fix, as it doesn't work globally over the InputFile; i.e. you can only
-                fix_ratio to other parameters in your KeywordBlock, or to species of the same type, e.g. an aqueous
-                species or mineral etc.
+        spec: The parameter method specification (e.g., 'linspace', 'staged').
+        params: Parameters for the method.
+        num_files: The number of files in the run.
+        ref_vars: The rest of the keyword block, in case it needs to be referred to.
+            This is for the fix_ratio case.
+        stage_num: The stage index for staged parameter methods.
     """
     import omphalos.parameter_methods as pm
 
@@ -180,13 +183,17 @@ def get_config_array(spec, params, num_files, *, ref_vars=None):
                 'random_uniform': pm.random_uniform,
                 'constant': pm.constant,
                 'custom': pm.custom_list,
-                'fix_ratio': pm.fix_ratio
+                'fix_ratio': pm.fix_ratio,
+                'staged': pm.staged
                 }
 
     # Check to make sure the keyword is in the config_entry.
     # Look at first entry to determine behaviour.
     try:
-        array = dispatch[spec](params, num_files)
+        if spec == 'staged':
+            array = dispatch[spec](params, num_files, stage_num=stage_num)
+        else:
+            array = dispatch[spec](params, num_files)
     except KeyError as e:
         raise ValueError(
             f'ConfigError: Unknown parameter setting "{spec}". '
@@ -194,3 +201,181 @@ def get_config_array(spec, params, num_files, *, ref_vars=None):
         ) from e
 
     return array
+
+
+def has_staged_params(config):
+    """Check if config contains any staged parameters.
+
+    Args:
+        config: The config yaml file, as a dict.
+
+    Returns:
+        bool: True if any parameters use the 'staged' method.
+    """
+    for block in CT_IDs:
+        if block == 'namelists' and block in config:
+            for nml_type in CT_NMLs:
+                if nml_type in config['namelists']:
+                    nml_block = config['namelists'][nml_type]
+                    for reaction in nml_block:
+                        reaction_block = nml_block[reaction]
+                        for entry in reaction_block:
+                            if reaction_block[entry][0] == 'staged':
+                                return True
+        elif block in config:
+            if CT_IDs[block][0] == 'geochemical condition':
+                for condition in config[block]:
+                    for entry in config[block][condition]:
+                        if config[block][condition][entry][0] == 'staged':
+                            return True
+            else:
+                for entry in config[block]:
+                    if config[block][entry][0] == 'staged':
+                        return True
+    return False
+
+
+def configure_staged_input_files(template, tmp_dir, rhea=False):
+    """Create a nested dictionary of InputFile objects for staged restart runs.
+
+    Returns a dict of dicts: {run_num: {stage_num: InputFile}}
+
+    Each run proceeds through stages sequentially, with restart files passed
+    between stages.
+
+    Args:
+        template: The Template object containing config and input file data.
+        tmp_dir: Temporary directory for running input files.
+        rhea: Whether running under rhea (parallel execution).
+
+    Returns:
+        dict: Nested dictionary {run_num: {stage_num: InputFile}}
+    """
+    import subprocess
+    import copy
+
+    config = template.config
+    num_files = config['number_of_files']
+    num_stages = config['restart_chain']['stages']
+
+    if template.config['conditions'] is not None:
+        for condition in template.config['conditions']:
+            template.sort_condition_block(condition)
+
+    # Create the nested dictionary structure
+    staged_file_dict = {}
+
+    for run_num in range(num_files):
+        staged_file_dict[run_num] = {}
+
+        for stage_num in range(num_stages):
+            # Create a deep copy of the template for this run/stage
+            from omphalos.input_file import InputFile
+            input_file = copy.deepcopy(InputFile(
+                template.config['template'],
+                template.keyword_blocks,
+                template.condition_blocks,
+                template.aqueous_database,
+                template.catabolic_pathways,
+                {}  # No later_inputs for staged runs - we handle stages differently
+            ))
+            input_file.file_num = run_num
+            input_file.stage_num = stage_num
+
+            # Sort condition blocks if needed
+            if template.config['conditions'] is not None:
+                for condition in template.config['conditions']:
+                    input_file.sort_condition_block(condition)
+
+            # Evaluate config with stage_num for staged parameters
+            modified_params = evaluate_config(config, stage_num=stage_num)
+
+            # Apply modifications
+            _apply_modifications(input_file, modified_params, run_num)
+
+            # Set up restart directives in RUNTIME block
+            _configure_restart_directives(input_file, run_num, stage_num, num_stages)
+
+            staged_file_dict[run_num][stage_num] = input_file
+
+    if not rhea:
+        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
+        try:
+            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
+                subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
+                                f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
+        except KeyError:
+            pass
+
+    return staged_file_dict
+
+
+def _apply_modifications(input_file, modified_params, run_num):
+    """Apply parameter modifications to an InputFile.
+
+    Args:
+        input_file: The InputFile object to modify.
+        modified_params: Dictionary of parameter modifications from evaluate_config.
+        run_num: The run number (file_num) to use for indexing into change arrays.
+    """
+    for block in modified_params:
+        if CT_IDs[block][0] == 'geochemical condition':
+            condition_dict = modified_params[block]
+            mod_pos = CT_IDs[block][1]
+            for condition in condition_dict:
+                condition_block = condition_dict[condition]
+                for entry in condition_block:
+                    change_list = condition_block[entry]
+                    input_file.condition_blocks[condition].modify(
+                        entry, change_list[run_num], mod_pos, species_type=block
+                    )
+        elif block == 'namelists':
+            namelist_dict = modified_params['namelists']
+            for nml_type in namelist_dict:
+                nml_name = CT_NMLs[nml_type][0]
+                list_name = CT_NMLs[nml_type][1]
+                reactions = namelist_dict[nml_type]
+                for reaction_name in reactions:
+                    reaction = reactions[reaction_name]
+                    for parameter in reaction:
+                        change_list = reaction[parameter]
+                        namelist = input_file.__getattribute__(nml_name)
+                        reaction_namelist = namelist.find_reaction(list_name, reaction_name)
+                        reaction_namelist[parameter] = change_list[run_num]
+        else:
+            keyword_dict = modified_params[block]
+            block_name = CT_IDs[block][0]
+            mod_pos = CT_IDs[block][1]
+            for entry in keyword_dict:
+                change_list = keyword_dict[entry]
+                input_file.keyword_blocks[block_name].modify(entry, change_list[run_num], mod_pos)
+
+
+def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
+    """Configure restart and save_restart directives in the RUNTIME block.
+
+    Args:
+        input_file: The InputFile object to configure.
+        run_num: The parallel run number.
+        stage_num: The current stage index (0-indexed).
+        num_stages: Total number of stages.
+    """
+    runtime_block = input_file.keyword_blocks['RUNTIME']
+
+    # Set save_restart for all stages except the last
+    if stage_num < num_stages - 1:
+        restart_filename = f'restart_{run_num}_stage{stage_num}.rst'
+        runtime_block.contents['save_restart'] = [restart_filename]
+    else:
+        # Remove save_restart for last stage if it exists
+        if 'save_restart' in runtime_block.contents:
+            del runtime_block.contents['save_restart']
+
+    # Set restart for all stages except the first
+    if stage_num > 0:
+        prev_restart_filename = f'restart_{run_num}_stage{stage_num - 1}.rst'
+        runtime_block.contents['restart'] = [prev_restart_filename]
+    else:
+        # Remove restart for first stage if it exists
+        if 'restart' in runtime_block.contents:
+            del runtime_block.contents['restart']

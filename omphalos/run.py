@@ -105,3 +105,85 @@ def clean_dir(tmp_dir, file_name):
     subprocess.run(['rm', "*.tec"], cwd=str(tmp_path))
     subprocess.run(['rm', "*.out"], cwd=str(tmp_path))
     subprocess.run(['rm', file_name], cwd=str(tmp_path))
+
+
+def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
+    """Run stages sequentially for a single parallel run.
+
+    Staged input files are already printed by rhea/main.py, so this function
+    only runs CrunchTope on them sequentially and collects results.
+
+    Args:
+        stages_dict: Dict mapping stage_num to InputFile for this run.
+        run_num: The parallel run number.
+        tmp_dir: Temporary directory for running input files.
+        timeout: Timeout for CrunchTope execution.
+
+    Returns:
+        InputFile: The first stage InputFile with concatenated results from all stages.
+    """
+    tmp_path = Path(tmp_dir)
+    num_stages = len(stages_dict)
+
+    for stage_num in range(num_stages):
+        stage_file = stages_dict[stage_num]
+
+        # Print auxiliary files only once (first stage)
+        if stage_num == 0:
+            if stage_file.aqueous_database:
+                kinetic_db = stage_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0]
+                stage_file.aqueous_database.print(str(tmp_path / kinetic_db))
+            if stage_file.catabolic_pathways:
+                stage_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
+
+        print(f'Running run {run_num}, stage {stage_num}')
+        crunchtope(stage_file, run_num, timeout, tmp_path)
+
+        if stage_file.error_code != 0:
+            print(f'Error in run {run_num}, stage {stage_num}. Stopping staged execution.')
+            break
+
+    # Concatenate results from all stages
+    concat_staged_results(stages_dict)
+
+    return stages_dict[0]
+
+
+def concat_staged_results(stages_dict):
+    """Concatenate results from all stages into the first stage InputFile.
+
+    Args:
+        stages_dict: Dict mapping stage_num to InputFile for this run.
+    """
+    import xarray as xr
+
+    num_stages = len(stages_dict)
+
+    # Collect results from all stages that completed successfully
+    stage_results = []
+    for stage_num in range(num_stages):
+        stage_file = stages_dict[stage_num]
+        if stage_file.results:
+            stage_results.append(stage_file.results)
+
+    if len(stage_results) <= 1:
+        # No concatenation needed
+        return
+
+    # Concatenate results for each category
+    first_stage = stages_dict[0]
+    concatenated_results = {}
+
+    # Get all result categories from the first stage
+    for category in first_stage.results:
+        datasets = []
+        for stage_result in stage_results:
+            if category in stage_result:
+                datasets.append(stage_result[category])
+
+        if len(datasets) > 1:
+            concatenated_results[category] = xr.concat(datasets, dim='time')
+        elif len(datasets) == 1:
+            concatenated_results[category] = datasets[0]
+
+    first_stage.results = concatenated_results

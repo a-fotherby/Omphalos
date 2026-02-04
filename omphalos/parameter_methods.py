@@ -12,6 +12,7 @@ from core.parameter_methods import (
     constant,
     custom_list,
     fix_ratio,
+    staged,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     'constant',
     'custom_list',
     'fix_ratio',
+    'staged',
 ]

@@ -135,3 +135,26 @@ def fix_ratio(to_change, num_files, ref_vars):
     value = reference_value * multiplier
 
     return value
+
+
+def staged(params, num_files, stage_num=None):
+    """Return constant value for all runs at a specific stage.
+
+    Used for staged restart runs where parameters vary across sequential
+    stages within each parallel run.
+
+    Args:
+        params: List of values, one per stage.
+        num_files: Number of parallel runs.
+        stage_num: The current stage index (0-indexed).
+
+    Returns:
+        numpy array of length num_files with the value for the current stage.
+
+    Raises:
+        ParameterConfigError: If stage_num is not provided.
+    """
+    if stage_num is None:
+        raise ParameterConfigError("staged() requires stage_num parameter")
+    value = params[stage_num]
+    return np.ones(num_files) * value

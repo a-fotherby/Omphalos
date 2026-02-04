@@ -218,6 +218,54 @@ class TestFixRatio:
         assert result == -1e-6
 
 
+class TestStaged:
+    """Tests for the staged function."""
+
+    def test_staged_basic(self):
+        """Test basic staged functionality."""
+        params = [1.0, 2.0, 3.0]
+        result = pm.staged(params, 5, stage_num=0)
+        assert len(result) == 5
+        assert np.all(result == 1.0)
+
+    def test_staged_different_stages(self):
+        """Test staged returns correct value for different stages."""
+        params = [10.0, 20.0, 30.0]
+
+        result_stage0 = pm.staged(params, 5, stage_num=0)
+        assert np.all(result_stage0 == 10.0)
+
+        result_stage1 = pm.staged(params, 5, stage_num=1)
+        assert np.all(result_stage1 == 20.0)
+
+        result_stage2 = pm.staged(params, 5, stage_num=2)
+        assert np.all(result_stage2 == 30.0)
+
+    def test_staged_requires_stage_num(self):
+        """Test that staged raises error without stage_num."""
+        with pytest.raises(ParameterConfigError) as exc_info:
+            pm.staged([1, 2, 3], 5)
+        assert "stage_num" in str(exc_info.value)
+
+    def test_staged_returns_numpy_array(self):
+        """Test that staged returns a numpy array."""
+        result = pm.staged([1, 2], 10, stage_num=0)
+        assert isinstance(result, np.ndarray)
+
+    def test_staged_with_float_values(self):
+        """Test staged with float values."""
+        params = [0.5, 2.0]
+        result = pm.staged(params, 3, stage_num=1)
+        assert np.all(result == 2.0)
+
+    def test_staged_single_stage(self):
+        """Test staged with single stage."""
+        params = [42.0]
+        result = pm.staged(params, 10, stage_num=0)
+        assert len(result) == 10
+        assert np.all(result == 42.0)
+
+
 class TestParameterConfigError:
     """Tests for the ParameterConfigError exception."""
 

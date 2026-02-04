@@ -28,7 +28,28 @@ if __name__ == '__main__':
     parser.add_argument('run_type', type=str, help='Type of run, either local or cluster.')
     parser.add_argument('-p', '--pflotran', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument(
+        '-b', '--backend',
+        type=str,
+        choices=['parallel', 'xargs'],
+        default='parallel',
+        help='Parallelization backend: "parallel" (GNU Parallel, default) or "xargs"'
+    )
     args = parser.parse_args()
+
+    def build_prep_command(backend, prep_script, dict_size, parallel_exec=None):
+        """Build the directory preparation command for the chosen backend."""
+        if backend == 'parallel':
+            return f'{parallel_exec} env SLURM_ARRAY_TASK_ID={{}} {prep_script} ::: {{0..{dict_size}}}'
+        else:  # xargs
+            return f'seq 0 {dict_size} | xargs -I {{}} -P 0 env SLURM_ARRAY_TASK_ID={{}} {prep_script}'
+
+    def build_run_command(backend, slurm_exec_script, dict_size, nodes, config_path, parallel_exec=None):
+        """Build the simulation execution command for the chosen backend."""
+        if backend == 'parallel':
+            return f'{parallel_exec} -P {nodes} python {slurm_exec_script} {{}} {config_path} ::: {{0..{dict_size}}}'
+        else:  # xargs
+            return f'seq 0 {dict_size} | xargs -I {{}} -P {nodes} python {slurm_exec_script} {{}} {config_path}'
 
     if args.pflotran:
         from pflotran.template import Template
@@ -45,9 +66,16 @@ if __name__ == '__main__':
         config = yaml.full_load(file)
 
     template = Template(config)
-    file_dict = gi.configure_input_files(template, 'foo', rhea=True)
 
-    dict_size = len(file_dict) - 1
+    # Check for staged restart runs
+    is_staged = 'restart_chain' in config and config['restart_chain']
+
+    if is_staged:
+        staged_file_dict = gi.configure_staged_input_files(template, 'foo', rhea=True)
+        dict_size = len(staged_file_dict) - 1
+    else:
+        file_dict = gi.configure_input_files(template, 'foo', rhea=True)
+        dict_size = len(file_dict) - 1
     # Start timer for directory preparation and submission
     t_start = time.time()
 
@@ -156,25 +184,42 @@ if __name__ == '__main__':
 
         print(env_dict)
 
-        # Using Parallel to create directories
-        parallel_exec = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
-        parallel_exec = parallel_exec.stdout.strip()
+        # Get parallel executable path if using GNU Parallel backend
+        parallel_exec = None
+        if args.backend == 'parallel':
+            result = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
+            parallel_exec = result.stdout.strip()
+            if not parallel_exec:
+                print('ERROR: GNU Parallel not found. Install it or use --backend xargs')
+                sys.exit(1)
 
-        local_command = f'{parallel_exec} env SLURM_ARRAY_TASK_ID={{}} {prep_script} ::: {{0..{dict_size}}}'
-        subprocess.run(local_command, env=env_dict, shell=True, executable='/bin/zsh')
+        # Run directory preparation script
+        prep_command = build_prep_command(args.backend, prep_script, dict_size, parallel_exec)
+        subprocess.run(prep_command, env=env_dict, shell=True, executable='/bin/zsh')
 
     else:
         print('ERROR: run_type must be either local or cluster')
         sys.exit(1)
 
     # Print files to prepped directories
-    for file in file_dict:
-        file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
-        file_dict[file].print()
-        if file_dict[file].later_inputs:
-            for later_file in file_dict[file].later_inputs:
-                file_dict[file].later_inputs[later_file].path = f'{dir_name}{file}/{file_dict[file].later_inputs[later_file].path}'
-                file_dict[file].later_inputs[later_file].print()
+    if is_staged:
+        # Print staged input files - one file per stage per run
+        for run_num in staged_file_dict:
+            for stage_num in staged_file_dict[run_num]:
+                stage_file = staged_file_dict[run_num][stage_num]
+                # Name files by stage: template_stage0.in, template_stage1.in, etc.
+                base_name = config["template"].rsplit('.', 1)[0]
+                ext = config["template"].rsplit('.', 1)[1] if '.' in config["template"] else 'in'
+                stage_file.path = f'{dir_name}{run_num}/{base_name}_stage{stage_num}.{ext}'
+                stage_file.print()
+    else:
+        for file in file_dict:
+            file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
+            file_dict[file].print()
+            if file_dict[file].later_inputs:
+                for later_file in file_dict[file].later_inputs:
+                    file_dict[file].later_inputs[later_file].path = f'{dir_name}{file}/{file_dict[file].later_inputs[later_file].path}'
+                    file_dict[file].later_inputs[later_file].print()
 
     t_stop = time.time()
 
@@ -184,14 +229,19 @@ if __name__ == '__main__':
 
     if args.run_type == 'local':
         nodes = config['nodes']
-        # Run instances using parallel
+        # Run instances using chosen backend
         if args.pflotran:
+            if is_staged:
+                print('ERROR: Staged restart runs are not supported for PFLOTRAN mode.')
+                sys.exit(1)
+            # PFLOTRAN runs sequentially due to specific requirements
             for file in file_dict:
                 env = os.environ.copy()
                 subprocess.run([f'python {slurm_exec_script} -p {file} {args.path_to_config}'], shell=True, env=env, executable='/bin/zsh')
                 print(f'File {file} complete.')
         else:
-            subprocess.run([f'parallel -P {nodes} python {slurm_exec_script} {{}} {args.path_to_config} ::: {{0..{dict_size}}}'], shell=True, executable='/bin/bash')
+            run_command = build_run_command(args.backend, slurm_exec_script, dict_size, nodes, args.path_to_config, parallel_exec)
+            subprocess.run(run_command, shell=True, executable='/bin/bash')
 
         # Compile results
         print(dict_size)

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-140%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-146%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -449,7 +449,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **140 tests**:
+The project includes a comprehensive test suite with **146 tests**:
 
 ```bash
 # Run all tests
@@ -469,12 +469,12 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 
 | Category | Tests | Description |
 |----------|-------|-------------|
-| `test_parameter_methods.py` | 34 | Parameter generation functions |
+| `test_parameter_methods.py` | 40 | Parameter generation functions |
 | `test_keyword_block.py` | 25 | Block object classes |
 | `test_file_methods.py` | 23 | File I/O operations |
-| `test_generate_inputs.py` | 19 | Input file generation |
-| `test_template.py` | 22 | Template parsing |
-| `test_omphalos_workflow.py` | 17 | Integration tests |
+| `test_generate_inputs.py` | 21 | Input file generation |
+| `test_template.py` | 27 | Template parsing |
+| `test_omphalos_workflow.py` | 10 | Integration tests |
 
 ---
 

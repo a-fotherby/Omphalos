@@ -1,0 +1,34 @@
+# Test staged pump rate changes in FLOW block
+template: 'column.in'
+database: 'SukindaCr53.dbs'
+aqueous_database: 'aqueous.dbs'
+catabolic_pathways: 'CatabolicPathways.in'
+restart_file: ''
+
+timeout: 3600
+conditions:
+    - 'upper_laterite'
+    - 'pump'
+
+# Fewer files for faster testing
+number_of_files: 5
+nodes: 5
+
+# Staged restart configuration
+restart_chain:
+    stages: 2
+
+# Vary mineral rate across parallel runs (linspace)
+mineral_rates:
+    Mn_Goethite_DB&DIRB:
+        - 'linspace'
+        - [-13.2, -11.7, 1]
+
+# Staged pump rate in FLOW block
+# Stage 0: normal pump rate (1.1574e-8 m/s)
+# Stage 1: increased pump rate (5e-8 m/s)
+# Key format: pump&<x>&<y>&<z> matching the cell location in template
+flow:
+    pump&20&1&1:
+        - 'staged'
+        - [1.1574e-8, 5.0e-8]

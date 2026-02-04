@@ -3,6 +3,25 @@
 from pathlib import Path
 
 
+def _get_kinetic_db_name(input_file):
+    """Get the kinetic database filename from RUNTIME block.
+
+    CrunchTope accepts both 'kinetic_database' and 'aqueousdatabase' keywords.
+
+    Args:
+        input_file: InputFile object with parsed keyword blocks.
+
+    Returns:
+        str: Kinetic database filename, or None if not found.
+    """
+    runtime_contents = input_file.keyword_blocks['RUNTIME'].contents
+    if 'kinetic_database' in runtime_contents:
+        return runtime_contents['kinetic_database'][0]
+    elif 'aqueousdatabase' in runtime_contents:
+        return runtime_contents['aqueousdatabase'][0]
+    return None
+
+
 def run_dataset(file_dict, tmp_dir, timeout):
     """Run all input files in the dataset.
 
@@ -45,8 +64,9 @@ def input_file(input_file, file_num, tmp_dir, timeout):
             input_file.later_inputs[name].print()
 
     if input_file.aqueous_database:
-        kinetic_db = input_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0]
-        input_file.aqueous_database.print(str(tmp_path / kinetic_db))
+        kinetic_db = _get_kinetic_db_name(input_file)
+        if kinetic_db:
+            input_file.aqueous_database.print(str(tmp_path / kinetic_db))
 
     if input_file.catabolic_pathways:
         input_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
@@ -131,8 +151,9 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
         # Print auxiliary files only once (first stage)
         if stage_num == 0:
             if stage_file.aqueous_database:
-                kinetic_db = stage_file.keyword_blocks['RUNTIME'].contents['kinetic_database'][0]
-                stage_file.aqueous_database.print(str(tmp_path / kinetic_db))
+                kinetic_db = _get_kinetic_db_name(stage_file)
+                if kinetic_db:
+                    stage_file.aqueous_database.print(str(tmp_path / kinetic_db))
             if stage_file.catabolic_pathways:
                 stage_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
 

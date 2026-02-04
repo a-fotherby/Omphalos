@@ -499,6 +499,38 @@ mineral_rates:
 
 > **Important:** Do not use ampersands (`&`) in mineral names in your input files.
 
+### Pump Keyword in FLOW Block
+
+The `pump` keyword in CrunchTope specifies a pumping rate at a specific grid cell location. In the input file, it appears as:
+
+```
+pump <rate> <condition_name> <x> <y> <z>
+```
+
+When modifying pump rates in Omphalos, the keyword includes the cell location as part of the key using the format `pump&<x>&<y>&<z>`:
+
+```yaml
+flow:
+  # Modify pump rate at cell (20, 1, 1)
+  pump&20&1&1:
+    - 'linspace'
+    - [1e-8, 5e-8, 1]
+```
+
+This can also be combined with staged restarts to change pump rates between stages:
+
+```yaml
+restart_chain:
+    stages: 2
+
+flow:
+  pump&20&1&1:
+    - 'staged'
+    - [1.1574e-8, 5.0e-8]  # Stage 0: low rate, Stage 1: high rate
+```
+
+> **Note:** The cell indices in the key must match the location specified in your template input file.
+
 ### PFLOTRAN Support
 
 Enable PFLOTRAN mode with the `-p` flag:

@@ -297,6 +297,10 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             # Set up restart directives in RUNTIME block
             _configure_restart_directives(input_file, run_num, stage_num, num_stages)
 
+            # Configure spatial_profile for staged output if specified
+            if 'spatial_profile' in config.get('restart_chain', {}):
+                _configure_spatial_profile(input_file, config['restart_chain']['spatial_profile'], stage_num)
+
             staged_file_dict[run_num][stage_num] = input_file
 
     if not rhea:
@@ -375,8 +379,41 @@ def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
     # Set restart for all stages except the first
     if stage_num > 0:
         prev_restart_filename = f'restart_{run_num}_stage{stage_num - 1}.rst'
-        runtime_block.contents['restart'] = [prev_restart_filename]
+        runtime_block.contents['restart'] = [prev_restart_filename, 'append']
     else:
         # Remove restart for first stage if it exists
         if 'restart' in runtime_block.contents:
             del runtime_block.contents['restart']
+
+
+def _configure_spatial_profile(input_file, spatial_profile_config, stage_num):
+    """Configure spatial_profile times in the OUTPUT block for staged restarts.
+
+    For stages after the first, the times are offset by the cumulative time
+    from all previous stages (using the last value of each stage's spatial_profile).
+
+    Args:
+        input_file: The InputFile object to configure.
+        spatial_profile_config: List of lists, one per stage, containing the
+            spatial_profile times for that stage.
+        stage_num: The current stage index (0-indexed).
+    """
+    output_block = input_file.keyword_blocks['OUTPUT']
+
+    # Get the times for this stage
+    stage_times = spatial_profile_config[stage_num]
+
+    # Calculate cumulative offset from previous stages
+    offset = 0.0
+    for prev_stage in range(stage_num):
+        prev_times = spatial_profile_config[prev_stage]
+        offset += prev_times[-1]  # Add the last time from each previous stage
+
+    # Apply offset to times (no offset for stage 0)
+    if stage_num > 0:
+        adjusted_times = [t + offset for t in stage_times]
+    else:
+        adjusted_times = list(stage_times)
+
+    # Convert to strings for the keyword block
+    output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]

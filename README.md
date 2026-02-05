@@ -358,6 +358,11 @@ nodes: 4
 # Staged restart configuration
 restart_chain:
     stages: 3          # Sequential stages (inner dimension)
+    # Optional: specify spatial_profile times for each stage
+    spatial_profile:
+        - [0.5, 1.0, 1.5, 2.0]    # Stage 0 output times
+        - [0.5, 1.0, 1.5, 2.0]    # Stage 1 times (auto-offset by 2.0)
+        - [0.5, 1.0]              # Stage 2 times (auto-offset by 4.0)
 
 # Parameter specification
 concentrations:
@@ -377,9 +382,10 @@ When `restart_chain` is specified:
 1. For each parallel run, Omphalos generates one input file per stage (e.g., `input_stage0.in`, `input_stage1.in`, `input_stage2.in`)
 2. Each stage's input file has:
    - `save_restart` directive (except the final stage) to save state for the next stage
-   - `restart` directive (except the first stage) to load state from the previous stage
-3. Stages execute sequentially within each parallel run
-4. Results from all stages are concatenated along the time dimension
+   - `restart ... append` directive (except the first stage) to load state from the previous stage and append output to existing files
+3. If `spatial_profile` is specified in `restart_chain`, each stage's times are automatically offset by the cumulative duration of previous stages (using the last time value from each previous stage)
+4. Stages execute sequentially within each parallel run
+5. Output files are numbered continuously across stages (e.g., pH1.tec through pH9.tec for 5+4 spatial profile times)
 
 #### Execution flow
 

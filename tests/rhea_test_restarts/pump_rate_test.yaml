@@ -32,3 +32,12 @@ flow:
     pump&20&1&1:
         - 'staged'
         - [1.1574e-8, [1.0e-8, 2.0e-8, 3.0e-8, 4.0e-8, 5.0e-8]]
+
+# Example of nested list for concentrations
+# Stage 0: Ca++ = 0.5 for all runs
+# Stage 1: Ca++ varies per run [1.0, 1.5, 2.0, 2.5, 3.0]
+concentrations:
+    upper_laterite:
+        Ca++:
+            - 'staged'
+            - [0.5, [1.0, 1.5, 2.0, 2.5, 3.0]]

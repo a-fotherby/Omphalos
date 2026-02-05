@@ -8,14 +8,14 @@
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#documentation">Documentation</a> •
+  <a href="#configuration-guide">Configuration</a> •
   <a href="#citation">Citation</a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/tests-151%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+  <img src="https://img.shields.io/badge/license-proprietary-lightgrey" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
   <img src="https://img.shields.io/badge/PFLOTRAN-supported-orange" alt="PFLOTRAN">
 </p>
@@ -60,8 +60,8 @@
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/omphalos.git
-cd omphalos
+git clone https://github.com/a-fotherby/Omphalos.git
+cd Omphalos
 
 # 2. Run the installation script
 ./install.sh
@@ -187,6 +187,13 @@ concentrations = xr.open_dataset('results.nc', group='totcon')
 print(volumes.dims)
 ```
 
+Available groups depend on your CrunchTope OUTPUT block configuration. Common groups include:
+- `totcon` — Total concentrations
+- `volume` — Mineral volumes
+- `rate` — Reaction rates
+- `pH`, `pe` — Solution properties
+- `saturation` — Mineral saturation indices
+
 #### 2. Input File Record (`inputs.pkl`)
 
 ```python
@@ -301,7 +308,7 @@ namelists:
 | `constant` | Fixed value | `value` |
 | `custom` | Custom list | `[v1, v2, v3, ...]` |
 | `fix_ratio` | Ratio to another param | `[ref_param, multiplier]` |
-| `staged` | Stage-varying values | `[v_stage0, v_stage1, ...]` |
+| `staged` | Stage-varying values | `[v_stage0, v_stage1, ...]` or nested lists |
 
 **Examples:**
 
@@ -561,6 +568,8 @@ Enable PFLOTRAN mode with the `-p` flag:
 ```bash
 python -m rhea.main config.yaml local -p
 ```
+
+> **Note:** Staged restarts (`restart_chain`) are not currently supported in PFLOTRAN mode.
 
 ---
 

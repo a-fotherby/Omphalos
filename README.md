@@ -117,7 +117,7 @@ Omphalos requires two inputs:
 template: 'my_model.in'
 database: 'thermodynamic.dbs'
 timeout: 300
-conditions: [seawater, sediment]
+conditions: ['seawater', 'sediment']
 number_of_files: 100
 nodes: 4
 
@@ -214,13 +214,13 @@ input_file.print()
 
 | Keyword | Description | Required | Example |
 |---------|-------------|----------|---------|
-| `template` | Path to template input file | Yes | `model.in` |
-| `database` | Path to thermodynamic database | Yes | `database.dbs` |
-| `aqueous_database` | Path to aqueous database | No | `aqueous.dbs` |
-| `catabolic_pathways` | Path to catabolic pathways | No | `CatabolicPathways.in` |
-| `restart_file` | Existing restart file to copy to all runs | No | `spinup.rst` |
+| `template` | Path to template input file | Yes | `'model.in'` |
+| `database` | Path to thermodynamic database | Yes | `'database.dbs'` |
+| `aqueous_database` | Path to aqueous database | No | `'aqueous.dbs'` |
+| `catabolic_pathways` | Path to catabolic pathways | No | `'CatabolicPathways.in'` |
+| `restart_file` | Existing restart file to copy to all runs | No | `'spinup.rst'` |
 | `timeout` | Max simulation time (seconds) | Yes | `300` |
-| `conditions` | List of conditions to modify | Yes | `[boundary, initial]` |
+| `conditions` | List of conditions to modify | Yes | `['boundary', 'initial']` |
 | `number_of_files` | Number of simulations | Yes | `100` |
 | `nodes` | Parallel workers/SLURM nodes | Yes | `4` |
 

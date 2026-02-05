@@ -265,6 +265,56 @@ class TestStaged:
         assert len(result) == 10
         assert np.all(result == 42.0)
 
+    def test_staged_nested_list(self):
+        """Test staged with nested list for per-run values."""
+        # 3 runs, 2 stages: stage 0 = constant, stage 1 = varies per run
+        params = [0.0, [0.0, 1.0, 2.0]]
+
+        result_stage0 = pm.staged(params, 3, stage_num=0)
+        assert np.all(result_stage0 == 0.0)
+
+        result_stage1 = pm.staged(params, 3, stage_num=1)
+        np.testing.assert_array_equal(result_stage1, [0.0, 1.0, 2.0])
+
+    def test_staged_nested_list_all_stages(self):
+        """Test staged with nested lists for all stages."""
+        params = [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]]
+
+        result_stage0 = pm.staged(params, 3, stage_num=0)
+        np.testing.assert_array_equal(result_stage0, [1.0, 2.0, 3.0])
+
+        result_stage1 = pm.staged(params, 3, stage_num=1)
+        np.testing.assert_array_equal(result_stage1, [10.0, 20.0, 30.0])
+
+    def test_staged_nested_list_wrong_length(self):
+        """Test staged raises error when nested list length doesn't match num_files."""
+        params = [0.0, [0.0, 1.0]]  # 2 values but num_files=3
+        with pytest.raises(ParameterConfigError) as exc_info:
+            pm.staged(params, 3, stage_num=1)
+        assert "length" in str(exc_info.value)
+
+    def test_staged_nested_list_returns_numpy_array(self):
+        """Test that staged with nested list returns a numpy array."""
+        params = [0.0, [1.0, 2.0, 3.0]]
+        result = pm.staged(params, 3, stage_num=1)
+        assert isinstance(result, np.ndarray)
+
+    def test_staged_mixed_scalar_and_list(self):
+        """Test staged with mix of scalar and list values across stages."""
+        params = [5.0, [1.0, 2.0], 10.0, [7.0, 8.0]]
+
+        result_stage0 = pm.staged(params, 2, stage_num=0)
+        assert np.all(result_stage0 == 5.0)
+
+        result_stage1 = pm.staged(params, 2, stage_num=1)
+        np.testing.assert_array_equal(result_stage1, [1.0, 2.0])
+
+        result_stage2 = pm.staged(params, 2, stage_num=2)
+        assert np.all(result_stage2 == 10.0)
+
+        result_stage3 = pm.staged(params, 2, stage_num=3)
+        np.testing.assert_array_equal(result_stage3, [7.0, 8.0])
+
 
 class TestParameterConfigError:
     """Tests for the ParameterConfigError exception."""

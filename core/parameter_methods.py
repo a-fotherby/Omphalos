@@ -138,23 +138,42 @@ def fix_ratio(to_change, num_files, ref_vars):
 
 
 def staged(params, num_files, stage_num=None):
-    """Return constant value for all runs at a specific stage.
+    """Return values for all runs at a specific stage.
 
     Used for staged restart runs where parameters vary across sequential
     stages within each parallel run.
 
     Args:
-        params: List of values, one per stage.
+        params: List of values, one per stage. Each stage value can be either:
+            - A scalar: same value for all runs at this stage
+            - A list: different value for each run at this stage (length must equal num_files)
         num_files: Number of parallel runs.
         stage_num: The current stage index (0-indexed).
 
     Returns:
-        numpy array of length num_files with the value for the current stage.
+        numpy array of length num_files with the values for the current stage.
 
     Raises:
-        ParameterConfigError: If stage_num is not provided.
+        ParameterConfigError: If stage_num is not provided, or if a nested list
+            has incorrect length.
+
+    Example:
+        For 3 runs with 2 stages:
+        - `[0, [0, 1, 2]]` means:
+          - Stage 0: all runs get value 0
+          - Stage 1: run 0 gets 0, run 1 gets 1, run 2 gets 2
     """
     if stage_num is None:
         raise ParameterConfigError("staged() requires stage_num parameter")
     value = params[stage_num]
-    return np.ones(num_files) * value
+
+    # Check if value is a list (varying across runs) or scalar (constant across runs)
+    if isinstance(value, (list, tuple)):
+        if len(value) != num_files:
+            raise ParameterConfigError(
+                f"staged() nested list for stage {stage_num} has length {len(value)}, "
+                f"but num_files is {num_files}. These must match."
+            )
+        return np.array(value)
+    else:
+        return np.ones(num_files) * value

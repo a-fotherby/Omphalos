@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-146%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-151%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -413,6 +413,28 @@ concentrations:
             - [0.1, 5.0]
 ```
 
+#### Per-run values within stages (nested lists)
+
+By default, `staged` applies the same value to all parallel runs at each stage. To specify different values for each run within a stage, use a nested list:
+
+```yaml
+restart_chain:
+    stages: 2
+
+number_of_files: 3  # 3 parallel runs
+
+concentrations:
+    condition_a:
+        Ca++:
+            - 'staged'
+            - [0.5, [1.0, 2.0, 3.0]]  # Stage 0: all runs = 0.5
+                                       # Stage 1: run0 = 1.0, run1 = 2.0, run2 = 3.0
+```
+
+This allows full control over parameter values in both dimensions:
+- Scalar value: same for all runs at that stage
+- List value: different value per run at that stage (length must equal `number_of_files`)
+
 ---
 
 ## Project Structure
@@ -449,7 +471,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **146 tests**:
+The project includes a comprehensive test suite with **151 tests**:
 
 ```bash
 # Run all tests
@@ -469,7 +491,7 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 
 | Category | Tests | Description |
 |----------|-------|-------------|
-| `test_parameter_methods.py` | 40 | Parameter generation functions |
+| `test_parameter_methods.py` | 45 | Parameter generation functions |
 | `test_keyword_block.py` | 25 | Block object classes |
 | `test_file_methods.py` | 23 | File I/O operations |
 | `test_generate_inputs.py` | 21 | Input file generation |

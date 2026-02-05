@@ -14,14 +14,18 @@ mkdir run${SLURM_ARRAY_TASK_ID}
 cp ${database_name} run${SLURM_ARRAY_TASK_ID}/${database_name}
 
 if [ "${pflotran}" ]; then
-    cp ${restart_file} run${SLURM_ARRAY_TASK_ID}/${restart_file}
+    if [ "${restart_file}" ]; then
+        cp ${restart_file} run${SLURM_ARRAY_TASK_ID}/${restart_file}
+    fi
     if [ "${temperature_files}" ]; then
         for t_file in ${temperature_files[@]}; do
             cp ${t_file} run${SLURM_ARRAY_TASK_ID}/${t_file}
         done
     fi
 else
-    cp ${restart_file} run${SLURM_ARRAY_TASK_ID}/${restart_file}
+    if [ "${restart_file}" ]; then
+        cp ${restart_file} run${SLURM_ARRAY_TASK_ID}/${restart_file}
+    fi
     if [ "${aqueous_database}" ]; then
         cp ${aqueous_database} run${SLURM_ARRAY_TASK_ID}/${aqueous_database}
     fi

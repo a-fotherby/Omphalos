@@ -115,7 +115,7 @@ if __name__ == '__main__':
             "AQUEOUS_DATABASE": config["aqueous_database"],
             "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
             "TEMPERATURE_FILES": temperature_files,
-            "RESTART_FILE": config["restart_file"],
+            "RESTART_FILE": config.get("restart_file", ""),
             "PFLOTRAN": ""
         }
 
@@ -175,7 +175,7 @@ if __name__ == '__main__':
             "AQUEOUS_DATABASE": config["aqueous_database"],
             "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
             "TEMPERATURE_FILES": temperature_files,
-            "RESTART_FILE": config["restart_file"],
+            "RESTART_FILE": config.get("restart_file", ""),
             "PFLOTRAN": ""
         }
 

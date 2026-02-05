@@ -116,9 +116,6 @@ Omphalos requires two inputs:
 # config.yaml
 template: my_model.in
 database: thermodynamic.dbs
-aqueous_database: aqueous.dbs
-catabolic_pathways:
-restart_file: ''
 timeout: 300
 conditions: [seawater, sediment]
 number_of_files: 100
@@ -215,19 +212,17 @@ input_file.print()
 
 ### Frontmatter
 
-All frontmatter keywords are **required** (use empty value if not applicable):
-
-| Keyword | Description | Example |
-|---------|-------------|---------|
-| `template` | Path to template input file | `model.in` |
-| `database` | Path to thermodynamic database | `database.dbs` |
-| `aqueous_database` | Path to aqueous database | `aqueous.dbs` |
-| `catabolic_pathways` | Path to catabolic pathways | `CatabolicPathways.in` |
-| `restart_file` | Restart file path (blank if none) | `''` |
-| `timeout` | Max simulation time (seconds) | `300` |
-| `conditions` | List of conditions to modify | `[boundary, initial]` |
-| `number_of_files` | Number of simulations | `100` |
-| `nodes` | Parallel workers/SLURM nodes | `4` |
+| Keyword | Description | Required | Example |
+|---------|-------------|----------|---------|
+| `template` | Path to template input file | Yes | `model.in` |
+| `database` | Path to thermodynamic database | Yes | `database.dbs` |
+| `aqueous_database` | Path to aqueous database | No | `aqueous.dbs` |
+| `catabolic_pathways` | Path to catabolic pathways | No | `CatabolicPathways.in` |
+| `restart_file` | Existing restart file to copy to all runs | No | `spinup.rst` |
+| `timeout` | Max simulation time (seconds) | Yes | `300` |
+| `conditions` | List of conditions to modify | Yes | `[boundary, initial]` |
+| `number_of_files` | Number of simulations | Yes | `100` |
+| `nodes` | Parallel workers/SLURM nodes | Yes | `4` |
 
 ### Parameter Modification
 
@@ -244,6 +239,8 @@ Modify parameters in standard CrunchTope blocks:
 | `MINERALS` | `mineral_rates` |
 | `AQUEOUS_KINETICS` | `aqueous_kinetics` |
 | `EROSION/BURIAL` | `erosion/burial` |
+
+> **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`).
 
 ```yaml
 runtime:

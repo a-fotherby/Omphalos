@@ -174,6 +174,10 @@ def staged(params, num_files, stage_num=None):
                 f"staged() nested list for stage {stage_num} has length {len(value)}, "
                 f"but num_files is {num_files}. These must match."
             )
-        return np.array(value)
+        return np.array(value) if not isinstance(value[0], str) else list(value)
     else:
-        return np.ones(num_files) * value
+        # Handle string values (e.g., condition names) differently from numeric values
+        if isinstance(value, str):
+            return [value] * num_files
+        else:
+            return np.ones(num_files) * value

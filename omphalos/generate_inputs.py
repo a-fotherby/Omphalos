@@ -14,6 +14,7 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'flow': ['FLOW', 0],
           'transport': ['TRANSPORT', -1],
           'erosion/burial': ['EROSION/BURIAL', -1],
+          'boundary_conditions': ['BOUNDARY_CONDITIONS', 0],
           'namelists': [None]
           }
 

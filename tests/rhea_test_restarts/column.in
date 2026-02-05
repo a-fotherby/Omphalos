@@ -101,38 +101,38 @@ O2(aq)           O2(g) 0.21
 SO4--            1e-10
 END
 
-CONDITION        rainwater
-! Dilute rainwater with low dissolved ion concentrations
+CONDITION        lower_laterite
+! Same as upper_laterite for example
 units            mmol/kg
-temperature      25.0
-pH               5.6
-Acetate          1.0e-10
-Al+++            1.0e-10
-Ca++             0.01
+temperature      25.0         
+pH               6.0
+Acetate          1e-10
+Al+++            1e-3
+Ca++             1.0
 Cr+++            1.0e-33
-CrO4--           1.0e-33
+CrO4--           0.05
 C5H7O2NFe        1.0E-12
 C5H7O2NSO4       1.0E-12
-Cl-              0.02
+Cl-              1.0
 Na+              charge
-HCO3-            0.01
-Fe++             1.0e-10
-Fe+++            1.0e-10
-HS-              1.0e-10
-H2(aq)           1.0e-10
-Methane(aq)      1.0e-10
+HCO3-            1.0
+Fe++             1.00e-10
+Fe+++            1.00e-10
+HS-              1.0e-3
+H2(aq)           1.0e-9 
+Methane(aq)      1.0e-3
 Mn+++            1.0e-33
 Mn++             1.0e-33
-Mg++             0.005
-NH3(aq)          1.0e-6
-NO3-             0.01
-SiO2(aq)         1e-10
-O2(aq)           O2(g) 0.21
-SO4--            0.02
+Mg++             1.0
+NH3(aq)          1.0e-3
+NO3-             1.0
+SiO2(aq)         Talc
+O2(aq)           O2(g) 0.00
+SO4--            0.26
 END
 
 CONDITION upper_laterite
-! Based on nominal anoxic geochemical environment descibed in Jin & Bethke (2011)
+! Based on nominal anoxic geochemical environment described in Jin & Bethke (2011)
 units            mmol/kg             
 temperature      25.0         
 pH               6.0
@@ -158,7 +158,6 @@ NH3(aq)          1.0e-3
 NO3-             1.0
 SiO2(aq)         Talc
 O2(aq)           O2(g) 0.00
-! Dhakate (2008), Table 6 
 SO4--            0.26
 ! Mineral name <volume fraction m3/m3>
 Chromite                 0.07

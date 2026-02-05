@@ -9,7 +9,7 @@ timeout: 3600
 conditions:
     - 'upper_laterite'
     - 'pump'
-    - 'rainwater'
+    - 'lower_laterite'
 
 # Fewer files for faster testing
 number_of_files: 5
@@ -45,8 +45,8 @@ concentrations:
 
 # Example of changing boundary condition assignment between stages
 # Stage 0: x_begin uses 'upper_laterite' condition
-# Stage 1: x_begin uses 'rainwater' condition (dilute rainwater)
+# Stage 1: x_begin uses 'rainwater' condition
 boundary_conditions:
     x_begin:
         - 'staged'
-        - ['upper_laterite', 'rainwater']
+        - ['upper_laterite', 'lower_laterite']

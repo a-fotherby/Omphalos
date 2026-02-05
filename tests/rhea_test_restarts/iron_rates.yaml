@@ -3,7 +3,7 @@ template: 'column.in'
 database: 'SukindaCr53.dbs'
 aqueous_database: 'aqueous.dbs'
 catabolic_pathways: 'CatabolicPathways.in'
-restart_file: ''
+restart_file:
 
 # Timeout in seconds for any one input file.
 timeout: 3600
@@ -11,6 +11,7 @@ timeout: 3600
 conditions:
     - 'upper_laterite'
     - 'pump'
+    - 'lower_laterite'
 # Number of files in this run (parallel runs).
 number_of_files: 15
 

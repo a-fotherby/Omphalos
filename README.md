@@ -114,8 +114,8 @@ Omphalos requires two inputs:
 
 ```yaml
 # config.yaml
-template: my_model.in
-database: thermodynamic.dbs
+template: 'my_model.in'
+database: 'thermodynamic.dbs'
 timeout: 300
 conditions: [seawater, sediment]
 number_of_files: 100

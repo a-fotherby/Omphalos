@@ -24,11 +24,11 @@ mineral_rates:
         - 'linspace'
         - [-13.2, -11.7, 1]
 
-# Staged pump rate in FLOW block
-# Stage 0: normal pump rate (1.1574e-8 m/s)
-# Stage 1: increased pump rate (5e-8 m/s)
+# Staged pump rate in FLOW block with nested list
+# Stage 0: normal pump rate for all runs (1.1574e-8 m/s)
+# Stage 1: different pump rate per run [1e-8, 2e-8, 3e-8, 4e-8, 5e-8]
 # Key format: pump&<x>&<y>&<z> matching the cell location in template
 flow:
     pump&20&1&1:
         - 'staged'
-        - [1.1574e-8, 5.0e-8]
+        - [1.1574e-8, [1.0e-8, 2.0e-8, 3.0e-8, 4.0e-8, 5.0e-8]]

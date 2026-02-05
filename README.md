@@ -166,6 +166,7 @@ python -m rhea.main config.yaml cluster
 **Flags:**
 - `-p, --pflotran` — Use PFLOTRAN instead of CrunchTope
 - `-d, --debug` — Generate files without running simulations
+- `-b, --backend` — Parallelization backend: `parallel` (GNU Parallel, default) or `xargs`
 
 ### Collecting Results
 

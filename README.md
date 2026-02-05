@@ -188,7 +188,7 @@ Available groups depend on your CrunchTope OUTPUT block configuration. Common gr
 - `totcon` — Total concentrations
 - `volume` — Mineral volumes
 - `rate` — Reaction rates
-- `pH`, `pe` — Solution properties
+- `pH` — Solution pH
 - `saturation` — Mineral saturation indices
 
 #### 2. Input File Record (`inputs.pkl`)

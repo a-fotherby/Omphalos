@@ -297,9 +297,13 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             # Set up restart directives in RUNTIME block
             _configure_restart_directives(input_file, run_num, stage_num, num_stages)
 
-            # Configure spatial_profile for staged output if specified
+            # Configure spatial_profile for staged output
             if 'spatial_profile' in config.get('restart_chain', {}):
+                # Use explicitly specified spatial_profile from config
                 _configure_spatial_profile(input_file, config['restart_chain']['spatial_profile'], stage_num)
+            elif stage_num > 0 and 'spatial_profile' in input_file.keyword_blocks['OUTPUT'].contents:
+                # Auto-adjust template's spatial_profile for stages > 0
+                _auto_adjust_spatial_profile(input_file, stage_num)
 
             staged_file_dict[run_num][stage_num] = input_file
 
@@ -414,6 +418,37 @@ def _configure_spatial_profile(input_file, spatial_profile_config, stage_num):
         adjusted_times = [t + offset for t in stage_times]
     else:
         adjusted_times = list(stage_times)
+
+    # Convert to strings for the keyword block
+    output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]
+
+
+def _auto_adjust_spatial_profile(input_file, stage_num):
+    """Automatically adjust spatial_profile times for stages > 0.
+
+    When no explicit spatial_profile is specified in restart_chain, this function
+    offsets the template's spatial_profile times based on the stage number.
+    Each stage is assumed to have the same duration (the last time in the template's
+    spatial_profile).
+
+    Args:
+        input_file: The InputFile object to configure.
+        stage_num: The current stage index (0-indexed, must be > 0).
+    """
+    output_block = input_file.keyword_blocks['OUTPUT']
+
+    # Get the original spatial_profile times from the template
+    original_times = [float(t) for t in output_block.contents['spatial_profile']]
+
+    # Use the last time as the stage duration
+    stage_duration = original_times[-1]
+
+    # Calculate offset: stage_num * stage_duration
+    offset = stage_num * stage_duration
+
+    # Offset all times (skip the first near-zero time to avoid conflict with restart)
+    # Filter out times that would be at or before the restart time
+    adjusted_times = [t + offset for t in original_times if t + offset > offset]
 
     # Convert to strings for the keyword block
     output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]

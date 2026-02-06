@@ -203,7 +203,7 @@ END
 FLOW
 space_units meters
 time_units day
-! Flux from Dakhate et al. (2008).
+ Flux from Dakhate et al. (2008).
 constant_flow 0.0064
 pump 1.1574e-8 pump 20 1 1
 END

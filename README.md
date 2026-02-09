@@ -110,6 +110,8 @@ Omphalos requires two inputs:
 1. **A working CrunchTope/PFLOTRAN model** — Your template input file
 2. **A YAML configuration file** — Specifies how to vary model parameters
 
+> **Note:** Your CrunchTope template must have `graphics tecplot` in the RUNTIME block. Omphalos parses the TecPlot output format.
+
 ### Example Configuration
 
 ```yaml

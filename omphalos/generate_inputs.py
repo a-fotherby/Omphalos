@@ -259,6 +259,15 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
     num_files = config['number_of_files']
     num_stages = config['restart_chain']['stages']
 
+    # Validate restart_chain keys
+    valid_restart_chain_keys = {'stages', 'spatial_profile'}
+    unknown_keys = set(config['restart_chain'].keys()) - valid_restart_chain_keys
+    if unknown_keys:
+        raise ValueError(
+            f"Unknown key(s) in restart_chain: {unknown_keys}. "
+            f"Valid keys are: {valid_restart_chain_keys}"
+        )
+
     if template.config['conditions'] is not None:
         for condition in template.config['conditions']:
             template.sort_condition_block(condition)

@@ -126,6 +126,30 @@ class ConditionBlock(KeywordBlock):
         if species_type == 'mineral_ssa':
             species_type = 'mineral_volumes'
 
+        # Special handling for gases: first try gases dict, then search concentrations
+        if species_type == 'gases':
+            # First, try direct lookup in gases dictionary (original behavior)
+            if entry in self.gases:
+                array = self.gases[entry]
+                array[mod_pos] = str(value)
+                self.gases.update({entry: array})
+                return
+
+            # If not found, search concentrations for an aqueous species equilibrated with this gas
+            # e.g., CO2(aq): ['CO2(g)', '0.000412'] - we want to modify '0.000412'
+            for aq_species, aq_value in self.concentrations.items():
+                if entry in aq_value:
+                    # Found the aqueous species equilibrated with this gas
+                    array = aq_value
+                    array[mod_pos] = str(value)
+                    self.concentrations.update({aq_species: array})
+                    return
+
+            raise ConditionBlockModificationError(
+                f"Gas '{entry}' not found in gases dictionary or concentration entries. "
+                f"Check that the gas exists or an aqueous species is equilibrated with it."
+            )
+
         contents = getattr(self, species_type)
 
         array = contents[entry]

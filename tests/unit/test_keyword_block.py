@@ -141,12 +141,22 @@ class TestConditionBlock:
         assert block.parameters['temperature'][0] == '30.0'
 
     def test_modify_gases(self):
-        """Test modifying gases in ConditionBlock."""
+        """Test modifying gas directly in gases dictionary."""
         block = ConditionBlock()
         block.gases = {'CO2(g)': ['1e-3']}
 
         block.modify('CO2(g)', '1e-2', 0, species_type='gases')
         assert block.gases['CO2(g)'][0] == '1e-2'
+
+    def test_modify_gases_via_equilibration(self):
+        """Test modifying gas partial pressure via aqueous species equilibration."""
+        block = ConditionBlock()
+        # CO2(aq) is equilibrated with CO2(g) at partial pressure 1e-3
+        block.concentrations = {'CO2(aq)': ['CO2(g)', '1e-3']}
+
+        # Modify the CO2(g) partial pressure
+        block.modify('CO2(g)', '1e-2', -1, species_type='gases')
+        assert block.concentrations['CO2(aq)'][-1] == '1e-2'
 
     def test_modify_requires_species_type(self):
         """Test that ConditionBlock.modify requires species_type."""

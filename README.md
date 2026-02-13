@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-151%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-152%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -283,7 +283,15 @@ mineral_volumes:
     Calcite:
       - 'random_uniform'
       - [0.01, 0.10]
+
+gases:
+  seawater:
+    CO2(g):
+      - 'linspace'
+      - [1e-4, 1e-2, 1]
 ```
+
+> **Note:** The `gases` keyword modifies gas partial pressures. If the gas is specified directly in a GASES block, it modifies that entry. If the gas is used to equilibrate an aqueous species (e.g., `CO2(aq) CO2(g) 0.000412`), Omphalos will find and modify the partial pressure in the concentration entry.
 
 #### Namelists
 
@@ -484,7 +492,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **151 tests**:
+The project includes a comprehensive test suite with **152 tests**:
 
 ```bash
 # Run all tests
@@ -505,7 +513,7 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 | Category | Tests | Description |
 |----------|-------|-------------|
 | `test_parameter_methods.py` | 45 | Parameter generation functions |
-| `test_keyword_block.py` | 25 | Block object classes |
+| `test_keyword_block.py` | 26 | Block object classes |
 | `test_file_methods.py` | 23 | File I/O operations |
 | `test_generate_inputs.py` | 21 | Input file generation |
 | `test_template.py` | 27 | Template parsing |

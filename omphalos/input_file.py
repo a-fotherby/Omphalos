@@ -1,3 +1,29 @@
+def _validate_spatial_profile(line, max_line_length=132):
+    """Validate that a spatial_profile line doesn't exceed CrunchTope's line limit.
+
+    CrunchTope has a 132 character line limit. If the spatial_profile entry
+    exceeds this, raise an error advising the user to use more stages with
+    fewer output times per stage.
+
+    Args:
+        line: List containing ['spatial_profile', time1, time2, ...].
+        max_line_length: Maximum characters per line (default 132).
+
+    Raises:
+        ValueError: If the line exceeds the maximum length.
+    """
+    full_line = ' '.join(str(x) for x in line)
+
+    if len(full_line) > max_line_length:
+        num_times = len(line) - 1  # Exclude 'spatial_profile' keyword
+        raise ValueError(
+            f"spatial_profile line exceeds CrunchTope's {max_line_length} character limit "
+            f"({len(full_line)} characters with {num_times} output times). "
+            f"Reduce the number of output times per stage by using more stages in "
+            f"restart_chain with fewer spatial_profile times in each stage."
+        )
+
+
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
@@ -115,6 +141,11 @@ class InputFile:
                         line = copy.deepcopy(
                             self.keyword_blocks[block].contents[entry])
                         line.insert(0, entry)
+
+                        # Validate spatial_profile line length (132 char limit)
+                        if entry == 'spatial_profile':
+                            _validate_spatial_profile(line)
+
                         line.append('\n')
                         f.write(' '.join(line))
                 f.write('END\n\n')
@@ -187,7 +218,14 @@ class InputFile:
 
                 self.condition_blocks[condition].region.append(condition_region)
 
-    def get_results(self, tmp_dir):
+    def get_results(self, tmp_dir, file_offset=0):
+        """Parse CrunchTope output files and store results.
+
+        Args:
+            tmp_dir: Directory containing output files.
+            file_offset: Offset for file numbering (used in staged restarts where
+                files from previous stages have already been written). Default 0.
+        """
         import pandas as pd
         import xarray as xr
         from omphalos import file_methods as fm
@@ -212,14 +250,14 @@ class InputFile:
                 categories.remove(bad_cat)
 
         for category in categories:
-                
+
             print(f'Parsing {category}')
             ds_list = list()
             skip_counter = 0
 
             for i, time in enumerate(times):
                 try:
-                    ds = fm.parse_output(tmp_dir, category, i+1)
+                    ds = fm.parse_output(tmp_dir, category, i + 1 + file_offset)
                     ds_list.append(ds)
                 except:
                     skip_counter +=1

@@ -76,7 +76,7 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     return input_file
 
 
-def crunchtope(input_file, file_num, timeout, tmp_dir):
+def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     """Execute CrunchTope on an input file.
 
     Args:
@@ -84,6 +84,7 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
         file_num: File number for logging
         timeout: Timeout in seconds
         tmp_dir: Working directory (Path object)
+        file_offset: Offset for TecPlot file numbering (used in staged restarts).
     """
     import sys
     import pexpect as pexp
@@ -100,7 +101,7 @@ def crunchtope(input_file, file_num, timeout, tmp_dir):
     if error_code == 0:
         # Successful run.
         # Make a results object that is an attribute of the InputFile object.
-        input_file.get_results(str(tmp_dir))
+        input_file.get_results(str(tmp_dir), file_offset=file_offset)
         print(f'File {file_num} outputs recorded.')
 
     else:
@@ -145,6 +146,9 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
     tmp_path = Path(tmp_dir)
     num_stages = len(stages_dict)
 
+    # Track cumulative file offset for TecPlot output files
+    file_offset = 0
+
     for stage_num in range(num_stages):
         stage_file = stages_dict[stage_num]
 
@@ -158,7 +162,11 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
                 stage_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
 
         print(f'Running run {run_num}, stage {stage_num}')
-        crunchtope(stage_file, run_num, timeout, tmp_path)
+        crunchtope(stage_file, run_num, timeout, tmp_path, file_offset=file_offset)
+
+        # Update file_offset for next stage based on this stage's spatial_profile count
+        if 'spatial_profile' in stage_file.keyword_blocks['OUTPUT'].contents:
+            file_offset += len(stage_file.keyword_blocks['OUTPUT'].contents['spatial_profile'])
 
         if stage_file.error_code != 0:
             print(f'Error in run {run_num}, stage {stage_num}. Stopping staged execution.')

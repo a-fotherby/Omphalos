@@ -574,6 +574,22 @@ flow:
 
 > **Note:** The cell indices in the key must match the location specified in your template input file.
 
+### Choosing a Parallelization Backend
+
+By default, Omphalos uses GNU Parallel to distribute simulations across cores. On some systems, GNU Parallel constructs a command line that exceeds the operating system's argument length limit, producing an error like:
+
+```
+parallel: Error: Command line too long (91 >= -5413) at input 0: 0
+```
+
+If you see this error, switch to the `xargs` backend with the `-b` flag:
+
+```bash
+python -m rhea.main config.yaml local -b xargs
+```
+
+`xargs` constructs shorter individual command lines and is not subject to the same limit. The tradeoff is that GNU Parallel offers more sophisticated load balancing and progress reporting; `xargs` is simpler but equally effective for most workloads.
+
 ### PFLOTRAN Support
 
 Enable PFLOTRAN mode with the `-p` flag:

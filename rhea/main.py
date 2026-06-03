@@ -244,8 +244,8 @@ if __name__ == '__main__':
             subprocess.run(run_command, shell=True, executable='/bin/bash')
 
         # Compile results
-        print(dict_size)
         si.compile_results(dict_size + 1)
+        print(f'Files compiled: {dict_size + 1}')
 
     elif args.run_type == 'cluster':
         submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN="{args.pflotran}",ALL {run_sbatch}'

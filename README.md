@@ -46,6 +46,7 @@
 - [Configuration Guide](#configuration-guide)
   - [Frontmatter](#frontmatter)
   - [Parameter Modification](#parameter-modification)
+    - [Namelists](#namelists)
   - [Modification Options](#modification-options)
   - [Staged Restarts](#staged-restarts)
 - [Project Structure](#project-structure)
@@ -143,6 +144,8 @@ mineral_rates:
     - [1e-12, 1e-10]
 ```
 
+> **Note:** Omphalos must be run from the directory containing your template input file and config YAML. Output files (`results.nc`, `inputs.pkl`, and the `run*/` working directories) are written to the current working directory.
+
 ### Run Your First Simulation
 
 ```bash
@@ -227,8 +230,8 @@ input_file.print()
 | `aqueous_database` | Path to aqueous database | No | `'aqueous.dbs'` |
 | `catabolic_pathways` | Path to catabolic pathways | No | `'CatabolicPathways.in'` |
 | `restart_file` | Existing restart file to copy to all runs | No | `'spinup.rst'` |
-| `timeout` | Max simulation time (seconds) | Yes | `300` |
-| `conditions` | List of conditions to modify | Yes | `['boundary', 'initial']` |
+| `timeout` | Max simulation time (seconds); if exceeded, the run is killed and excluded from `results.nc` | Yes | `300` |
+| `conditions` | Names of the geochemical conditions (matching your CrunchTope CONDITION blocks) that parameter modifications may target | Yes | `['boundary', 'initial']` |
 | `number_of_files` | Number of simulations | Yes | `100` |
 | `nodes` | Parallel workers/SLURM nodes | Yes | `4` |
 
@@ -316,7 +319,7 @@ namelists:
 
 | Option | Description | Syntax |
 |--------|-------------|--------|
-| `linspace` | Linear spacing | `[min, max, repeats]` |
+| `linspace` | Linear spacing | `[min, max, repeats]` where `repeats` is the number of times each value is repeated; number of unique points = `number_of_files / repeats` |
 | `random_uniform` | Uniform random | `[min, max]` |
 | `constant` | Fixed value | `value` |
 | `custom` | Custom list | `[v1, v2, v3, ...]` |
@@ -326,10 +329,17 @@ namelists:
 **Examples:**
 
 ```yaml
-# Linear spacing: 10 values from 1 to 100
+# Linear spacing: 10 unique values from 1 to 100, each used once
+# (assumes number_of_files: 10, repeats=1 → 10/1 = 10 unique points)
 species_A:
   - 'linspace'
   - [1, 100, 1]
+
+# Linear spacing with repeats: 5 unique values, each repeated twice
+# (assumes number_of_files: 10, repeats=2 → 10/2 = 5 unique points)
+species_A:
+  - 'linspace'
+  - [1, 100, 2]
 
 # Random uniform: values between 1e-6 and 1e-4
 species_B:

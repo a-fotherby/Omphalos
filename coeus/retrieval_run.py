@@ -4,14 +4,20 @@ Will return pickled file dict as usual, with as many timesteps as it can find in
 
 if __name__ == "__main__":
     import argparse
-    import context
+    import sys
     import yaml
+    import pathlib as pl
+    from pathlib import Path
+
+    _project_root = Path(__file__).resolve().parent.parent
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+
     from omphalos.template import Template
     from omphalos.input_file import InputFile
     from omphalos import generate_inputs as gi
     from omphalos import file_methods as fm
     import numpy as np
-    import pathlib as pl
 
     parser = argparse.ArgumentParser()
     parser.add_argument('path', type=str, help='File path.')

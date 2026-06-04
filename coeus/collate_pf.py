@@ -2,18 +2,19 @@
 # Will return pickled file dict as usual, with as many timesteps as it can find in each directory.
 
 if __name__ == "__main__":
+    import sys
     import h5py
     import os
     import re
     import xarray as xr
-    import importlib.util
+    from pathlib import Path
     from datetime import datetime
 
-    # Add the parent directory to the system path to import pflotran
-    parent_directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'coeus'))
-    pflotran_spec = importlib.util.spec_from_file_location("pflotran", os.path.join(parent_directory, "pflotran.py"))
-    pf = importlib.util.module_from_spec(pflotran_spec)
-    pflotran_spec.loader.exec_module(pf)
+    _project_root = Path(__file__).resolve().parent.parent
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+
+    from coeus.pflotran import h5_to_xarray
 
     # Directory containing the run directories
     directory = os.getcwd()
@@ -45,7 +46,7 @@ if __name__ == "__main__":
                             print(f"Successfully opened {hdf5_filename}")
                             
                             # Convert HDF5 data to xarray Dataset using the pflotran function
-                            dataset = pf.h5_to_xarray(hdf)
+                            dataset = h5_to_xarray(hdf)
                             datasets.append(dataset)
                             print(f"xarray Dataset from {hdf5_filename} successfully created.")
                     except (OSError, KeyError) as e:

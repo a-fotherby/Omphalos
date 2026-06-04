@@ -497,8 +497,15 @@ omphalos/
 │   ├── slurm_interface.py   # SLURM utilities
 │   └── slurm_exec.py        # Worker script
 ├── coeus/                   # Analysis & visualization
-│   ├── helper.py            # Data loading utilities
-│   └── plots.py             # Plotting functions
+│   ├── helper.py            # Data loading and error filtering
+│   ├── plots.py             # Plotting utilities
+│   ├── pflotran.py          # PFLOTRAN HDF5 utilities
+│   ├── collate_pf.py        # Collate PFLOTRAN results from run directories
+│   ├── retrieval_run.py     # Recover results from failed rhea runs
+│   ├── analysis.ipynb       # Interactive analysis notebook
+│   └── ExamplePlotting.ipynb  # Example plots for results.nc output
+├── utils/                   # Miscellaneous utilities
+│   └── make_restarts.py     # Generate manual restart input file chains
 └── tests/                   # Test suite
     ├── unit/                # Unit tests
     └── integration/         # Integration tests

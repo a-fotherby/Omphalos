@@ -51,6 +51,12 @@
   - [Staged Restarts](#staged-restarts)
 - [Project Structure](#project-structure)
 - [Testing](#testing)
+- [Analysis with Coeus](#analysis-with-coeus)
+  - [Loading and Filtering Results](#loading-and-filtering-results)
+  - [Recovering Failed Runs](#recovering-failed-runs)
+  - [Collating PFLOTRAN Results](#collating-pflotran-results)
+  - [Plotting Utilities](#plotting-utilities)
+  - [Example Notebooks](#example-notebooks)
 - [Advanced Topics](#advanced-topics)
   - [Non-Unique Entries](#non-unique-entries)
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
@@ -577,6 +583,75 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 | `test_generate_inputs.py` | 21 | Input file generation |
 | `test_template.py` | 27 | Template parsing |
 | `test_omphalos_workflow.py` | 10 | Integration tests |
+
+---
+
+## Analysis with Coeus
+
+The `coeus` module provides tools for loading, filtering, and visualising Omphalos results after a run completes.
+
+### Loading and Filtering Results
+
+Use `filter_errors` to separate successful runs from those that failed or timed out, and to print a summary of the failure rate:
+
+```python
+from coeus.helper import filter_errors
+from omphalos.file_methods import unpickle
+
+raw = unpickle('inputs.pkl')
+dataset, errors = filter_errors(raw)
+# Returned 98 files without errors out of a total possible 100.
+# 2 files had errors.
+```
+
+Or use `quick_import` as a one-liner that loads and filters in a single call:
+
+```python
+from coeus.helper import quick_import
+
+dataset = quick_import('inputs.pkl')
+```
+
+`filter_errors` accepts a `verbose=True` argument to print the indices of any runs with unhandled errors.
+
+### Recovering Failed Runs
+
+If a rhea run fails partway through, `retrieval_run.py` attempts to read whatever output was written to each `run*/` directory and compile it into a `results.nc` file:
+
+```bash
+# Recover all run directories for a given template and run count
+python coeus/retrieval_run.py path/to/template.in <num_files>
+
+# Recover output from a single CrunchTope run directory
+python coeus/retrieval_run.py path/to/template.in 1 --single
+```
+
+This is useful when simulations were interrupted before `compile_results` could run.
+
+### Collating PFLOTRAN Results
+
+For PFLOTRAN runs, `collate_pf.py` walks all `run*/` directories in the current working directory, reads each `.h5` output file, and writes a combined `collated_runs_<timestamp>.nc` file:
+
+```bash
+cd /path/to/your/results
+python /path/to/omphalos/coeus/collate_pf.py
+```
+
+This is an alternative to the standard `compile_results` path when working with PFLOTRAN output directly.
+
+### Plotting Utilities
+
+`coeus/plots.py` provides helper functions for working with xarray datasets:
+
+- **`prod_vars(file, category, vars, name)`** — creates a new variable in the dataset that is the element-wise product of a list of existing variables
+- **`format_axis(axis, font_props, category, plot_var, column)`** — applies consistent axis formatting for CrunchTope depth-profile plots, including category-appropriate axis labels and symlog scaling for `rate` and `saturation` output
+
+### Example Notebooks
+
+Two notebooks are provided in `coeus/`:
+
+- **`ExamplePlotting.ipynb`** — demonstrates loading `results.nc` groups with xarray, selecting slices by coordinate, plotting depth profiles and heatmaps, and animating output across `file_num` and `time` dimensions
+- **`analysis.ipynb`** — interactive analysis notebook for exploring results using the coeus helper functions
 
 ---
 

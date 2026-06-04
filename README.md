@@ -370,6 +370,8 @@ Omphalos supports two-dimensional parameter variation through staged restarts:
 
 This is useful for simulating scenarios where conditions change over time, such as shifts in boundary conditions or perturbation experiments.
 
+> **Template requirements:** Your CrunchTope template must have a `spatial_profile` entry in the OUTPUT block — Omphalos uses this to offset output times across stages. Do not include `save_restart` or `restart` directives in the template; Omphalos sets these automatically.
+
 #### Configuration
 
 To enable staged restarts, add a `restart_chain` section to your config file:
@@ -409,7 +411,9 @@ When `restart_chain` is specified:
 2. Each stage's input file has:
    - `save_restart` directive (except the final stage) to save state for the next stage
    - `restart ... append` directive (except the first stage) to load state from the previous stage and append output to existing files
-3. If `spatial_profile` is specified in `restart_chain`, each stage's times are automatically offset by the cumulative duration of previous stages (using the last time value from each previous stage)
+3. `spatial_profile` times are adjusted per stage so that output times are continuous across the full run:
+   - **If `spatial_profile` is specified in `restart_chain`**: each stage uses the times you provide, offset by the cumulative duration of all previous stages (sum of the last time value from each preceding stage's list)
+   - **If `spatial_profile` is omitted from `restart_chain`**: Omphalos reads the `spatial_profile` from your template's OUTPUT block and offsets it automatically by `stage_num × stage_duration`, where `stage_duration` is the last time in the template's list — so all stages have equal duration
 4. Stages execute sequentially within each parallel run
 5. Output files are numbered continuously across stages (e.g., pH1.tec through pH9.tec for 5+4 spatial profile times)
 
@@ -426,6 +430,40 @@ rhea config.yaml local
       |
       v
 compile_results() --> results.nc
+```
+
+#### Starting from a spinup restart file
+
+If you have a pre-run spinup model whose restart file you want all parallel runs to start from, use the `restart_file` frontmatter key alongside `restart_chain`. Omphalos will copy the specified `.rst` file into each run directory and use it as the starting state for stage 0:
+
+```yaml
+template: 'input_file.in'
+database: 'database.dbs'
+restart_file: 'spinup.rst'   # Copied to all run directories
+number_of_files: 10
+
+restart_chain:
+    stages: 2
+
+concentrations:
+    seawater:
+        SO4--:
+            - 'linspace'
+            - [1, 30]
+```
+
+#### Single sequential chain (no parallelism)
+
+For a simple linear restart chain with no parallel variation, set `number_of_files: 1`:
+
+```yaml
+template: 'input_file.in'
+database: 'database.dbs'
+number_of_files: 1
+nodes: 1
+
+restart_chain:
+    stages: 3
 ```
 
 #### Combining with other parameter methods
@@ -504,8 +542,6 @@ omphalos/
 │   ├── retrieval_run.py     # Recover results from failed rhea runs
 │   ├── analysis.ipynb       # Interactive analysis notebook
 │   └── ExamplePlotting.ipynb  # Example plots for results.nc output
-├── utils/                   # Miscellaneous utilities
-│   └── make_restarts.py     # Generate manual restart input file chains
 └── tests/                   # Test suite
     ├── unit/                # Unit tests
     └── integration/         # Integration tests

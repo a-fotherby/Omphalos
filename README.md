@@ -55,6 +55,7 @@
   - [Loading and Filtering Results](#loading-and-filtering-results)
   - [Recovering Failed Runs](#recovering-failed-runs)
   - [Collating PFLOTRAN Results](#collating-pflotran-results)
+  - [Compiling Input Conditions](#compiling-input-conditions)
   - [Plotting Utilities](#plotting-utilities)
   - [Example Notebooks](#example-notebooks)
 - [Advanced Topics](#advanced-topics)

@@ -546,6 +546,8 @@ omphalos/
 │   ├── plots.py             # Plotting utilities
 │   ├── pflotran.py          # PFLOTRAN HDF5 utilities
 │   ├── collate_pf.py        # Collate PFLOTRAN results from run directories
+│   ├── compile_inputs.py    # Compile varied input conditions into conditions.nc
+│   ├── context.py           # sys.path setup for sibling package imports
 │   ├── retrieval_run.py     # Recover results from failed rhea runs
 │   ├── analysis.ipynb       # Interactive analysis notebook
 │   └── ExamplePlotting.ipynb  # Example plots for results.nc output

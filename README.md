@@ -660,7 +660,11 @@ The output is a netCDF file with groups mirroring the YAML config structure:
 - `flow`, `runtime`, `mineral_rates`, etc. — keyword block entries
 - `namelists/<type>/<reaction>` — namelist parameters
 
-This is particularly useful for runs using `random_uniform` parameter sampling, where the actual values used cannot be recovered from the YAML alone. The conditions can then be loaded alongside results for combined analysis:
+This is particularly useful for runs using `random_uniform` parameter sampling, where the actual values used cannot be recovered from the YAML alone.
+
+For staged runs (configs with a `restart_chain` block), the script detects staging automatically and re-derives `staged` parameter values from the YAML for each stage. All output variables in a staged run include a `stage_num` dimension alongside `file_num`. Parameters that do not use the `staged` method are read from the pickles as normal and tiled across stages.
+
+The conditions can then be loaded alongside results for combined analysis:
 
 ```python
 import xarray as xr

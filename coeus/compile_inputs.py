@@ -13,7 +13,7 @@ if __name__ == "__main__":
     import xarray as xr
     import yaml
 
-    from omphalos.generate_inputs import CT_IDs, CT_NMLs
+    from omphalos.generate_inputs import CT_IDs, CT_NMLs, evaluate_config
 
     parser = argparse.ArgumentParser(
         description='Compile varied input conditions from a rhea run into a netCDF file.'
@@ -27,6 +27,14 @@ if __name__ == "__main__":
 
     with open(cli_args.config) as f:
         config = yaml.safe_load(f)
+
+    # Auto-detect staged runs from the config
+    staged_mode = bool(config.get('restart_chain') and config['restart_chain'].get('stages'))
+    if staged_mode:
+        num_stages = config['restart_chain']['stages']
+        print(f'Staged run detected ({num_stages} stages). Re-deriving staged parameter values from config.')
+        stage_configs = {s: evaluate_config(config, stage_num=s) for s in range(num_stages)}
+        stage_nums = np.arange(num_stages)
 
     # Discover and load completed InputFile pickles from run directories
     directory = Path.cwd()
@@ -60,6 +68,24 @@ if __name__ == "__main__":
     if output_path.exists():
         output_path.unlink()
 
+    def make_var(values_1d):
+        """Wrap per-file values into an xr.Variable, tiling across stages if in staged mode."""
+        arr = np.array(values_1d)
+        if staged_mode:
+            return xr.Variable(['file_num', 'stage_num'], np.tile(arr[:, np.newaxis], (1, num_stages)))
+        return xr.Variable('file_num', arr)
+
+    def staged_var(stage_arrays):
+        """Build an xr.Variable from per-stage arrays for parameters using the staged method."""
+        arr = np.array([[float(stage_arrays[s][fn]) for s in range(num_stages)] for fn in file_nums])
+        return xr.Variable(['file_num', 'stage_num'], arr)
+
+    def make_coords():
+        coords = {'file_num': np.array(file_nums)}
+        if staged_mode:
+            coords['stage_num'] = stage_nums
+        return coords
+
     groups_written = 0
 
     for block in CT_IDs:
@@ -81,18 +107,23 @@ if __name__ == "__main__":
         if ct_entry[0] == 'geochemical condition':
             for condition, condition_config in block_config.items():
                 data_vars = {}
-                for entry in condition_config:
-                    values = []
-                    for fn in file_nums:
-                        try:
-                            val = input_files[fn].condition_blocks[condition].contents[entry][mod_pos]
-                            values.append(float(val))
-                        except (KeyError, IndexError, TypeError) as e:
-                            print(f'Warning: Could not read {block}/{condition}/{entry} for file {fn}: {e}')
-                            values.append(float('nan'))
-                    data_vars[entry] = xr.Variable('file_num', np.array(values))
+                for entry, entry_spec in condition_config.items():
+                    if staged_mode and entry_spec[0] == 'staged':
+                        data_vars[entry] = staged_var(
+                            {s: stage_configs[s][block][condition][entry] for s in range(num_stages)}
+                        )
+                    else:
+                        values = []
+                        for fn in file_nums:
+                            try:
+                                val = input_files[fn].condition_blocks[condition].contents[entry][mod_pos]
+                                values.append(float(val))
+                            except (KeyError, IndexError, TypeError) as e:
+                                print(f'Warning: Could not read {block}/{condition}/{entry} for file {fn}: {e}')
+                                values.append(float('nan'))
+                        data_vars[entry] = make_var(values)
 
-                ds = xr.Dataset(data_vars, coords={'file_num': np.array(file_nums)})
+                ds = xr.Dataset(data_vars, coords=make_coords())
                 group = f'{block}/{condition}'
                 ds.to_netcdf(output_path, group=group, mode='a')
                 print(f'Written group: {group}')
@@ -101,18 +132,23 @@ if __name__ == "__main__":
         else:
             block_name = ct_entry[0]
             data_vars = {}
-            for entry in block_config:
-                values = []
-                for fn in file_nums:
-                    try:
-                        val = input_files[fn].keyword_blocks[block_name].contents[entry][mod_pos]
-                        values.append(float(val))
-                    except (KeyError, IndexError, TypeError) as e:
-                        print(f'Warning: Could not read {block}/{entry} for file {fn}: {e}')
-                        values.append(float('nan'))
-                data_vars[entry] = xr.Variable('file_num', np.array(values))
+            for entry, entry_spec in block_config.items():
+                if staged_mode and entry_spec[0] == 'staged':
+                    data_vars[entry] = staged_var(
+                        {s: stage_configs[s][block][entry] for s in range(num_stages)}
+                    )
+                else:
+                    values = []
+                    for fn in file_nums:
+                        try:
+                            val = input_files[fn].keyword_blocks[block_name].contents[entry][mod_pos]
+                            values.append(float(val))
+                        except (KeyError, IndexError, TypeError) as e:
+                            print(f'Warning: Could not read {block}/{entry} for file {fn}: {e}')
+                            values.append(float('nan'))
+                    data_vars[entry] = make_var(values)
 
-            ds = xr.Dataset(data_vars, coords={'file_num': np.array(file_nums)})
+            ds = xr.Dataset(data_vars, coords=make_coords())
             ds.to_netcdf(output_path, group=block, mode='a')
             print(f'Written group: {block}')
             groups_written += 1
@@ -125,19 +161,25 @@ if __name__ == "__main__":
             nml_attr, list_name = CT_NMLs[nml_type]
             for reaction_name, reaction_config in nml_block.items():
                 data_vars = {}
-                for parameter in reaction_config:
-                    values = []
-                    for fn in file_nums:
-                        try:
-                            namelist = getattr(input_files[fn], nml_attr)
-                            reaction = namelist.find_reaction(list_name, reaction_name)
-                            values.append(float(reaction[parameter]))
-                        except (KeyError, AttributeError, TypeError) as e:
-                            print(f'Warning: Could not read namelists/{nml_type}/{reaction_name}/{parameter} for file {fn}: {e}')
-                            values.append(float('nan'))
-                    data_vars[parameter] = xr.Variable('file_num', np.array(values))
+                for parameter, param_spec in reaction_config.items():
+                    if staged_mode and param_spec[0] == 'staged':
+                        data_vars[parameter] = staged_var(
+                            {s: stage_configs[s]['namelists'][nml_type][reaction_name][parameter]
+                             for s in range(num_stages)}
+                        )
+                    else:
+                        values = []
+                        for fn in file_nums:
+                            try:
+                                namelist = getattr(input_files[fn], nml_attr)
+                                reaction = namelist.find_reaction(list_name, reaction_name)
+                                values.append(float(reaction[parameter]))
+                            except (KeyError, AttributeError, TypeError) as e:
+                                print(f'Warning: Could not read namelists/{nml_type}/{reaction_name}/{parameter} for file {fn}: {e}')
+                                values.append(float('nan'))
+                        data_vars[parameter] = make_var(values)
 
-                ds = xr.Dataset(data_vars, coords={'file_num': np.array(file_nums)})
+                ds = xr.Dataset(data_vars, coords=make_coords())
                 group = f'namelists/{nml_type}/{reaction_name}'
                 ds.to_netcdf(output_path, group=group, mode='a')
                 print(f'Written group: {group}')

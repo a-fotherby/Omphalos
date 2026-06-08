@@ -639,6 +639,36 @@ python /path/to/omphalos/coeus/collate_pf.py
 
 This is an alternative to the standard `compile_results` path when working with PFLOTRAN output directly.
 
+### Compiling Input Conditions
+
+After a rhea run, `compile_inputs.py` reads the completed `input_fileN_complete.pkl` files from each `run*/` directory and writes the varied input parameters to a `conditions.nc` file, using the YAML config to determine which parameters to extract.
+
+```bash
+cd /path/to/your/results
+python /path/to/omphalos/coeus/compile_inputs.py config.yaml
+```
+
+An alternative output filename can be specified with `-o`:
+
+```bash
+python /path/to/omphalos/coeus/compile_inputs.py config.yaml -o my_conditions.nc
+```
+
+The output is a netCDF file with groups mirroring the YAML config structure:
+
+- `concentrations/<condition>`, `parameters/<condition>`, `mineral_volumes/<condition>` — geochemical condition entries, each a variable with a `file_num` dimension
+- `flow`, `runtime`, `mineral_rates`, etc. — keyword block entries
+- `namelists/<type>/<reaction>` — namelist parameters
+
+This is particularly useful for runs using `random_uniform` parameter sampling, where the actual values used cannot be recovered from the YAML alone. The conditions can then be loaded alongside results for combined analysis:
+
+```python
+import xarray as xr
+
+results = xr.open_dataset('results.nc', group='totcon')
+conditions = xr.open_dataset('conditions.nc', group='parameters/initial')
+```
+
 ### Plotting Utilities
 
 `coeus/plots.py` provides helper functions for working with xarray datasets:

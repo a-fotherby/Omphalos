@@ -58,7 +58,7 @@ class CrunchNameList():
                         value_to_assign = get_config_value(parameter, config,
                                                            config['namelists'][nml_type][reaction_name],
                                                            input_file.file_num, config['namelists'][nml_type])
-                    except:
+                    except KeyError:
                         value_to_assign = None
 
                     if value_to_assign is None:

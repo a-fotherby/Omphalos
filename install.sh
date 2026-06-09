@@ -24,7 +24,6 @@ ALIAS_rhea="alias rhea=\"python $SCRIPT_DIR/rhea/main.py\""
 # Determine config file
 case "$USER_SHELL" in
     bash)
-        CONFIG_FILE="$HOME/.bashrc"
         CONFIG_FILE="$HOME/.bash_profile"
         ;;
     zsh)

@@ -259,9 +259,9 @@ class InputFile:
                 try:
                     ds = fm.parse_output(tmp_dir, category, i + 1 + file_offset)
                     ds_list.append(ds)
-                except:
-                    skip_counter +=1
-                    print(f"WARNING: Outputs at time {time} not parsed.")
+                except Exception as e:
+                    skip_counter += 1
+                    print(f"WARNING: Outputs at time {time} not parsed. ({e})")
 
             # Don't try to concat on times that have been skipped.
             # WARNING: Will slice from the back, assuming that all failed output files are at the end

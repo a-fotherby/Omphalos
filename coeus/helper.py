@@ -73,7 +73,7 @@ def fix_smalls(dataset, category):
 def map_smalls(x):
     try:
         x.astype(float)
-    except:
+    except (ValueError, TypeError):
         x = 0
 
     return x

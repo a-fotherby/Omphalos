@@ -12,6 +12,7 @@ settings.py
 # Documents
 *.pdf
 *.docx
+TODO.md
 
 # Figures
 *.png

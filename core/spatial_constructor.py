@@ -125,6 +125,8 @@ def compute_rows(input_file, condition):
 
     condition_regions = input_file.condition_blocks[condition].region
 
+    all_rows = []
+
     for region in condition_regions:
 
         if region == [[0, 0], [0, 0], [0, 0]]:
@@ -150,7 +152,7 @@ def compute_rows(input_file, condition):
                 for x in x_rows:
                     row_list[n] = int(x + (y * len(x_rows)) + (z * len(y_rows) * len(z_rows)))
                     n = n + 1
-        return row_list
 
-    # Return empty list if no valid regions found
-    return []
+        all_rows.extend(row_list)
+
+    return all_rows

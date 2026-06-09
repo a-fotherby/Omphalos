@@ -2,6 +2,19 @@
 
 from pathlib import Path
 
+# Error patterns searched in CrunchTope stdout. pexpect returns the index of the
+# first match, so more specific strings should come before generic ones.
+CT_ERROR_PATTERNS = [
+    'EXCEEDED MAXIMUM ITERATIONS',
+    'TRY A',
+    'divide by zero',
+    'NaN',
+    'forrtl:',            # Fortran runtime error prefix
+    'Segmentation fault',
+    'Killed',
+    'FATAL',
+]
+
 
 def _get_kinetic_db_name(input_file):
     """Get the kinetic database filename from RUNTIME block.
@@ -20,6 +33,16 @@ def _get_kinetic_db_name(input_file):
     elif 'aqueousdatabase' in runtime_contents:
         return runtime_contents['aqueousdatabase'][0]
     return None
+
+
+def _print_aux_files(input_file, tmp_path):
+    """Write auxiliary database and pathway files to the run directory."""
+    if input_file.aqueous_database:
+        kinetic_db = _get_kinetic_db_name(input_file)
+        if kinetic_db:
+            input_file.aqueous_database.print(str(tmp_path / kinetic_db))
+    if input_file.catabolic_pathways:
+        input_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
 
 
 def run_dataset(file_dict, tmp_dir, timeout):
@@ -51,10 +74,8 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     Returns:
         Updated InputFile with results
     """
-    # Convert tmp_dir to Path and resolve to absolute path
     tmp_path = Path(tmp_dir).resolve()
 
-    # Set the input file path
     input_file.path = tmp_path / input_file.path
     input_file.print()
 
@@ -63,13 +84,7 @@ def input_file(input_file, file_num, tmp_dir, timeout):
             input_file.later_inputs[name].path = tmp_path / input_file.later_inputs[name].path
             input_file.later_inputs[name].print()
 
-    if input_file.aqueous_database:
-        kinetic_db = _get_kinetic_db_name(input_file)
-        if kinetic_db:
-            input_file.aqueous_database.print(str(tmp_path / kinetic_db))
-
-    if input_file.catabolic_pathways:
-        input_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
+    _print_aux_files(input_file, tmp_path)
 
     crunchtope(input_file, file_num, timeout, tmp_path)
 
@@ -94,19 +109,18 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     process = pexp.spawn(command, timeout=timeout, cwd=str(tmp_dir), encoding='latin-1')
     process.logfile = sys.stdout
 
-    errors = ['EXCEEDED MAXIMUM ITERATIONS', 'TRY A', 'divide by zero', 'NaN']
-
-    error_code = process.expect([pexp.EOF, pexp.TIMEOUT, errors[0], errors[1], errors[2], errors[3]])
+    expect_list = [pexp.EOF, pexp.TIMEOUT] + CT_ERROR_PATTERNS
+    error_code = process.expect(expect_list)
 
     if error_code == 0:
-        # Successful run.
-        # Make a results object that is an attribute of the InputFile object.
         input_file.get_results(str(tmp_dir), file_offset=file_offset)
         print(f'File {file_num} outputs recorded.')
-
+    elif error_code == 1:
+        print(f'File {file_num} timed out.')
+        input_file.error_code = error_code
     else:
-        # File threw an error.
-        print(f'Error {error_code} encountered.')
+        pattern = CT_ERROR_PATTERNS[error_code - 2]
+        print(f'Error in file {file_num}: "{pattern}".')
         input_file.error_code = error_code
 
     print(f'File {file_num} complete.')
@@ -145,26 +159,17 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
     """
     tmp_path = Path(tmp_dir)
     num_stages = len(stages_dict)
-
-    # Track cumulative file offset for TecPlot output files
     file_offset = 0
 
     for stage_num in range(num_stages):
         stage_file = stages_dict[stage_num]
 
-        # Print auxiliary files only once (first stage)
         if stage_num == 0:
-            if stage_file.aqueous_database:
-                kinetic_db = _get_kinetic_db_name(stage_file)
-                if kinetic_db:
-                    stage_file.aqueous_database.print(str(tmp_path / kinetic_db))
-            if stage_file.catabolic_pathways:
-                stage_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
+            _print_aux_files(stage_file, tmp_path)
 
         print(f'Running run {run_num}, stage {stage_num}')
         crunchtope(stage_file, run_num, timeout, tmp_path, file_offset=file_offset)
 
-        # Update file_offset for next stage based on this stage's spatial_profile count
         if 'spatial_profile' in stage_file.keyword_blocks['OUTPUT'].contents:
             file_offset += len(stage_file.keyword_blocks['OUTPUT'].contents['spatial_profile'])
 
@@ -172,7 +177,6 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
             print(f'Error in run {run_num}, stage {stage_num}. Stopping staged execution.')
             break
 
-    # Concatenate results from all stages
     concat_staged_results(stages_dict)
 
     return stages_dict[0]
@@ -188,7 +192,6 @@ def concat_staged_results(stages_dict):
 
     num_stages = len(stages_dict)
 
-    # Collect results from all stages that completed successfully
     stage_results = []
     for stage_num in range(num_stages):
         stage_file = stages_dict[stage_num]
@@ -196,14 +199,11 @@ def concat_staged_results(stages_dict):
             stage_results.append(stage_file.results)
 
     if len(stage_results) <= 1:
-        # No concatenation needed
         return
 
-    # Concatenate results for each category
     first_stage = stages_dict[0]
     concatenated_results = {}
 
-    # Get all result categories from the first stage
     for category in first_stage.results:
         datasets = []
         for stage_result in stage_results:

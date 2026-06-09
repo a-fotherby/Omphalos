@@ -148,25 +148,6 @@ class Mineral(SecondarySpecies):
         self.reaction_species_count = int(database_entry[2])
         reaction_end = 3 + (self.reaction_species_count*2)
         self.reaction = Reaction(self.name, database_entry[3:reaction_end])
-        #self.kinetic_params = associate_kinetics(name)
-    
-    def associate_kinetic(self):
-        """Find kinetic database entry and assign to Mineral."""
-        
-        for line_num, line in enumerate(self.mineral_kinetics):
-            if line[0] == name:
-                label = self.mineral_kinetics[line_num + 1]
-                law_type = self.mineral_kinetics[line_num + 2]
-                default_rate = self.mineral_kinetics[line_num + 3]
-                activation = self.mineral_kinetics[line_num + 4]
-        self.label = None
-        self.type = None
-        self.rate25 = None
-        self.activation = None
-        self.dependence = None
-        self.affinity_dependence = None
-        self.monod_terms = {}
-        self.inhibition = {}
         
 if __name__ == "__main__":
     database = Database('test_database.dbs')

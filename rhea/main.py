@@ -137,8 +137,13 @@ if __name__ == '__main__':
             print("Directory prep command executed successfully.")
             print("Output:", output)
 
-            # Assuming output contains something like "Submitted batch job 123456"
-            job_id = output.strip().split()[-1]
+            import re as _re
+            match = _re.search(r'Submitted batch job (\d+)', output)
+            if not match:
+                raise RuntimeError(
+                    f"Could not parse SLURM job ID from sbatch output: {output!r}"
+                )
+            job_id = match.group(1)
             print("Job ID:", job_id)
 
             # Wait for the job to complete by checking its status with squeue

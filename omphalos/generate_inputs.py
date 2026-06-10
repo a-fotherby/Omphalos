@@ -1,5 +1,12 @@
 """Module for generating multiple input files iteratively, to make large data sets for testing."""
 
+import copy
+import subprocess
+
+import omphalos.parameter_methods as pm
+
+from omphalos.input_file import InputFile
+
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
 CT_IDs = {'runtime': ['RUNTIME', -1],
@@ -88,8 +95,6 @@ def evaluate_config(config, stage_num=None):
 def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
     """Create a dictionary of InputFile objects that have randomised parameters in the range [var_min, var_max] for
     the specified condition. """
-    import subprocess
-
     if template.config['conditions'] is not None:
         for condition in template.config['conditions']:
             template.sort_condition_block(condition)
@@ -178,8 +183,6 @@ def get_config_array(spec, params, num_files, *, ref_vars=None, stage_num=None):
             This is for the fix_ratio case.
         stage_num: The stage index for staged parameter methods.
     """
-    import omphalos.parameter_methods as pm
-
     dispatch = {'linspace': pm.linspace,
                 'random_uniform': pm.random_uniform,
                 'constant': pm.constant,
@@ -252,9 +255,6 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
     Returns:
         dict: Nested dictionary {run_num: {stage_num: InputFile}}
     """
-    import subprocess
-    import copy
-
     config = template.config
     num_files = config['number_of_files']
     num_stages = config['restart_chain']['stages']
@@ -280,7 +280,6 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
 
         for stage_num in range(num_stages):
             # Create a deep copy of the template for this run/stage
-            from omphalos.input_file import InputFile
             input_file = copy.deepcopy(InputFile(
                 template.config['template'],
                 template.keyword_blocks,

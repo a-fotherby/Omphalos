@@ -26,6 +26,8 @@ def filter_errors(dataset, verbose=False):
     for j in pop_list:
         errors.update({j: dataset.pop(j)})
 
+    total = len(dataset) + len(errors)
+
     # Check for unidentified errors that are not currently handled.
     # Do this by checking for empty results dict.
     weird_errors = list()
@@ -38,10 +40,11 @@ def filter_errors(dataset, verbose=False):
     for j in weird_errors:
         dataset.pop(j)
 
-    print(f'Returned {len(dataset)} files without errors out of a total possible {len(dataset) + len(errors)}.')
+    rate = (len(errors) + len(weird_errors)) / total * 100 if total > 0 else 0.0
+    print(f'Returned {len(dataset)} files without errors out of a total possible {total}.')
     print(f'{len(errors)} files had errors.')
     print(f'{len(weird_errors)} files had unhandled errors.')
-    print(f'File failure rate: {(len(errors) + len(weird_errors)) / len(dataset) * 100} %.')
+    print(f'File failure rate: {rate} %.')
     print(f'To see unhandled errors, run with verbose=True.')
 
     if verbose:

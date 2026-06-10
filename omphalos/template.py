@@ -1,14 +1,20 @@
+import copy
+import re
+import sys
+
+import numpy as np
+
+from omphalos import file_methods as fm
+from omphalos import keyword_block as kb
 from omphalos.input_file import InputFile
+from omphalos.keyword_block import ConditionBlock
+from omphalos.namelist import CrunchNameList
 
 
 class Template(InputFile):
     """Subclass of InputFile with special __init__ method for importing the template input file."""
 
     def __init__(self, config):
-        from omphalos.namelist import CrunchNameList
-        import copy
-        import sys
-
         super().__init__(config['template'], {}, {}, {}, {}, 0)
         # Proceed to iterate through each keyword block to import the whole file.
         # FLOW, INITIAL_CONDITION, and ISOTOPES have their own methods.
@@ -35,11 +41,7 @@ class Template(InputFile):
         self.error_code = 0
         # Will only have 'restart' key if it is a restart.
         # Therefore, if KeyError, not a restart.
-        try:
-            if self.config['restart']:
-                pass
-        except KeyError:
-            self.config['restart'] = False
+        self.config.setdefault('restart', False)
         for keyword in keyword_list:
             self.get_keyword_block(keyword)
 
@@ -82,7 +84,6 @@ class Template(InputFile):
                         else:
                             raise FileNotFoundError
             else:
-                import sys
                 sys.exit('You have specified a restart without specifying which input file to run next. Exiting.')
 
     @staticmethod
@@ -109,9 +110,6 @@ class Template(InputFile):
 
     def make_dict(self):
         """Returns a dict of InputFile objects, based on the Template."""
-        import numpy as np
-        import copy
-
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
         for file in file_dict:
             # Whole InputFile must be a deep copy to avoid memory addressing problems associated with immutability of
@@ -139,10 +137,6 @@ class Template(InputFile):
         In the event that a keyword block is erroneously added more than once in the input file, it will use the
         first instance of that keyword for assignment.
         """
-        from omphalos import file_methods as fm
-        import numpy as np
-        from omphalos import keyword_block as kb
-
         # Get all instances of the keyword in question, in a numpy array.
         block_start = fm.search_file(self.raw, keyword)
         # Get array of line numbers for the END statements in the input file.
@@ -181,10 +175,6 @@ class Template(InputFile):
         Assigns each CONDITION block to a dictionary in the inputFile object specifically for geochemical conditions.
         The key for each dictionary entry is the condition name specified in the CrunchTope input file.
         """
-        from omphalos import file_methods as fm
-        from omphalos.keyword_block import ConditionBlock
-        import numpy as np
-
         # Get all instances of the keyword in question, in a numpy array.
         block_start = fm.search_file(self.raw, 'CONDITION')
         # Get array of line numbers for the END statements in the input file.
@@ -223,10 +213,6 @@ class Template(InputFile):
         non-unique left-most words (either 'primary' or 'mineral'). This means that the dictionary keys keep
         overwriting each other, so we use the rare mineral entry as the dict key instead.
         """
-        from omphalos import file_methods as fm
-        from omphalos import keyword_block as kb
-        import numpy as np
-
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'ISOTOPES'
         block_start = fm.search_file(self.raw, keyword)
@@ -276,10 +262,6 @@ class Template(InputFile):
         conditions can be repeated to form non-contiguous regions, so the left most word is not always unique. This
         means that the dictionary keys are overwriting each other.
         """
-        from omphalos import file_methods as fm
-        from omphalos import keyword_block as kb
-        import numpy as np
-        import re
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'INITIAL_CONDITIONS'
         block_start = fm.search_file(self.raw, keyword)
@@ -333,10 +315,6 @@ class Template(InputFile):
         and pressure over non-contiguous regions, so the left most word is not always unique. This means that the
         dictionary keys are overwriting each other.
         """
-        from omphalos import file_methods as fm
-        from omphalos import keyword_block as kb
-        import numpy as np
-        import re
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'FLOW'
         block_start = fm.search_file(self.raw, keyword)
@@ -412,10 +390,6 @@ class Template(InputFile):
         label entry, i.e. {mineral_name}_{label}. If there is no label entry, we take the label to be 'default', which is
         the same as the CrunchTope default.
         """
-        from omphalos import file_methods as fm
-        from omphalos import keyword_block as kb
-        import numpy as np
-        import re
         # Get all instances of the keyword in question, in a numpy array.
         keyword = 'MINERALS'
         block_start = fm.search_file(self.raw, keyword)

@@ -1,3 +1,12 @@
+import copy
+import re
+
+import pandas as pd
+import xarray as xr
+
+from omphalos import file_methods as fm
+
+
 def _validate_spatial_profile(line, max_line_length=132):
     """Validate that a spatial_profile line doesn't exceed CrunchTope's line limit.
 
@@ -86,7 +95,6 @@ class InputFile:
     def print(self):
         """Writes out a populated input file to a CrunchTope readable *.in file.
         """
-        import copy
         with open(self.path, 'w') as f:
             # Print out each keyword block, not condition blocks: they require
             # special treatment.
@@ -194,7 +202,6 @@ class InputFile:
         applied in X, Y, and Z.
         """
         # Initialise all the region attributes to prevent infinitely appending lists.
-        import re
         for condition in self.condition_blocks:
             self.condition_blocks[condition].region = []
 
@@ -226,10 +233,6 @@ class InputFile:
             file_offset: Offset for file numbering (used in staged restarts where
                 files from previous stages have already been written). Default 0.
         """
-        import pandas as pd
-        import xarray as xr
-        from omphalos import file_methods as fm
-
         times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
 
         # Check for later inputs and append times.

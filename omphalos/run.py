@@ -1,6 +1,13 @@
 """Methods to handle invoking CrunchTope on an InputFile object."""
 
+import subprocess
+import sys
 from pathlib import Path
+
+import pexpect as pexp
+import xarray as xr
+
+from omphalos.settings import crunch_dir
 
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
 # first match, so more specific strings should come before generic ones.
@@ -101,10 +108,6 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
         tmp_dir: Working directory (Path object)
         file_offset: Offset for TecPlot file numbering (used in staged restarts).
     """
-    import sys
-    import pexpect as pexp
-    from omphalos.settings import crunch_dir
-
     command = f'{crunch_dir} {input_file.path}'
     process = pexp.spawn(command, timeout=timeout, cwd=str(tmp_dir), encoding='latin-1')
     process.logfile = sys.stdout
@@ -135,7 +138,6 @@ def clean_dir(tmp_dir, file_name):
         tmp_dir: Directory to clean
         file_name: Specific file to remove
     """
-    import subprocess
     tmp_path = Path(tmp_dir)
     subprocess.run(['rm', "*.tec"], cwd=str(tmp_path))
     subprocess.run(['rm', "*.out"], cwd=str(tmp_path))
@@ -188,8 +190,6 @@ def concat_staged_results(stages_dict):
     Args:
         stages_dict: Dict mapping stage_num to InputFile for this run.
     """
-    import xarray as xr
-
     num_stages = len(stages_dict)
 
     stage_results = []

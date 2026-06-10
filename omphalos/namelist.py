@@ -1,5 +1,7 @@
 """Read in F90 namelist files describing reaction parameters."""
 
+import f90nml
+
 
 class CrunchNameList():
 
@@ -11,25 +13,19 @@ class CrunchNameList():
         """Imports a namelist file describing reaction parameters and returns a nested dictionary, organised by
         category/reaction name.
         """
-        import f90nml
-
         with open(self.path) as file:
             nml = f90nml.read(file)
 
         return nml
 
     def print(self, path):
-        import f90nml
-
         f90nml.write(self.namelist, path, force=True)
 
     def find_reaction(self, list_name, reaction_name):
         for reaction_namelist in self.namelist[list_name]:
             if reaction_namelist['name'] == reaction_name:
                 return reaction_namelist
-
-            else:
-                return None
+        raise KeyError(f"Reaction '{reaction_name}' not found in namelist '{list_name}'")
 
     def modify_namelist(self, input_file, config, nml_type):
         """Change the parameters of a namelist associated with an InputFile.

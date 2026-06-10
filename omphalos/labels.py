@@ -1,6 +1,11 @@
 
 """Functions to generate label DataFrames."""
 
+import numpy as np
+import xarray as xr
+
+from omphalos import attributes as attr
+
 
 #def raw(dataset, output_key):
     #"""Takes a dataset dictionary and returns xr.Dataset for a given category, with the file number as a dimension.
@@ -24,9 +29,6 @@ def raw(dataset, output_key):
     with the file number as a dimension. If a KeyError is encountered, 
     it adds a NaN-filled Dataset of the same shape and coordinates as the previous successful one.
     """
-    import xarray as xr
-    import numpy as np
-
     set_list = []
     last_coords = None  # To store the coordinates of the last successfully added dataset
     last_dims = None    # To store the dimensions of the last successfully added dataset
@@ -66,8 +68,6 @@ def secondary_precip(dataset):
     Keyword arguments:
     data_set -- The data set to calculate the secondary precipitation for.
     """
-    from omphalos import attributes as attr
-
     # Get DataFrame of output volumes.
     final_vols = raw(dataset, 'volume')
 

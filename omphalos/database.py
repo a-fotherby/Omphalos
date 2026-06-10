@@ -1,5 +1,9 @@
 """Database parsing for CrunchTope"""
 
+import copy
+import re
+
+
 class Database:
     
     def __init__(self, path):
@@ -17,9 +21,6 @@ class Database:
         self.aqueous_kinetics = {}   
         self.delim_lines = [4]
         
-        import re
-        import copy
-        
         delim_strings = set(["'End of primary'", "'End of secondary'", "'End of gases'", "'End of minerals'", 'End of surface complexation', 'End of mineral kinetics', 'End of exchange', 'End surface complexation parameters'])
         assign_blocks = ['primary_species', 'secondary_species', 'gases', 'minerals', 'surface_complexation', 'mineral_kinetics', 'aqueous_kinetics']
         
@@ -35,7 +36,7 @@ class Database:
                 
                 
                 line = line.rstrip('\r\n ')
-                line = re.split("(?<![a-zA-Z])\s+", line) # Magic Regex!
+                line = re.split(r"(?<![a-zA-Z])\s+", line) # Magic Regex!
 
                 if line[0] in delim_strings:
                     self.delim_lines.append(line_num)

@@ -63,6 +63,7 @@
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
   - [Choosing a Parallelization Backend](#choosing-a-parallelization-backend)
   - [PFLOTRAN Support](#pflotran-support)
+  - [MIN3P Support](#min3p-support)
 - [Citation](#citation)
 - [License](#license)
 
@@ -180,6 +181,7 @@ python -m rhea.main config.yaml cluster
 
 **Flags:**
 - `-p, --pflotran` — Use PFLOTRAN instead of CrunchTope
+- `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
 - `-d, --debug` — Generate files without running simulations
 - `-b, --backend` — Parallelization backend: `parallel` (GNU Parallel, default) or `xargs`
 
@@ -537,6 +539,16 @@ omphalos/
 │   └── run.py               # Simulation execution
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
+├── min3p/                   # MIN3P-specific code
+│   ├── main.py              # Sequential entry point
+│   ├── schema.py            # Per-block sub-keyword vocabulary
+│   ├── keyword_block.py     # Line-preserving block data model
+│   ├── template.py          # .dat template parsing
+│   ├── input_file.py        # InputFile: print() + get_results()
+│   ├── file_methods.py      # TecPlot output parsing (spatial/breakthrough/batch)
+│   ├── generate_inputs.py   # MIN3P_IDs + configure_input_files() + restart chains
+│   ├── run.py               # Simulation execution
+│   └── examples/            # Worked examples (e.g. dissol_sweep: config + notebook)
 ├── rhea/                    # Parallel execution
 │   ├── main.py              # Parallel entry point
 │   ├── slurm_interface.py   # SLURM utilities
@@ -560,7 +572,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **152 tests**:
+The project includes a comprehensive test suite with **238 tests**:
 
 ```bash
 # Run all tests
@@ -770,6 +782,61 @@ python -m rhea.main config.yaml local -p
 ```
 
 > **Note:** Staged restarts (`restart_chain`) are not currently supported in PFLOTRAN mode.
+
+### MIN3P Support
+
+Enable MIN3P mode with the `-m` flag (sequential via `min3p.main`, or parallel-local via `rhea`):
+
+```bash
+# Sequential
+python -m min3p.main config.yaml records.pkl
+
+# Parallel (local)
+python -m rhea.main config.yaml local -m
+```
+
+MIN3P input files are positional (block-structured `.dat`, not key-value), so a
+sweep is driven by an explicit `modifications` block naming each parameter's
+coordinate (block / sub-keyword / line / token). See `example_min3p.yaml`:
+
+```yaml
+template: appelo.dat
+number_of_files: 3
+timeout: 120
+database_directory: /path/to/MIN3P/database/default   # repoints the template's DB path
+modifications:
+  calcite_volume:
+    alias: calcite_volume        # or spell out block/keyword/line/token
+    method: linspace
+    params: [0.005, 0.02]
+```
+
+Results are written to `results.nc` with one group per MIN3P output category,
+concatenated over `file_num`. Three output families are captured: spatial
+(`gsp`/`gsc`/`gsm`/`gst`/`gsv`/`gss`/`gsd`/`gsx`/`vel`, indexed by x,y,z),
+breakthrough (`gb*`, time series at observation points), and batch (`lb*`, time
+series per zone).
+
+A worked end-to-end example (sweep config + notebook + figure) lives in
+[`min3p/examples/dissol_sweep/`](min3p/examples/dissol_sweep/) — a calcite
+dissolution front driven by varying inflow acidity.
+
+**Restart chains** continue a run across stages via MIN3P's `'restart'`
+mechanism (each stage picks up from the previous stage's `restart.tmp` state).
+Add a `restart_chain` block (see `example_min3p_restart.yaml`):
+
+```yaml
+restart_chain:
+  stages: 2
+  final_times: [100.0, 200.0]   # final solution time per stage
+  append: 'append results'      # how transient output resumes at the break point
+```
+
+Any `modifications` sweep is inherited by every stage. Each run's stages execute
+sequentially in a per-run subdirectory so their restart state does not collide.
+
+> **Notes:** MIN3P mode currently supports `run_type local` only (cluster/sbatch
+> is a TODO). See `MIN3P_integration_notes.md` for design details and roadmap.
 
 ---
 

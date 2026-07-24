@@ -1,0 +1,30 @@
+# Example Omphalos config for the MIN3P backend — 1-D reactive transport.
+#
+# Runs the reactran/MCD-2 benchmark (NaClHNO3 multicomponent diffusion) as a
+# 3-file sweep over the inflow-boundary pH. Produces spatial-profile output:
+# results.nc groups 'gsc' (component concentrations), 'gsm' (pH/alkalinity),
+# and 'gsp' (flow variables), each dimensioned (file_num, output, x, y, z).
+#
+# Run `min3p.main` from a directory where MCD-2's test.dat is reachable, or set
+# `template` to an absolute path as below.
+
+template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
+number_of_files: 3
+timeout: 300
+
+# MCD-2 uses a problem-specific database; repoint the template's relative
+# 'database\mcd' path to its absolute location.
+database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
+
+# Vary the pH imposed at the inflow boundary (Data Block 16, zone 1). The
+# 'concentration input' sub-keyword lists components in declaration order
+# (h+1, cl-1, na+1, no3-1); line 0 token 0 is the h+1 value (entered as pH).
+# The second boundary zone ('concentration input#2') is left untouched.
+modifications:
+  inflow_ph:
+    block: 'boundary conditions - reactive transport'
+    keyword: 'concentration input'
+    line: 0
+    token: 0
+    method: custom
+    params: [3.0, 4.0, 5.0]

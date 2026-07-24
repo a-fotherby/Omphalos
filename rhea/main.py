@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('path_to_config', type=str, help='YAML file containing options.')
     parser.add_argument('run_type', type=str, help='Type of run, either local or cluster.')
     parser.add_argument('-p', '--pflotran', action='store_true')
+    parser.add_argument('-m', '--min3p', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
     parser.add_argument(
         '-b', '--backend',
@@ -51,7 +52,10 @@ if __name__ == '__main__':
         else:  # xargs
             return f'seq 0 {dict_size} | xargs -I {{}} -P {nodes} python {slurm_exec_script} {{}} {config_path}'
 
-    if args.pflotran:
+    if args.min3p:
+        from min3p.template import Template
+        from min3p import generate_inputs as gi
+    elif args.pflotran:
         from pflotran.template import Template
         from pflotran import generate_inputs as gi
     else:
@@ -69,6 +73,55 @@ if __name__ == '__main__':
 
     # Check for staged restart runs
     is_staged = 'restart_chain' in config and config['restart_chain']
+
+    if args.min3p:
+        # MIN3P has an isolated local-mode orchestration: it needs neither the
+        # database-file copy nor the temperature/restart machinery that the
+        # CrunchTope/PFLOTRAN prep script performs (MIN3P reads an absolute
+        # database directory baked into each input file by generate_inputs).
+        # This branch therefore bypasses prep_directories.sh entirely, leaving
+        # the existing backends' code path untouched.
+        if args.run_type != 'local':
+            sys.exit('ERROR: MIN3P backend currently supports only run_type "local" in rhea.')
+
+        file_dict = gi.configure_input_files(template, 'foo', rhea=True)
+        dict_size = len(file_dict) - 1
+        dir_name = 'run'
+        t_start = time.time()
+
+        # Create run directories and print each input file into its own dir.
+        for f in file_dict:
+            Path(f'{dir_name}{f}').mkdir(exist_ok=True)
+            file_dict[f].path = f'{dir_name}{f}/{config["template"]}'
+            file_dict[f].print()
+
+        if args.debug:
+            sys.exit('Debug mode: MIN3P input files generated. Exiting before running.')
+
+        # Run each file through MIN3P via slurm_exec.py using the chosen backend.
+        slurm_exec_script = _rhea_dir / 'slurm_exec.py'
+        nodes = config.get('nodes', 1)
+        if args.backend == 'parallel':
+            result = subprocess.run('which parallel', shell=True, capture_output=True, text=True)
+            parallel_exec = result.stdout.strip()
+            if not parallel_exec:
+                print('ERROR: GNU Parallel not found. Install it or use --backend xargs')
+                sys.exit(1)
+            run_command = (
+                f'{parallel_exec} -P {nodes} python {slurm_exec_script} -m {{}} '
+                f'{args.path_to_config} ::: {{0..{dict_size}}}'
+            )
+        else:  # xargs
+            run_command = (
+                f'seq 0 {dict_size} | xargs -I {{}} -P {nodes} '
+                f'python {slurm_exec_script} -m {{}} {args.path_to_config}'
+            )
+        subprocess.run(run_command, shell=True, executable='/bin/bash')
+
+        si.compile_results(dict_size + 1, simulator='min3p')
+        t_stop = time.time()
+        print(f'MIN3P files compiled: {dict_size + 1}. Time elapsed: {t_stop - t_start}')
+        sys.exit(0)
 
     if is_staged:
         staged_file_dict = gi.configure_staged_input_files(template, 'foo', rhea=True)

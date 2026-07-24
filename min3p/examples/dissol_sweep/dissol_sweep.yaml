@@ -1,0 +1,33 @@
+# Omphalos / MIN3P example — reactive-transport sweep on the `dissol` benchmark.
+#
+# Problem (reactran/dissol): a 1-D column (z = 0 -> 0.4 m) initially bearing a
+# small amount of calcite in near-equilibrium water. Acidic, carbonate-rich
+# water is injected at the inflow boundary (z = 0) and drives a calcite
+# dissolution front over 6 days.
+#
+# Sweep: the inflow acidity — the free H+ concentration imposed at the inflow
+# boundary (Data Block 16, zone 1 'concentration input', first component = h+1).
+# Four increasingly aggressive inflow waters are run so the effect on the
+# dissolution front (Ca release, pH buffering, calcite depletion) can be
+# compared. The second boundary zone (outflow) is left untouched.
+#
+# Run it:
+#   cd min3p/examples/dissol_sweep
+#   PYTHONPATH=<repo-root> python -m min3p.main dissol_sweep.yaml records.pkl
+# then open dissol_sweep.ipynb.
+
+template: /Users/hjb62/MIN3P/Examples/Benchmarks/benchmarks_standard/reactran/dissol/dissol.dat
+number_of_files: 4
+timeout: 120
+
+# The benchmark ships a Windows-style relative database path; repoint it.
+database_directory: /Users/hjb62/MIN3P/Examples/database/default
+
+modifications:
+  inflow_h:
+    block: 'boundary conditions - reactive transport'
+    keyword: 'concentration input'   # zone 1 = inflow boundary
+    line: 0                          # first component listed = h+1
+    token: 0                         # its free-concentration value
+    method: custom
+    params: [4.95e-3, 9.9e-3, 1.98e-2, 3.96e-2]   # 0.25x, 0.5x, 1x, 2x default

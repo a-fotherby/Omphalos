@@ -20,6 +20,7 @@ echo "User's login shell: $USER_SHELL"
 # Set alias definition
 ALIAS_omphalos="alias omphalos=\"python $SCRIPT_DIR/omphalos/main.py\""
 ALIAS_rhea="alias rhea=\"python $SCRIPT_DIR/rhea/main.py\""
+ALIAS_min3p="alias min3p=\"python $SCRIPT_DIR/min3p/main.py\""
 
 # Determine config file
 case "$USER_SHELL" in
@@ -42,14 +43,16 @@ conda config --set channel_priority strict
 
 conda env create --file requirements.yml
 
-# Add alias if not already present
-if grep -Fxq "$ALIAS_omphalos" "$CONFIG_FILE"; then
-    echo "Alias already exists in $CONFIG_FILE"
-else
-    echo "$ALIAS_omphalos" >> "$CONFIG_FILE"
-    echo "$ALIAS_rhea" >> "$CONFIG_FILE"
-    echo "Alias added to $CONFIG_FILE"
-fi
+# Add each alias if not already present, independently, so re-running install
+# picks up any newly-added command (e.g. min3p on an existing omphalos install).
+for alias_def in "$ALIAS_omphalos" "$ALIAS_rhea" "$ALIAS_min3p"; do
+    if grep -Fxq "$alias_def" "$CONFIG_FILE" 2>/dev/null; then
+        echo "Alias already present: $alias_def"
+    else
+        echo "$alias_def" >> "$CONFIG_FILE"
+        echo "Alias added: $alias_def"
+    fi
+done
 
 # Extract the path from the alias output
 source $CONFIG_FILE
@@ -70,5 +73,18 @@ echo >> "$SETTINGS"
 echo '# Global settings for Omphalos' >> "$SETTINGS"
 echo "crunch_dir = '$CT_PATH'" >> "$SETTINGS"
 echo "omphalos_dir = '$SCRIPT_DIR'" >> "$SETTINGS"
+
+# Optional: MIN3P backend executable. Press Enter to skip (you can set it later
+# via min3p/settings.py or per-run with the config key `min3p_binary`).
+# NB: don't auto-detect with `which min3p` here -- the `min3p` alias above would
+# shadow it. Prompt instead (the MIN3P binary isn't normally on PATH anyway).
+echo "Absolute path to MIN3P executable (optional, Enter to skip):"
+read -r M3P_PATH
+if [ -n "$M3P_PATH" ]; then
+    export M3P_SETTINGS="$SCRIPT_DIR/min3p/settings.py"
+    echo '# Active MIN3P settings for this machine (git-ignored).' > "$M3P_SETTINGS"
+    echo "min3p_binary = '$M3P_PATH'" >> "$M3P_SETTINGS"
+    echo "MIN3P path written to $M3P_SETTINGS"
+fi
 
 source $CONFIG_FILE

@@ -156,11 +156,11 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
 
     Args:
         dataset: Dictionary of InputFile objects with results
-        simulator: Either 'crunchtope' or 'pflotran'
+        simulator: One of 'crunchtope', 'pflotran', or 'min3p'
 
     Returns:
         For pflotran: Returns the concatenated xarray Dataset
-        For crunchtope: Writes to file and returns None
+        For crunchtope/min3p: Writes to file and returns None
     """
     import xarray as xr
     import pathlib as pl
@@ -185,6 +185,51 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             else:
                 ds = xr.concat([ds, dataset[key].results], dim='file_num')
         return ds
+    elif simulator == 'min3p':
+        # MIN3P-style: each InputFile.results is already a dict of per-category
+        # xarray Datasets (dims: output + x/y/z for spatial, or output + time
+        # for batch). Concatenate each category over a new 'file_num' dimension
+        # and write one netCDF group per category.
+        import numpy as np
+        import pandas as pd
+
+        def _sanitise_names(ds):
+            # netCDF forbids '/' in variable/coord names (it is the HDF5 group
+            # separator). MIN3P emits e.g. 'C-Alk [eq/L]'.
+            renames = {n: n.replace('/', '_per_') for n in list(ds.variables) if '/' in n}
+            return ds.rename(renames) if renames else ds
+
+        def _positional_time(ds):
+            # Batch outputs carry an adaptive per-run 'time' axis, so aligning on
+            # time values across files would inject NaNs. Concatenate on a
+            # positional 'step' index instead, keeping the real times as a
+            # (file_num, step) coordinate after concat.
+            if 'time' in ds.dims:
+                ds = ds.assign_coords(step=('time', np.arange(ds.sizes['time'])))
+                ds = ds.swap_dims({'time': 'step'})
+            return ds
+
+        keys = sorted(dataset)
+        categories = set()
+        for k in keys:
+            categories.update(dataset[k].results.keys())
+
+        for category in sorted(categories):
+            ds_list, file_nums = [], []
+            for k in keys:
+                results = dataset[k].results
+                if category in results:
+                    ds_list.append(_positional_time(_sanitise_names(results[category])))
+                    file_nums.append(getattr(dataset[k], 'file_num', k))
+            if not ds_list:
+                continue
+            try:
+                dim = pd.Index(file_nums, name='file_num')
+                group = xr.concat(ds_list, dim=dim)
+                group.to_netcdf(path, group=category, mode='a')
+            except Exception as exc:  # noqa: BLE001 - warn and skip misaligned category
+                print(f'WARNING: MIN3P category "{category}" not written to netCDF. ({exc})')
+        return None
     else:
         # CrunchTope-style: process by category and write to file
         from coeus.helper import fix_smalls

@@ -1,0 +1,33 @@
+# Example Omphalos config for the MIN3P backend — restart chain.
+#
+# Runs reactran/MCD-2 as a 2-stage restart chain: stage 0 integrates to t=100,
+# then stage 1 continues (via MIN3P's 'restart' + 'append results') to t=200.
+# Each run's stages execute sequentially in a per-run subdirectory so their
+# restart.tmp state files do not collide.
+
+template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
+number_of_files: 1
+timeout: 300
+database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
+
+restart_chain:
+  stages: 2
+  # Final solution time for each stage (MIN3P 'time step control' Data Block 4).
+  final_times: [100.0, 200.0]
+  # How the later stage appends transient output at the breaking point:
+  #   'append results'  (default) | 'append results in legacy mode' | null
+  append: 'append results'
+  # Optional: override which parameter holds the final solution time.
+  # Defaults to ['time step control - global system', '_header', 2, 0].
+  # final_time_coord: ['time step control - global system', '_header', 2, 0]
+
+# Restart chains compose with `modifications`: any parameter sweep applied to
+# the base template is inherited by every stage.
+# modifications:
+#   inflow_ph:
+#     block: 'boundary conditions - reactive transport'
+#     keyword: 'concentration input'
+#     line: 0
+#     token: 0
+#     method: custom
+#     params: [3.0]

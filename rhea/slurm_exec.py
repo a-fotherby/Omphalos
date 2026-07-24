@@ -14,17 +14,36 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 
-def execute(file_num, config, pflo):
+def execute(file_num, config, pflo, min3p=False):
     """Execute a single input file.
 
     Args:
         file_num: File number to run
         config: Configuration dictionary
         pflo: Whether to use PFLOTRAN mode
+        min3p: Whether to use MIN3P mode
 
     Returns:
         InputFile object with results
     """
+    if min3p:
+        print("Running in MIN3P mode")
+        import min3p.run as run
+        from min3p.template import Template
+
+        cwd = Path.cwd()
+        name = config['template']
+        tmp_dir = Path(f'run{file_num}')
+        config.update({'template': str(cwd / tmp_dir / name)})
+
+        input_file = Template(config)
+        input_file.path = Path(config['template'])
+        binary = config.get('min3p_binary', run.MIN3P_BINARY)
+        # run.input_file (re)writes the input file + root.dat into the run dir,
+        # invokes MIN3P, and parses the outputs into input_file.results.
+        run.input_file(input_file, file_num, str(tmp_dir), config['timeout'], binary=binary)
+        return input_file
+
     if pflo:
         print("Running in PFLOTRAN mode")
         import pflotran.file_methods as fm
@@ -93,17 +112,19 @@ if __name__ == '__main__':
     parser.add_argument("file_num", help="Input file dict key.")
     parser.add_argument("config_path", help="Omphalos config file.")
     parser.add_argument('-p', '--pflotran', action='store_true')
+    parser.add_argument('-m', '--min3p', action='store_true')
     args = parser.parse_args()
 
     if args.pflotran:
         import pflotran.file_methods as fm
     else:
-        import omphalos.file_methods as fm
+        # core.file_methods provides pickle_data_set for CrunchTope and MIN3P.
+        from core import file_methods as fm
 
     with open(args.config_path) as file:
         config = yaml.safe_load(file)
 
-    input_file = execute(args.file_num, config, args.pflotran)
+    input_file = execute(args.file_num, config, args.pflotran, min3p=args.min3p)
     print(f'File {args.file_num} returned to __main__.')
 
     fm.pickle_data_set(input_file, f'run{args.file_num}/input_file{args.file_num}_complete.pkl')

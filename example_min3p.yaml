@@ -1,0 +1,25 @@
+# Example Omphalos config for the MIN3P backend.
+#
+# Runs the batch/appelo benchmark (kinetic calcite dissolution) as a 3-file
+# sweep over the initial calcite volume fraction. Copy appelo.dat (and run this
+# from a directory where it is present) or set `template` to an absolute path.
+
+template: appelo.dat
+number_of_files: 3
+timeout: 120
+
+# MIN3P reads its thermodynamic database from the 'database directory' entry in
+# the template. The benchmark ships a Windows-style relative path, so repoint it
+# to the real location on this machine (comment out to keep the template value).
+database_directory: /Users/hjb62/MIN3P/Examples/database/default
+
+# Optional override of the MIN3P executable.
+# min3p_binary: /Users/hjb62/MIN3P/MacOS/MIN3P-HPC-X64-V2.3.7.850-MacOS-x64
+
+# Positional parameter modifications. Each entry names a coordinate
+# (block / sub-keyword / line / token) and a value-generation method.
+modifications:
+  calcite_volume:
+    alias: calcite_volume          # -> ('initial condition - local geochemistry', 'mineral input', 0, 0)
+    method: linspace
+    params: [0.005, 0.02]

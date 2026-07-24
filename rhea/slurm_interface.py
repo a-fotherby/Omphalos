@@ -52,14 +52,16 @@ def submit(path_to_config, nodes, number_of_files):
     )
 
 
-def compile_results(dict_len):
+def compile_results(dict_len, simulator='crunchtope'):
     """Compile results from distributed runs.
 
     Args:
         dict_len: Number of input files that were run
+        simulator: Backend that produced the results ('crunchtope', 'pflotran',
+            or 'min3p'). Selects the ``dataset_to_netcdf`` behaviour.
     """
     import numpy as np
-    import omphalos.file_methods as fm
+    from core import file_methods as fm
 
     fails = []
     results_dict = dict.fromkeys(np.arange(dict_len))
@@ -74,7 +76,7 @@ def compile_results(dict_len):
     for j in fails:
         results_dict.pop(j)
 
-    fm.dataset_to_netcdf(results_dict)
+    fm.dataset_to_netcdf(results_dict, simulator=simulator)
 
     for file in results_dict:
         del results_dict[file].results

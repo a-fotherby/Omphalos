@@ -168,3 +168,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# MIN3P integration design notes (kept local, not tracked)
+MIN3P_integration_notes.md

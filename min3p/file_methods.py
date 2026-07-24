@@ -12,8 +12,7 @@ two ways that make a dedicated parser necessary:
    variable list is comma-separated with inconsistent spacing
    (``"z","h+1"``), rather than uppercase and whitespace-separated.
 
-Verified against ``reactran/MCD-2/min3p/test_*.gsp``. See
-``MIN3P_integration_notes.md`` section 3.
+Verified against ``reactran/MCD-2/min3p/test_*.gsp``.
 """
 
 import glob

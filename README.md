@@ -836,7 +836,7 @@ Any `modifications` sweep is inherited by every stage. Each run's stages execute
 sequentially in a per-run subdirectory so their restart state does not collide.
 
 > **Notes:** MIN3P mode currently supports `run_type local` only (cluster/sbatch
-> is a TODO). See `MIN3P_integration_notes.md` for design details and roadmap.
+> is a TODO). See `min3p/examples/dissol_sweep/` for a runnable worked example.
 
 ---
 

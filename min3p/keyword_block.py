@@ -13,8 +13,6 @@ data lines under their sub-keyword (used to address modifications) is a derived
 view built with a schema vocabulary; because nothing is discarded, an incomplete
 vocabulary never threatens round-trip fidelity -- it only limits which
 parameters can be addressed by name.
-
-See ``MIN3P_integration_notes.md`` for the full specification.
 """
 
 import re

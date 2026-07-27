@@ -28,31 +28,56 @@ from core.file_methods import (  # noqa: F401
     unpickle,
 )
 
-# Output extensions that carry field data in TecPlot format, in three families
-# distinguished by their leading column. Verified against reactran/MCD-2,
-# reactran/dissol, and a live batch/appelo run.
+# Field-output categories in TecPlot format, in three families distinguished by
+# their leading column. The full set is transcribed from the MIN3P User Manual
+# Tables 2.3-2.6; not every category appears in a given run (``data_cats`` only
+# reports those actually written).
 #
-# SPATIAL 'gs*' + 'vel' (leading columns x,y,z; one file per output time,
-# named 'run_N.ext', N = output-time index):
-#   .gsp physical/flow vars (h_w, ph_w, saturation)   .gsc component concs
-#   .gsm master vars (pH, ionic strength, alkalinity)  .gst total aqueous concs
-#   .gsv mineral volume fractions + porosity           .gss mineral sat. indices
-#   .gsd dissolution-precipitation rates               .gsx excluded-mineral SI
-#   .vel Darcy velocity (vx,vy,vz) on cell faces (own grid -> own netCDF group)
-SPATIAL_EXTENSIONS = ('gsp', 'gsc', 'gsm', 'gst', 'gsv', 'gss', 'gsd', 'gsx', 'vel')
+# SPATIAL 'gs*' + 'vel' -- contour data, leading columns x,(y),(z); one file per
+# output time, 'run_N.ext' (N = output-time index). (Manual Tables 2.3 & 2.4.)
+SPATIAL_EXTENSIONS = (
+    'gsp',   # flow: hydraulic/pressure head, water/gas saturations (Table 2.3)
+    'vel',   # interfacial Darcy velocity vx,(vy),(vz) (Table 2.3; own grid)
+    'gst',   # total aqueous component concentrations
+    'gsc',   # aqueous species concentrations
+    'gsi',   # intra-aqueous kinetic reaction rates
+    'gsm',   # master variables (pH, pe, Eh, ionic strength, alkalinity, T)
+    'gsg',   # partial gas pressures
+    'gsgr',  # degassing rates
+    'gsv',   # mineral volume fractions (+ porosity)
+    'gsb',   # sorbed / surface species
+    'gss',   # mineral saturation indices
+    'gsd',   # mineral dissolution-precipitation rates
+    'gsx',   # excluded-mineral saturation indices
+    'gsac',  # activity coefficients
+    'gsis',  # isotopes
+)
 #
-# BREAKTHROUGH 'gb*' (leading column 'time'; one file per observation point,
-# named 'run_N.ext', N = observation-point index) -- time series at fixed cells:
-#   .gbc concs  .gbm master  .gbt totals  .gbv volumes  .gbs SI  .gbd rates  .gbx
-BREAKTHROUGH_EXTENSIONS = ('gbc', 'gbm', 'gbt', 'gbv', 'gbs', 'gbd', 'gbx')
+# BREAKTHROUGH 'gb*' -- transient data at observation points, leading column
+# 'time' (or 'pH' for pC-pH runs); 'run_N.ext' (N = observation-point index).
+# (Manual Table 2.5.)
+BREAKTHROUGH_EXTENSIONS = (
+    'gbt', 'gbc', 'gbi', 'gbm', 'gbg', 'gbgr', 'gbv', 'gbb', 'gbs', 'gbd',
+    'gbx', 'gbis', 'gbac',
+)
 #
-# LOCAL BATCH 'lb*' (leading column 'time'; one file per zone, N = zone index):
-BATCH_EXTENSIONS = ('lbc', 'lbm', 'lbt', 'lbv', 'lbd', 'lbs', 'lbx')
+# LOCAL BATCH 'lb*' -- local-geochemistry transient / pC-pH data, leading column
+# 'time' (or 'pH'); 'run_N.ext' (N = zone index). (Manual Table 2.6.)
+BATCH_EXTENSIONS = (
+    'lbt', 'lbc', 'lbi', 'lbm', 'lbg', 'lbgr', 'lbv', 'lbb', 'lbs', 'lbd',
+    'lbx', 'lbac',
+)
 #
-# All parsed field-output categories. (Not parsed, by design: per-component /
-# per-mineral mass-balance diagnostics '.mac'/'.mae'/'.mmc', the two-index
-# per-species flux detail '.gsa' named 'run_N_M.gsa', and the '_o.*' run
-# summaries -- these use component/mineral indexing rather than space or time.)
+# All parsed field-output categories.
+#
+# Deliberately NOT parsed (they are per-domain / per-component / per-mineral
+# diagnostics or summaries, not spatial/temporal field data):
+#   - flow mass balance:   '_o.mvs', '_o.mvc', '_o.mve' (Table 2.3)
+#   - RT mass balance:     '.mac'/'.mae'/'.mmc', '_o.mas'/'.mms'/'.mgs'/'.mss'
+#   - charge / mass flux:  '.cbt', '.gmf'
+#   - energy balance:      '_o.ebal'/'.ebalc'/'.ebale';  evaporation '.evap'
+#   - two-index per-species flux detail '.gsa' ('run_N_M.gsa')
+#   - '_o.*' run summaries
 OUTPUT_EXTENSIONS = SPATIAL_EXTENSIONS + BREAKTHROUGH_EXTENSIONS + BATCH_EXTENSIONS
 
 
@@ -138,14 +163,17 @@ def parse_output(path, category, time_ref, run_name=None):
             )
 
     # Index the dataset by its natural coordinate. Spatial outputs carry
-    # lowercase x/y/z columns; batch outputs carry a single 'time' column
-    # (a time series at one point). Anything else is left row-indexed.
+    # lowercase x/y/z columns; batch/breakthrough outputs carry a single 'time'
+    # column -- or, for pC-pH-diagram runs, a 'pH' column (User Manual: "time or
+    # pH"). Anything else is left row-indexed.
     coords = [c for c in ('x', 'y', 'z') if c in ds]
     if coords:
         ds = ds.set_index(index=tuple(coords))
         ds = ds.unstack('index')
-    elif 'time' in ds:
-        ds = ds.set_index(index='time').rename(index='time')
+    else:
+        axis = next((c for c in ds if str(c).lower() in ('time', 'ph')), None)
+        if axis is not None:
+            ds = ds.set_index(index=axis).rename(index=axis)
 
     return ds
 

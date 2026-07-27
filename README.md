@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-238%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-240%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -573,7 +573,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **238 tests**:
+The project includes a comprehensive test suite with **240 tests**:
 
 ```bash
 # Run all tests
@@ -813,10 +813,14 @@ modifications:
 ```
 
 Results are written to `results.nc` with one group per MIN3P output category,
-concatenated over `file_num`. Three output families are captured: spatial
-(`gsp`/`gsc`/`gsm`/`gst`/`gsv`/`gss`/`gsd`/`gsx`/`vel`, indexed by x,y,z),
-breakthrough (`gb*`, time series at observation points), and batch (`lb*`, time
-series per zone).
+concatenated over `file_num`. All field-output categories from the MIN3P User
+Manual (Tables 2.3–2.6) are captured, in three families: spatial `gs*` + `vel`
+(indexed by x,y,z), breakthrough `gb*` (time series at observation points), and
+local/batch `lb*` (time series, or pH for pC-pH runs). Each family covers
+concentrations, master variables (pH/alkalinity), gas pressures, mineral
+volumes/saturation/rates, sorbed species, isotopes and activity coefficients.
+Per-domain mass-balance and energy-balance *diagnostics* (`_o.*`, `.mac/.mae`,
+`.cbt`, `.ebal*`, …) are not parsed into the dataset.
 
 Worked end-to-end examples (sweep config + notebook + figure) live in
 [`min3p/examples/`](min3p/examples/):

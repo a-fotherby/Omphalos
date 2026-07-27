@@ -549,6 +549,35 @@ class TestSpatialMultiCategory:
         assert 'time' in ds.coords
         assert float(ds['ca+2'].isel(time=-1)) == pytest.approx(3.0e-6)
 
+    def test_output_extensions_cover_manual_tables(self):
+        # Every field-output category from User Manual Tables 2.3-2.6.
+        spatial = {'gsp', 'vel', 'gst', 'gsc', 'gsi', 'gsm', 'gsg', 'gsgr',
+                   'gsv', 'gsb', 'gss', 'gsd', 'gsx', 'gsac', 'gsis'}
+        breakthrough = {'gbt', 'gbc', 'gbi', 'gbm', 'gbg', 'gbgr', 'gbv', 'gbb',
+                        'gbs', 'gbd', 'gbx', 'gbis', 'gbac'}
+        batch = {'lbt', 'lbc', 'lbi', 'lbm', 'lbg', 'lbgr', 'lbv', 'lbb', 'lbs',
+                 'lbd', 'lbx', 'lbac'}
+        assert spatial <= set(fm.SPATIAL_EXTENSIONS)
+        assert breakthrough <= set(fm.BREAKTHROUGH_EXTENSIONS)
+        assert batch <= set(fm.BATCH_EXTENSIONS)
+
+    def test_parse_pcph_ph_indexed(self, tmp_path):
+        # pC-pH-diagram outputs carry a leading 'pH' column instead of 'time'
+        # (User Manual: "time or pH"); it should become the index coordinate.
+        pcph = (
+            'title = "dataset test"\r\n'
+            'variables = "pH","=soh","=so-"\r\n'
+            'zone t = "S_i, pH-sweep", f=point\r\n'
+            '  0.0   1.0e-3  1.0e-9\r\n'
+            '  6.0   5.0e-4  5.0e-6\r\n'
+            ' 12.0   1.0e-9  1.0e-3\r\n'
+        )
+        (tmp_path / 'root.dat').write_text('test\n')
+        (tmp_path / 'test_1.lbb').write_text(pcph, newline='')
+        ds = fm.parse_output(tmp_path, 'lbb', 1)
+        assert 'pH' in ds.coords
+        assert float(ds['=so-'].sel(pH=12.0)) == pytest.approx(1.0e-3)
+
 
 # ---------------------------------------------------------------------------
 # Phase 3: advective flow (.vel output + flow-parameter modification)

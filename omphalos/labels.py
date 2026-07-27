@@ -2,6 +2,7 @@
 """Functions to generate label DataFrames."""
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from omphalos import attributes as attr
@@ -26,10 +27,15 @@ from omphalos import attributes as attr
 
 def raw(dataset, output_key):
     """Takes a dataset dictionary and returns an xr.Dataset for a given category,
-    with the file number as a dimension. If a KeyError is encountered, 
+    with the file number as a dimension. If a KeyError is encountered,
     it adds a NaN-filled Dataset of the same shape and coordinates as the previous successful one.
+
+    The file_num dimension is labelled with the dataset's own keys, so a dataset with runs missing
+    (because they failed, timed out or returned nothing) still identifies which run each slice came
+    from, and lines up with the file_num coordinate in conditions.nc.
     """
     set_list = []
+    file_nums = []      # Run number for each entry appended to set_list
     last_coords = None  # To store the coordinates of the last successfully added dataset
     last_dims = None    # To store the dimensions of the last successfully added dataset
 
@@ -42,6 +48,7 @@ def raw(dataset, output_key):
                 data = data.to_dataset(name=output_key)
 
             set_list.append(data)
+            file_nums.append(i)
             last_coords = data.coords  # Store the coordinates of the last valid dataset
             last_dims = data.dims      # Store the dimensions of the last valid dataset
         except KeyError:
@@ -52,8 +59,9 @@ def raw(dataset, output_key):
                     coords=last_coords
                 )
                 set_list.append(nan_data)
+                file_nums.append(i)
 
-    array = xr.concat(set_list, dim='file_num')
+    array = xr.concat(set_list, dim=pd.Index(file_nums, name='file_num'))
 
     return array
 

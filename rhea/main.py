@@ -118,10 +118,11 @@ if __name__ == '__main__':
             )
         subprocess.run(run_command, shell=True, executable='/bin/bash')
 
-        si.compile_results(dict_size + 1, simulator='min3p')
+        summary = si.compile_results(dict_size + 1, simulator='min3p')
         t_stop = time.time()
-        print(f'MIN3P files compiled: {dict_size + 1}. Time elapsed: {t_stop - t_start}')
-        sys.exit(0)
+        print(f'MIN3P files compiled: {summary["compiled"]} of {summary["total"]}. '
+              f'Time elapsed: {t_stop - t_start}')
+        sys.exit(0 if summary['compiled'] else 1)
 
     if is_staged:
         staged_file_dict = gi.configure_staged_input_files(template, 'foo', rhea=True)
@@ -301,9 +302,11 @@ if __name__ == '__main__':
             run_command = build_run_command(args.backend, slurm_exec_script, dict_size, nodes, args.path_to_config, parallel_exec)
             subprocess.run(run_command, shell=True, executable='/bin/bash')
 
-        # Compile results
-        si.compile_results(dict_size + 1)
-        print(f'Files compiled: {dict_size + 1}')
+        # Compile results. compile_results reports the per-run breakdown itself; exit non-zero if
+        # nothing came back, so a wholly failed sweep does not look like a success to a caller.
+        summary = si.compile_results(dict_size + 1)
+        if not summary['compiled']:
+            sys.exit(1)
 
     elif args.run_type == 'cluster':
         submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN="{args.pflotran}",ALL {run_sbatch}'

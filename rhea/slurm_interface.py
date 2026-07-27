@@ -55,30 +55,51 @@ def submit(path_to_config, nodes, number_of_files):
 def compile_results(dict_len, simulator='crunchtope'):
     """Compile results from distributed runs.
 
+    A run can fail in two ways: it can return nothing at all (no pickle to read, e.g. the worker
+    was killed), or it can come back carrying a non-zero ``error_code`` set by the simulator wrapper
+    (a timeout, a convergence failure, a missing input file). Only runs that returned cleanly hold
+    results worth compiling, so the others are counted, reported and left out of the results file.
+
     Args:
         dict_len: Number of input files that were run
         simulator: Backend that produced the results ('crunchtope', 'pflotran',
             or 'min3p'). Selects the ``dataset_to_netcdf`` behaviour.
+
+    Returns:
+        dict: Summary of the run with keys 'total', 'compiled', 'no_output' (list of run numbers
+        that returned nothing) and 'errors' ({run number: error code} for runs that failed).
     """
-    import numpy as np
     from core import file_methods as fm
 
-    fails = []
-    results_dict = dict.fromkeys(np.arange(dict_len))
+    no_output = []
+    errors = {}
+    results_dict = {}
 
-    for i in results_dict:
+    for i in range(dict_len):
         try:
             input_file = fm.unpickle(f'run{i}/input_file{i}_complete.pkl')
-            results_dict[i] = input_file
         except Exception:
-            fails.append(i)
+            no_output.append(i)
+            continue
 
-    for j in fails:
-        results_dict.pop(j)
+        error_code = getattr(input_file, 'error_code', 0)
+        if error_code:
+            errors[i] = error_code
+        else:
+            results_dict[i] = input_file
 
-    fm.dataset_to_netcdf(results_dict, simulator=simulator)
+    if results_dict:
+        fm.dataset_to_netcdf(results_dict, simulator=simulator)
+        for file in results_dict:
+            del results_dict[file].results
+    else:
+        print('WARNING: no run returned usable output, so no results file was written.')
 
-    for file in results_dict:
-        del results_dict[file].results
+    print(f'Files compiled: {len(results_dict)} of {dict_len}.')
+    if no_output:
+        print(f'Files that returned no output ({len(no_output)}): {no_output}')
+    if errors:
+        print(f'Files that failed during the run ({len(errors)}), as run: error_code: {errors}')
 
-    print(f'Files failed to run: {len(fails)}')
+    return {'total': dict_len, 'compiled': len(results_dict), 'no_output': no_output,
+            'errors': errors}

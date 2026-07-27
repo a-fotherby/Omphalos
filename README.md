@@ -206,6 +206,10 @@ concentrations = xr.open_dataset('results.nc', group='totcon')
 print(volumes.dims)
 ```
 
+`file_num` is labelled with the run numbers that compiled successfully, so a sweep with failed or timed-out runs
+produces fewer slices than `number_of_files` and the labels tell you which runs survived. Select by run number
+with `.sel(file_num=...)`, and join against `conditions.nc` on the same coordinate rather than by position.
+
 Available groups depend on your CrunchTope OUTPUT block configuration. Common groups include:
 - `totcon` — Total concentrations
 - `volume` — Mineral volumes
@@ -227,6 +231,35 @@ input_file = input_files[0]
 # Reconstruct the original text file
 input_file.print()
 ```
+
+#### 3. Failed Runs
+
+A run can fail in two ways, and `rhea` reports them separately when it compiles the sweep:
+
+```
+Files compiled: 8 of 10.
+Files that returned no output (1): [4]
+Files that failed during the run (1), as run: error_code: {7: 1}
+```
+
+- **Returned no output** — no `run<N>/input_file<N>_complete.pkl` to read, so the worker died before it could
+  record anything.
+- **Failed during the run** — the run came back carrying a non-zero `error_code`: `1` is a timeout, and higher
+  values are the error patterns in `omphalos/run.py` (`CT_ERROR_PATTERNS`) matched in CrunchTope's output, such as
+  a convergence failure or a missing input file.
+
+Neither kind contributes data, so both are left out of `results.nc`. If no run returns usable output, no results
+file is written at all and `rhea` exits non-zero:
+
+```
+WARNING: no run returned usable output, so no results file was written.
+Files compiled: 0 of 10.
+```
+
+Failures need not stop the analysis: `results.nc` is labelled by run number, so it joins onto `conditions.nc`
+correctly with the failures simply absent. Use `coeus.helper.filter_errors` for the same accounting on the
+sequential (`omphalos`) path, and `coeus/retrieval_run.py` to salvage output from run directories after an
+interrupted sweep.
 
 ---
 

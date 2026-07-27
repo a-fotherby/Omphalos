@@ -18,6 +18,12 @@ def search_file(dictionary, by_val, allow_white_space=True):
     could search by using 'CONDITION'. You can't search from the back, however,
     so can't find a specific CONDITION block line num by searching for its name.
 
+    Searching for 'CONDITION' is case insensitive, since CrunchTope accepts any
+    capitalisation of the keyword and input files in the wild use 'CONDITION',
+    'Condition' and 'condition' interchangeably. Every other keyword is matched
+    case sensitively: matching 'TEMPERATURE' case insensitively would mistake the
+    'temperature' entries inside condition blocks for block delimiters.
+
     Args:
         dictionary: Dictionary mapping line numbers to line contents
         by_val: String value to search for at the beginning of lines
@@ -26,21 +32,13 @@ def search_file(dictionary, by_val, allow_white_space=True):
     Returns:
         numpy array of matching line numbers
     """
+    prefix = r'\s*' if allow_white_space else ''
+    pattern = rf'{prefix}{by_val}(?!_LIST)'
+    flags = re.IGNORECASE if by_val.upper() == 'CONDITION' else 0
+
     # Use list for O(1) appends, then convert to numpy at end
-    keys_list = []
-    items_list = dictionary.items()
-
-    for item in items_list:
-        # Allow CONDITION or condition since either work in an input file.
-        # Can't use by_val.lower() as will erroneously think keywords like
-        # 'temperature' are keyword block delimiters.
-        if allow_white_space:
-            pattern = rf'\s*{by_val}(?!_LIST)'
-        else:
-            pattern = rf'{by_val}(?!_LIST)'
-
-        if re.match(pattern, item[1]) or item[1].startswith('condition'):
-            keys_list.append(item[0])
+    keys_list = [line_num for line_num, line in dictionary.items()
+                 if re.match(pattern, line, flags)]
 
     return np.array(keys_list, dtype=int)
 

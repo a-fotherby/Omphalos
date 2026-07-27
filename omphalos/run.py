@@ -12,6 +12,10 @@ from omphalos.settings import crunch_dir
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
 # first match, so more specific strings should come before generic ones.
 CT_ERROR_PATTERNS = [
+    # Startup failure: CrunchTope truncates the input file path to a fixed-length buffer, so a
+    # deeply nested working directory makes it lose the file and then block on stdin. Without this
+    # pattern the run sits until the configured timeout with no indication of why.
+    'Cannot find input file',
     'EXCEEDED MAXIMUM ITERATIONS',
     'TRY A',
     'divide by zero',

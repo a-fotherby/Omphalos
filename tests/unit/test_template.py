@@ -214,6 +214,50 @@ class TestTemplateSortConditionBlock:
         assert hasattr(sample_template, 'sort_condition_block')
         assert callable(sample_template.sort_condition_block)
 
+    def test_sort_condition_block_sorts_by_species_type(self, sample_template):
+        """Test that entries are sorted into minerals, primary species and parameters."""
+        condition = next(iter(sample_template.condition_blocks))
+        sample_template.sort_condition_block(condition)
+        block = sample_template.condition_blocks[condition]
+
+        minerals = [m.split('&')[0] for m in sample_template.keyword_blocks['MINERALS'].contents]
+        primary = list(sample_template.keyword_blocks['PRIMARY_SPECIES'].contents)
+
+        assert all(entry in minerals for entry in block.mineral_volumes)
+        assert all(entry in primary for entry in block.concentrations)
+        assert 'temperature' in block.parameters
+
+    @pytest.mark.parametrize('absent_block', ['GASES', 'MINERALS', 'SECONDARY_SPECIES'])
+    def test_sort_condition_block_tolerates_absent_block(self, sample_template, absent_block):
+        """Test that an input file without a given keyword block can still be sorted.
+
+        A problem with no gas chemistry has no GASES block, for instance; that block simply
+        contributes no names to sort against, rather than raising.
+        """
+        template = copy.deepcopy(sample_template)
+        template.keyword_blocks.pop(absent_block, None)
+        condition = next(iter(template.condition_blocks))
+
+        template.sort_condition_block(condition)   # must not raise
+
+        block = template.condition_blocks[condition]
+        if absent_block == 'GASES':
+            assert block.gases == {}
+        elif absent_block == 'MINERALS':
+            # With no MINERALS block, mineral entries fall through to parameters.
+            assert block.mineral_volumes == {}
+
+    def test_sort_condition_block_without_gases_block_still_prints(self, sample_template, tmp_path):
+        """Test that an input file with no GASES block can be written out."""
+        template = copy.deepcopy(sample_template)
+        template.keyword_blocks.pop('GASES', None)
+        template.path = tmp_path / 'no_gases.in'
+
+        template.print()   # print() sorts every condition block; must not raise
+
+        assert template.path.exists()
+        assert 'GASES' not in template.path.read_text()
+
 
 class TestTemplateErrorHandling:
     """Tests for Template error handling."""

@@ -52,28 +52,37 @@ class InputFile:
         self.later_inputs = restarts
         self.stage_num = None  # Stage index for staged restart runs
 
+    def _block_entries(self, keyword):
+        """Return the entry names of a keyword block, or an empty list if that block is absent.
+
+        Not every CrunchTope input file declares every block: a problem with no gas chemistry has no GASES
+        block, and one with no minerals has no MINERALS block. An absent block simply contributes no names
+        to sort condition entries against.
+        """
+        block = self.keyword_blocks.get(keyword)
+        # Making a list of a dict returns the keys, which is what callers need.
+        return list(block.contents) if block is not None else []
+
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,
         parameter).
 
         This is required when you need to distinguish between types of entry in a condition block.
         """
-        # Try and get the lists of minerals, gases, and primary species for
-        # comparison. Raise an exception otherwise.
-        try:
-            # Making a list of a dict returns the keys. Need this as opposed to .keys method since we want to edit them.
-            mineral_list = list(self.keyword_blocks['MINERALS'].contents)
-            # Need to strip kinetics labels from mineral names to find them in condition block.
-            for i, mineral in enumerate(mineral_list):
-                mineral_list[i] = mineral_list[i].split('&')[0]
-            gases_list = self.keyword_blocks['GASES'].contents.keys()
-            primary_species_list = self.keyword_blocks['PRIMARY_SPECIES'].contents.keys(
-            )
-        except IndexError:
+        # Get the lists of minerals, gases, and primary species for comparison. Blocks the input file does
+        # not declare contribute nothing.
+        # Need to strip kinetics labels from mineral names to find them in condition block.
+        mineral_list = [mineral.split('&')[0] for mineral in self._block_entries('MINERALS')]
+        gases_list = self._block_entries('GASES')
+        primary_species_list = self._block_entries('PRIMARY_SPECIES')
+
+        if not primary_species_list:
             print(
-                "You must populate your MINERAL, GASES, and PRIMARY_SPECIES keyword blocks before you can sort a "
-                "condition block.\nTry running the get_keyword_blocks() method first.")
-            # For each entry in the dictionary, compare with the PRIMARY_SPECIES,
+                "Warning: no PRIMARY_SPECIES block found, so every entry in condition block "
+                f"'{condition}' will be sorted as a parameter. Check the input file, or run the "
+                "get_keyword_blocks() method first.")
+
+        # For each entry in the dictionary, compare with the PRIMARY_SPECIES,
         # MINERALS, and GASES blocks to assign the entry to the right dict.
         contents = self.condition_blocks[condition].contents
         # Maybe there is a way to make this if logic compact? Worth thinking

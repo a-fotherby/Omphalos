@@ -63,6 +63,7 @@
   - [Non-Unique Entries](#non-unique-entries)
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
   - [Choosing a Parallelization Backend](#choosing-a-parallelization-backend)
+  - [Keep the Working Directory Path Short](#keep-the-working-directory-path-short)
   - [PFLOTRAN Support](#pflotran-support)
   - [MIN3P Support](#min3p-support)
 - [Citation](#citation)
@@ -261,7 +262,9 @@ Modify parameters in standard CrunchTope blocks:
 | `AQUEOUS_KINETICS` | `aqueous_kinetics` |
 | `EROSION/BURIAL` | `erosion/burial` |
 
-> **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`).
+> **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`). The one exception is `CONDITION`, which is matched case insensitively, so `CONDITION`, `Condition` and `condition` all work. Matching the others case insensitively would mistake condition-block entries such as `temperature` for block delimiters.
+
+> **Note:** A template need only declare the blocks its problem uses. A model with no gas chemistry can omit `GASES` entirely; absent blocks simply contribute no names when Omphalos sorts condition-block entries into minerals, gases, primary species and parameters.
 
 ```yaml
 runtime:
@@ -773,6 +776,20 @@ python -m rhea.main config.yaml local -b xargs
 ```
 
 `xargs` constructs shorter individual command lines and is not subject to the same limit. The tradeoff is that GNU Parallel offers more sophisticated load balancing and progress reporting; `xargs` is simpler but equally effective for most workloads.
+
+### Keep the Working Directory Path Short
+
+CrunchTope reads the input file path into a fixed-length buffer, so a deeply nested working directory gets
+truncated and every run fails at startup with:
+
+```
+Error in file 0: "Cannot find input file".
+```
+
+`rhea` passes an absolute path to each run directory, so the limit applies to the whole path, not just the file
+name. Run sweeps from a shorter path if you see this. Since CrunchTope waits on stdin after printing that message,
+`'Cannot find input file'` is one of the `CT_ERROR_PATTERNS` in `omphalos/run.py` — otherwise each run would sit
+until its `timeout` expired before being recorded as failed.
 
 ### PFLOTRAN Support
 

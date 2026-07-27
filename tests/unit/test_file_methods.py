@@ -51,17 +51,48 @@ class TestSearchFile:
         result = fm.search_file(file_dict, 'RUNTIME')
         assert len(result) == 0
 
-    def test_search_file_case_sensitivity(self):
-        """Test search_file respects case but allows 'condition'."""
+    def test_search_file_condition_is_case_insensitive(self):
+        """Test that any capitalisation of the CONDITION keyword is matched."""
         file_dict = {
             0: 'CONDITION initial',
             1: 'condition boundary',
-            2: 'Condition other',  # This won't match
+            2: 'Condition other',
         }
         result = fm.search_file(file_dict, 'CONDITION')
-        # Should match lines 0 and 1 (CONDITION and condition)
-        assert 0 in result
-        assert 1 in result
+        assert set(result) == {0, 1, 2}
+
+    def test_search_file_condition_does_not_match_other_blocks(self):
+        """Test that a CONDITION search does not pick up INITIAL/BOUNDARY_CONDITIONS blocks."""
+        file_dict = {
+            0: 'INITIAL_CONDITIONS',
+            1: 'BOUNDARY_CONDITIONS',
+            2: 'CONDITION initial',
+        }
+        result = fm.search_file(file_dict, 'CONDITION')
+        assert set(result) == {2}
+
+    def test_search_file_other_keywords_are_case_sensitive(self):
+        """Test that non-CONDITION searches stay case sensitive.
+
+        Condition-block entries such as 'temperature' share their name with keyword blocks, so
+        matching case insensitively would mistake them for block delimiters.
+        """
+        file_dict = {
+            0: 'TEMPERATURE',
+            1: 'set_temperature 25.0',
+            2: 'temperature 25.0',
+        }
+        result = fm.search_file(file_dict, 'TEMPERATURE')
+        assert set(result) == {0}
+
+    def test_search_file_ignores_unrelated_condition_lines(self):
+        """Test that lower-case condition lines do not match unrelated keyword searches."""
+        file_dict = {
+            0: 'condition boundary',
+            1: 'RUNTIME',
+        }
+        result = fm.search_file(file_dict, 'RUNTIME')
+        assert set(result) == {1}
 
     def test_search_file_with_whitespace(self):
         """Test search_file with leading whitespace."""

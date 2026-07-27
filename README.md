@@ -295,6 +295,13 @@ interrupted sweep.
 
 ## Configuration Guide
 
+Fully annotated reference configs live beside the backend they drive:
+[`omphalos/example.yaml`](omphalos/example.yaml) for CrunchTope, and
+[`min3p/example_min3p.yaml`](min3p/example_min3p.yaml),
+[`min3p/example_min3p_transport.yaml`](min3p/example_min3p_transport.yaml) and
+[`min3p/example_min3p_restart.yaml`](min3p/example_min3p_restart.yaml) for MIN3P. They document the schema rather
+than being runnable: for sweeps you can run, see [Worked Examples](#worked-examples).
+
 ### Frontmatter
 
 | Keyword | Description | Required | Example |
@@ -604,6 +611,7 @@ omphalos/
 │   ├── input_file.py        # InputFile class
 │   ├── generate_inputs.py   # File generation
 │   ├── run.py               # Simulation execution
+│   ├── example.yaml         # Annotated reference config
 │   └── examples/            # Worked examples (quartz_flow_sweep: config + notebook)
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
@@ -616,6 +624,7 @@ omphalos/
 │   ├── file_methods.py      # TecPlot output parsing (spatial/breakthrough/batch)
 │   ├── generate_inputs.py   # MIN3P_IDs + configure_input_files() + restart chains
 │   ├── run.py               # Simulation execution
+│   ├── example_min3p*.yaml  # Annotated reference configs (plain, transport, restart chain)
 │   └── examples/            # Worked examples (e.g. dissol_sweep: config + notebook)
 ├── rhea/                    # Parallel execution
 │   ├── main.py              # Parallel entry point
@@ -962,7 +971,7 @@ python -m rhea.main config.yaml local --min3p
 
 MIN3P input files are positional (block-structured `.dat`, not key-value), so a
 sweep is driven by an explicit `modifications` block naming each parameter's
-coordinate (block / sub-keyword / line / token). See `example_min3p.yaml`:
+coordinate (block / sub-keyword / line / token). See [`min3p/example_min3p.yaml`](min3p/example_min3p.yaml):
 
 ```yaml
 template: appelo.dat
@@ -995,7 +1004,7 @@ Darcy's law, driven by varying the flow gradient.
 
 **Restart chains** continue a run across stages via MIN3P's `'restart'`
 mechanism (each stage picks up from the previous stage's `restart.tmp` state).
-Add a `restart_chain` block (see `example_min3p_restart.yaml`):
+Add a `restart_chain` block (see [`min3p/example_min3p_restart.yaml`](min3p/example_min3p_restart.yaml)):
 
 ```yaml
 restart_chain:

@@ -8,7 +8,7 @@ sweep is driven by an explicit ``modifications`` mapping in the config that
 names these coordinates directly. A small :data:`MIN3P_IDs` table provides
 convenient aliases for the most common targets.
 
-Config format (see ``example_min3p.yaml``)::
+Config format (see ``min3p/example_min3p.yaml``)::
 
     template: appelo.dat
     number_of_files: 3

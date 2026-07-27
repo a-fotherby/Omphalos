@@ -36,7 +36,7 @@ cd omphalos/examples/quartz_flow_sweep
 conda activate omphalos
 
 # 1. Generate the ten input files and run them in parallel (~5 s in total).
-rhea quartz_flow_sweep.yaml local -b xargs
+rhea quartz_flow_sweep.yaml local
 
 # 2. Record the parameter values that were actually used, alongside the results.
 python ../../../coeus/compile_inputs.py quartz_flow_sweep.yaml
@@ -50,8 +50,7 @@ needs only `xarray` and `matplotlib`, so the analysis travels: copy the two netC
 notebook there.
 
 `rhea` is the alias `install.sh` adds for `python <repo>/rhea/main.py`; without it, call the script directly.
-`-b xargs` avoids a GNU Parallel *"command line too long"* failure seen on some machines — see the
-Troubleshooting section of the top-level README. Drop it if GNU Parallel behaves on yours.
+Runs are farmed out with `xargs` by default; add `-b parallel` to use GNU Parallel instead.
 
 ## The result
 

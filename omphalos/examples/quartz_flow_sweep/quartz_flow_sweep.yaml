@@ -8,9 +8,7 @@
 # to transport-limited (slow flow, fluid leaves at quartz saturation).
 #
 # Run with rhea (from this directory, omphalos environment active):
-#     rhea quartz_flow_sweep.yaml local -b xargs
-# Drop '-b xargs' if GNU Parallel works on your machine; see the Troubleshooting
-# section of the top-level README.
+#     rhea quartz_flow_sweep.yaml local
 
 ### Frontmatter — mandatory keys. Leave blank if not applicable.
 # Paths may be relative to this directory or absolute.

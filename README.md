@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-272%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-295%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -54,6 +54,7 @@
 - [Testing](#testing)
 - [Analysis with Coeus](#analysis-with-coeus)
   - [Loading and Filtering Results](#loading-and-filtering-results)
+  - [Attribute Tables](#attribute-tables)
   - [Recovering Failed Runs](#recovering-failed-runs)
   - [Collating PFLOTRAN Results](#collating-pflotran-results)
   - [Compiling Input Conditions](#compiling-input-conditions)
@@ -632,7 +633,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **272 tests**:
+The project includes a comprehensive test suite with **295 tests**:
 
 ```bash
 # Run all tests
@@ -660,6 +661,8 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_file_methods.py` | `core/file_methods.py` — input file line searching, TecPlot output parsing, pickling, netCDF writing |
 | `tests/unit/test_template.py` | `omphalos/template.py` — template parsing: keyword and condition blocks, comments, blank lines |
 | `tests/unit/test_generate_inputs.py` | `omphalos/generate_inputs.py` — config evaluation and input file generation |
+| `tests/unit/test_spatial_constructor.py` | `core/spatial_constructor.py` — the spatial initial-condition array and its column ordering |
+| `tests/unit/test_attributes.py` | `core/attributes.py` — attribute tables and their file_num labelling |
 | `tests/unit/test_run.py` | `omphalos/run.py` — CrunchTope invocation and the stdout error patterns |
 | `tests/unit/test_database.py` | `omphalos/database.py` — thermodynamic database handling |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
@@ -697,6 +700,29 @@ dataset = quick_import('inputs.pkl')
 ```
 
 `filter_errors` accepts a `verbose=True` argument to print the indices of any runs with unhandled errors.
+
+### Attribute Tables
+
+`core/attributes.py` turns the input side of a sweep into tables suitable for regression or ML features. Each is
+keyed by run number — `file_num` — so it joins onto `results.nc` and `conditions.nc` without relying on position,
+which matters as soon as a run fails and drops out:
+
+```python
+from core import attributes as attr
+from coeus.helper import quick_import
+
+dataset = quick_import('inputs.pkl')
+
+concs = attr.get_condition(dataset, 'seawater', species_concs=True)   # DataFrame, indexed by file_num
+inflow = attr.boundary_condition(dataset, boundary='x_begin')          # DataFrame, indexed by file_num
+rates = attr.mineral_rates(dataset)                                   # DataFrame, indexed by file_num
+spatial = attr.initial_conditions(dataset, concentrations=True)        # Dataset, file_num coordinate
+```
+
+`initial_conditions` builds the spatial initial state cell by cell from the `INITIAL_CONDITIONS` regions, taking
+every condition block into account. Its variables are ordered by `core.spatial_constructor.condition_variables`,
+which is also what orders the underlying array — use that function if you need the ordering yourself. Grid cells
+that no condition region covers are left at zero and reported.
 
 ### Recovering Failed Runs
 

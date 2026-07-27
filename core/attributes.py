@@ -25,7 +25,7 @@ def get_condition(
         mineral_rates: Whether to include mineral rates (unused currently)
 
     Returns:
-        DataFrame containing the requested attributes
+        DataFrame containing the requested attributes, indexed by file number
     """
     attributes = pd.DataFrame()
 
@@ -45,9 +45,17 @@ def get_condition(
         if species_concs:
             species_attrs_list.append(primary_species(data_set[i], condition))
 
-    # Use pd.concat instead of deprecated append
+    # Index by file number rather than position: a dataset with runs missing (because they failed, or
+    # were filtered out) would otherwise renumber the survivors, silently misaligning these attributes
+    # with results.nc and with the other attribute functions here.
+    file_index = pd.Index(data_set.keys(), name='file_num')
+
     mineral_attrs = pd.concat(mineral_attrs_list, ignore_index=True) if mineral_attrs_list else pd.DataFrame()
     species_attrs = pd.concat(species_attrs_list, ignore_index=True) if species_attrs_list else pd.DataFrame()
+
+    for df in (mineral_attrs, species_attrs):
+        if not df.empty:
+            df.set_index(file_index, inplace=True)
 
     attribute_dfs = [mineral_attrs, species_attrs]
 
@@ -106,7 +114,7 @@ def boundary_condition(dataset, boundary='x_begin', species_concs=True, mineral_
     for df in attribute_dfs:
         boundary_conditions = boundary_conditions.join(df, how='outer')
 
-    file_index = pd.Index(dataset.keys())
+    file_index = pd.Index(dataset.keys(), name='file_num')
 
     boundary_conditions.set_index(file_index, inplace=True)
     return boundary_conditions
@@ -152,9 +160,14 @@ def primary_species(input_file, condition):
             species_dict.update({entry: [float(species_dict[entry][-1])]})
 
     primary_species_df_row = pd.DataFrame.from_dict(species_dict)
-    # convert series to float64, else leave as string
+    # Convert series to float64, else leave as string: CrunchTope accepts constraints such as
+    # 'charge' or a mineral name in place of a concentration. Done column by column with an explicit
+    # except, since to_numeric(errors='ignore') is deprecated and raises from pandas 3.
     for i in primary_species_df_row:
-        primary_species_df_row[i] = pd.to_numeric(primary_species_df_row[i], errors='ignore')
+        try:
+            primary_species_df_row[i] = pd.to_numeric(primary_species_df_row[i])
+        except (ValueError, TypeError):
+            continue
 
     return primary_species_df_row
 
@@ -195,21 +208,18 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
     mins_ds = xr.Dataset()
 
     nxt = next(iter(dataset))
-    c_names = []
-    m_names = []
-
     results_array = np.array([])
 
     if concentrations:
         conc_ds = lbls.raw(dataset, 'totcon')
-        c_names = dataset[nxt].condition_blocks[next(iter(dataset[nxt].condition_blocks))].concentrations.keys()
     if minerals:
         mins_ds = lbls.raw(dataset, 'volume')
-        m_names = dataset[nxt].condition_blocks[next(iter(dataset[nxt].condition_blocks))].minerals.keys()
 
     template_arr = xr.merge((conc_ds, mins_ds))
 
-    var_list = list(c_names) + list(m_names)
+    # Take the column order from the same function that builds the array, rather than re-deriving it
+    # here: the two must agree or the species end up labelled with each other's data.
+    var_list = sc.condition_variables(dataset[nxt], concentrations, minerals)
 
     # Unstack the template array to make it compatible with data out of the sc.
     # Template array is typically some lbls.raw call of the same type. Data vars
@@ -242,7 +252,9 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
     # with the xr.ds constructor method.
     for var in results_dict:
         results_dict.update({var: (['file_num', 'index'], results_dict[var])})
-    ds = xr.Dataset(results_dict)
+    # Label file_num with the run numbers, so a dataset with runs missing still says which run each
+    # slice belongs to and lines up with results.nc.
+    ds = xr.Dataset(results_dict, coords={'file_num': list(dataset.keys())})
     # Unstack the coordinate system again.
     ds = ds.assign({var: template_arr[var] for var in ('X', 'Y', 'Z')})
     ds = ds.set_index(index=('X', 'Y', 'Z'))
@@ -275,7 +287,7 @@ def mineral_rates(dataset):
 
     rate_df = pd.concat(rate_rows, ignore_index=True) if rate_rows else pd.DataFrame()
 
-    file_index = pd.Index(dataset.keys())
+    file_index = pd.Index(dataset.keys(), name='file_num')
     rate_df.set_index(file_index, inplace=True)
 
     return rate_df
@@ -303,7 +315,7 @@ def aqueous_rates(dataset):
 
     rate_df = pd.concat(rate_rows, ignore_index=True) if rate_rows else pd.DataFrame()
 
-    file_index = pd.Index(dataset.keys())
+    file_index = pd.Index(dataset.keys(), name='file_num')
     rate_df.set_index(file_index, inplace=True)
 
     return rate_df

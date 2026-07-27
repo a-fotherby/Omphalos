@@ -9,8 +9,79 @@ to make the xarray object.
 import numpy as np
 
 
+def condition_variables(input_file, primary_species=True, mineral_vols=False):
+    """Return the ordered variable names that populate_array writes as array columns.
+
+    Names are collected across every condition block, concentrations first and then mineral volumes,
+    in first-seen order. Taking the union means a condition that declares an extra species cannot
+    shift the columns belonging to another one.
+
+    Callers that label the array must use this same ordering; core.attributes.initial_conditions does.
+
+    Args:
+        input_file: The input file to read condition blocks from.
+        primary_species: Whether to include primary species concentrations.
+        mineral_vols: Whether to include mineral volume fractions.
+
+    Returns:
+        list of variable names, in column order
+    """
+    concentration_names = []
+    mineral_names = []
+
+    for condition in input_file.condition_blocks:
+        input_file.check_condition_sort(condition)
+        block = input_file.condition_blocks[condition]
+
+        if primary_species:
+            for name in block.concentrations:
+                if name not in concentration_names:
+                    concentration_names.append(name)
+
+        if mineral_vols:
+            for name in block.mineral_volumes:
+                if name not in mineral_names:
+                    mineral_names.append(name)
+
+    return concentration_names + mineral_names
+
+
+def _condition_row(input_file, condition, names, primary_species, mineral_vols):
+    """Build one row of initial values for a condition, ordered to match names.
+
+    Values a condition does not declare, and values that are not numeric (CrunchTope accepts
+    'charge', a mineral name, or a gas name in place of a concentration), come back as nan.
+    """
+    block = input_file.condition_blocks[condition]
+
+    values = {}
+    if primary_species:
+        # Index the first token: the remainder of the entry is a constraint such as 'charge' or an
+        # equilibrating gas, not part of the value.
+        values.update({name: entry[0] for name, entry in block.concentrations.items()})
+    if mineral_vols:
+        # The condition block entry also carries surface area info, hence the first token again.
+        values.update({name: entry[0] for name, entry in block.mineral_volumes.items()})
+
+    row = np.full(len(names), np.nan)
+    for i, name in enumerate(names):
+        if name not in values:
+            continue
+        try:
+            row[i] = float(values[name])
+        except ValueError:
+            row[i] = np.nan
+
+    return row
+
+
 def populate_array(input_file, primary_species=True, mineral_vols=False):
     """Populates an empty initial condition spatial array with species and mineral data.
+
+    Every condition block contributes the rows of the region(s) it is applied over in
+    INITIAL_CONDITIONS, so a template whose first condition block is a boundary or pump condition
+    with no region is handled correctly. Where regions overlap, the condition declared last in the
+    input file wins. Grid cells no condition covers are left at zero, and warned about.
 
     Args:
         input_file: The input file containing the data for population.
@@ -18,46 +89,30 @@ def populate_array(input_file, primary_species=True, mineral_vols=False):
         mineral_vols: Whether to include mineral volume fractions.
 
     Returns:
-        numpy array with spatial initial conditions
+        numpy array with spatial initial conditions, of shape
+        (number of grid cells, number of variables), with columns ordered as condition_variables()
     """
+    names = condition_variables(input_file, primary_species, mineral_vols)
+    array = initialise_array(input_file, len(names))
+    covered = np.zeros(array.shape[0], dtype=bool)
+
     # Construct an initial volume fraction field using initial conditions and the region attribute.
     for condition in input_file.condition_blocks:
-        input_file.check_condition_sort(condition)
-
-        primary_species_dict = {}
-        mineral_dict = {}
-
-        if primary_species:
-            # Have to iterate and update dict to stop values being read as single element arrays.
-            for key in input_file.condition_blocks[condition].concentrations:
-                primary_species_dict.update({key: input_file.condition_blocks[condition].concentrations[key][0]})
-
-        if mineral_vols:
-            # Get list of all minerals in the system and record the starting volume fraction for each.
-            # Populate a new mineral dict because the condition block entry contains surface area info.
-            for key in input_file.condition_blocks[condition].minerals:
-                mineral_dict.update({key: input_file.condition_blocks[condition].minerals[key][0]})
-
-        condition_dict = {**primary_species_dict, **mineral_dict}
-
-        # Convert values stored as strings in InputFile to floats.
-        # If it's a string that can't be converted, e.g. 'charge', then set to nan.
-        for i in condition_dict:
-            try:
-                condition_dict[i] = float(condition_dict[i])
-            except ValueError:
-                condition_dict[i] = np.nan
-
-        initial_condition = np.fromiter(condition_dict.values(), dtype=float, count=len(condition_dict))
-
-        array = initialise_array(input_file, len(initial_condition))
-
         row_list = compute_rows(input_file, condition)
+        if not row_list:
+            # A condition that is never applied as an initial condition, e.g. a boundary or pump
+            # condition, has no rows to fill.
+            continue
 
-        for row in row_list:
-            array[row] = initial_condition
+        row = _condition_row(input_file, condition, names, primary_species, mineral_vols)
+        array[row_list] = row
+        covered[row_list] = True
 
-        return array
+    if not covered.all():
+        print(f'Warning: {int((~covered).sum())} of {covered.size} grid cells are not covered by any '
+              f'condition region in INITIAL_CONDITIONS; their values are left at zero.')
+
+    return array
 
 
 def initialise_array(input_file, variable_num, verbose=False):

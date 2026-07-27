@@ -3,10 +3,56 @@
 import glob
 import pickle
 import re
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+
+class SpilledResults(Mapping):
+    """A run's parsed results, held in a netCDF file on disk rather than in memory.
+
+    results.nc is grouped by output category, but the pickles a parallel run leaves behind are per
+    run, so collating the sweep has to transpose the two. Holding every run's every category in
+    memory to do that costs, for a sweep of 100 runs writing 10 categories of 100 output times over
+    1000 cells for 20 species, of order 10 GB.
+
+    Spilling each run's results here as they are read turns that into one netCDF file per run, so the
+    collation holds one run plus the one category being written. Each lookup reopens the file and
+    returns a fresh Dataset, so mutating what comes back has no effect on what is stored; the
+    round trip through netCDF also guarantees numeric dtypes, so the fix_smalls repair does not
+    apply to results that have been through it.
+
+    Attributes:
+        path: netCDF file holding one group per output category.
+    """
+
+    def __init__(self, path, categories):
+        """Record where a run's results were spilled to.
+
+        Args:
+            path: Path to the netCDF file the results were written to.
+            categories: Names of the output categories present in that file.
+        """
+        self.path = Path(path)
+        self._categories = tuple(categories)
+
+    def __getitem__(self, category):
+        import xarray as xr
+
+        if category not in self._categories:
+            raise KeyError(category)
+        return xr.open_dataset(self.path, group=category)
+
+    def __iter__(self):
+        return iter(self._categories)
+
+    def __len__(self):
+        return len(self._categories)
+
+    def __repr__(self):
+        return f'SpilledResults({str(self.path)!r}, {list(self._categories)!r})'
 
 
 def search_file(dictionary, by_val, allow_white_space=True):
@@ -233,13 +279,24 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
         from coeus.helper import fix_smalls
         from omphalos.labels import raw
 
-        # Take the union of categories across runs, in first-seen order. Reading them off the first
-        # run alone would drop, for every run, any category that run happened not to produce.
-        categories = {}
+        # Take the union of categories across runs. Reading them off the first run alone would drop,
+        # for every run, any category that run happened not to produce. Sorted because data_cats
+        # discovers them as a set, so the order they were written in — and so the group order of
+        # results.nc — varied between otherwise identical sweeps. Matches the MIN3P branch above.
+        categories = set()
         for input_file in dataset.values():
-            categories.update(dict.fromkeys(input_file.results))
+            categories.update(input_file.results)
+        categories = sorted(categories)
+
+        # Results already spilled to disk have been through a netCDF round trip, which cannot hold
+        # the mixed dtypes fix_smalls exists to repair, and reopens on each lookup so its in-place
+        # repair would be discarded anyway. compile_results applies it as it spills instead.
+        spilled = any(isinstance(f.results, SpilledResults) for f in dataset.values())
 
         for category in categories:
-            dataset = fix_smalls(dataset, category)
+            if not spilled:
+                dataset = fix_smalls(dataset, category)
             group = raw(dataset, category)
             group.to_netcdf(path, group=category, mode='a')
+            # Only one category is held at a time, so let this one go before building the next.
+            del group

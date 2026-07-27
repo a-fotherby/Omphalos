@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-295%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-299%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -282,7 +282,12 @@ Files compiled: 0 of 10.
 ```
 
 Failures need not stop the analysis: `results.nc` is labelled by run number, so it joins onto `conditions.nc`
-correctly with the failures simply absent. Use `coeus.helper.filter_errors` for the same accounting on the
+correctly with the failures simply absent.
+
+Collation reads one run at a time and spills its parsed output to a temporary netCDF file, so memory is bounded by
+one run plus the single output category being written rather than by the whole sweep. The results are therefore
+written to disk twice; set `TMPDIR` to somewhere with room if the default temporary directory is small or under
+quota. Use `coeus.helper.filter_errors` for the same accounting on the
 sequential (`omphalos`) path, and `coeus/retrieval_run.py` to salvage output from run directories after an
 interrupted sweep.
 
@@ -635,7 +640,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **295 tests**:
+The project includes a comprehensive test suite with **299 tests**:
 
 ```bash
 # Run all tests

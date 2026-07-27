@@ -1,18 +1,29 @@
 """Unit tests for rhea/slurm_interface.py."""
 
+import types
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
+import xarray as xr
 
 from rhea import slurm_interface as si
 
 
-def _input_file(error_code=0):
+def _results(value=0.0, categories=('totcon',)):
+    """Parsed output as a completed run carries it: one spatial Dataset per output category."""
+    return {
+        category: xr.Dataset(
+            {'species': (('X', 'Y', 'Z'), np.full((3, 1, 1), float(value)))},
+            coords={'X': [0.5, 1.5, 2.5], 'Y': [0.5], 'Z': [0.5]},
+        )
+        for category in categories
+    }
+
+
+def _input_file(error_code=0, categories=('totcon',)):
     """Build a stand-in for a completed InputFile carrying results."""
-    input_file = Mock()
-    input_file.error_code = error_code
-    input_file.results = {'totcon': Mock()}
-    return input_file
+    return types.SimpleNamespace(error_code=error_code, results=_results(error_code, categories))
 
 
 @pytest.fixture
@@ -34,9 +45,13 @@ def fake_runs(monkeypatch):
                 raise FileNotFoundError(path)
             return runs[run]
 
+        def record(dataset, simulator='crunchtope'):
+            # Record the results objects themselves, keyed by run: compile_results deletes the
+            # attribute from each InputFile once written, so inspecting them afterwards is too late.
+            compiled.append({i: f.results for i, f in dataset.items()})
+
         monkeypatch.setattr(fm, 'unpickle', unpickle)
-        monkeypatch.setattr(fm, 'dataset_to_netcdf',
-                            lambda dataset, simulator='crunchtope': compiled.append(dict(dataset)))
+        monkeypatch.setattr(fm, 'dataset_to_netcdf', record)
         return compiled
 
     return configure
@@ -100,9 +115,72 @@ class TestCompileResults:
     def test_input_files_without_error_code_are_compiled(self, fake_runs):
         """Test that an InputFile with no error_code attribute is treated as successful."""
         bare = Mock(spec=['results'])
-        bare.results = {'totcon': Mock()}
+        bare.results = _results()
         fake_runs({0: bare})
 
         summary = si.compile_results(1)
 
         assert summary['compiled'] == 1
+
+
+class TestSpilling:
+    """Tests for moving each run's results to disk as its pickle is read.
+
+    results.nc is grouped by output category while the pickles are per run, so collating a sweep
+    transposes the two. Spilling bounds that to one run plus one category, rather than holding every
+    run's every category in memory at once.
+    """
+
+    def test_results_are_replaced_by_a_lazy_view(self, fake_runs):
+        """Test that a compiled run's results are no longer held in memory."""
+        from core.file_methods import SpilledResults
+
+        compiled = fake_runs({0: _input_file(categories=('totcon', 'volume'))})
+        si.compile_results(1)
+
+        results = compiled[0][0]
+        assert isinstance(results, SpilledResults)
+        assert set(results) == {'totcon', 'volume'}
+
+    def test_spilled_values_survive_the_round_trip(self, fake_runs, monkeypatch):
+        """Test that what comes back through the spill file is what went in."""
+        original = _results(value=7.0)['totcon']
+        seen = {}
+
+        def capture(dataset, simulator='crunchtope'):
+            # Read a category back through the lazy view, as dataset_to_netcdf does.
+            seen['totcon'] = dataset[0].results['totcon'].load()
+
+
+        from core import file_methods as fm
+        monkeypatch.setattr(fm, 'dataset_to_netcdf', capture)
+
+        def unpickle(path):
+            return types.SimpleNamespace(error_code=0, results={'totcon': original})
+
+        monkeypatch.setattr(fm, 'unpickle', unpickle)
+        si.compile_results(1)
+
+        xr.testing.assert_allclose(seen['totcon'], original)
+
+    def test_spill_directory_is_cleaned_up(self, fake_runs):
+        """Test that the temporary spill files do not outlive the call."""
+        compiled = fake_runs({0: _input_file()})
+        si.compile_results(1)
+
+        spill_path = compiled[0][0].path
+        assert not spill_path.exists()
+        assert not spill_path.parent.exists()
+
+    def test_results_without_categories_are_left_alone(self, fake_runs):
+        """Test that a backend keeping a single Dataset in results is not spilled.
+
+        PFLOTRAN stores one Dataset rather than a mapping of categories, so there is nothing to
+        transpose and nothing to spill.
+        """
+        single = types.SimpleNamespace(error_code=0, results=_results()['totcon'])
+        compiled = fake_runs({0: single})
+
+        si.compile_results(1, simulator='pflotran')
+
+        assert isinstance(compiled[0][0], xr.Dataset)

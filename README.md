@@ -119,6 +119,27 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
+#### Git Hooks
+
+`install.sh` (and `install.ps1`) point git at the tracked hooks in `.githooks/`. To enable them in an
+existing checkout:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The one hook is a `pre-commit` that keeps the test counts quoted in this README — the badge and the
+line above the Test Categories table — in step with the number of tests pytest collects. It runs only
+when a commit touches `tests/`, `README.md` or `pyproject.toml`, and it never blocks a commit: if it
+cannot find an interpreter with pytest, or the README has unstaged changes it would have to disturb,
+it says so and gets out of the way. It also warns about test modules missing from the table.
+
+Run it by hand at any time:
+
+```bash
+python .githooks/update_test_counts.py
+```
+
 ---
 
 ## Quick Start

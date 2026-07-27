@@ -65,6 +65,13 @@ else
     read -r CT_PATH
 fi
 
+# Point git at the tracked hooks, so the README's test counts stay in step with the suite.
+# Harmless if this is not a git checkout, hence the guard.
+if git -C "$SCRIPT_DIR" rev-parse --git-dir > /dev/null 2>&1; then
+    git -C "$SCRIPT_DIR" config core.hooksPath .githooks
+    echo "Git hooks enabled from .githooks (see .githooks/update_test_counts.py)"
+fi
+
 export SETTINGS="$SCRIPT_DIR/omphalos/settings.py"
 touch "$SETTINGS"
 

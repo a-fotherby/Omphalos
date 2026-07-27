@@ -26,6 +26,12 @@ $CONFIG_FILE = $PROFILE
 & conda config --set channel_priority strict
 & conda env create --file "$SCRIPT_DIR\requirements.yml"
 
+# Point git at the tracked hooks, so the README's test counts stay in step with the suite.
+if (Test-Path (Join-Path $SCRIPT_DIR ".git")) {
+    & git -C "$SCRIPT_DIR" config core.hooksPath .githooks
+    Write-Host "Git hooks enabled from .githooks (see .githooks/update_test_counts.py)"
+}
+
 # Add aliases if not already present
 if (Test-Path $CONFIG_FILE) {
     $ProfileContent = Get-Content $CONFIG_FILE -Raw

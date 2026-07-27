@@ -1,0 +1,18 @@
+#!/bin/sh
+# Keep the README's test counts in step with the test suite.
+#
+# Installed by install.sh, which points git at this directory:
+#     git config core.hooksPath .githooks
+#
+# The hook never blocks a commit. If it cannot find a Python interpreter, or pytest is not
+# installed, it says so and gets out of the way. See .githooks/update_test_counts.py.
+
+# Only bother when something staged could change the collected test count.
+if ! git diff --cached --name-only | grep -Eq '^(tests/|README\.md$|pyproject\.toml$)'; then
+    exit 0
+fi
+
+python=$(command -v python3 || command -v python) || exit 0
+
+"$python" "$(git rev-parse --show-toplevel)/.githooks/update_test_counts.py" --pre-commit
+exit 0

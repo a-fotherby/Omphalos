@@ -1,0 +1,114 @@
+! Quartz dissolution in a 1-D advective column — Omphalos/rhea worked example.
+!
+! Adapted from the CrunchTope short-course exercise
+! Exercises/Ex2Advection/ShortCourse2react.in. A dilute inflow water dissolves
+! quartz as it advects down a 100 m column; the Si-isotope pair
+! (SiO2(aq), 30SiO2(aq)) records the extent of reaction.
+!
+! quartz_flow_sweep.yaml sweeps FLOW / constant_flow (the Darcy flux, m/yr).
+!
+! NOTE ON COMMENTS: keep '!' comment lines outside keyword blocks. Omphalos
+! strips comments when it reads a template, and a comment inside a block leaves
+! a gap in the line index that makes the parser emit a harmless warning.
+
+TITLE
+Quartz dissolution in a 1-D advective column.
+END
+
+RUNTIME
+time_units       years
+timestep_max     5.0
+timestep_init    0.000001
+time_tolerance   0.1
+hindmarsh        true
+correction_max   2.0
+debye-huckel     true
+database_sweep   no
+speciate_only    false
+gimrt            true
+graphics         tecplot
+database         datacom.dbs
+screen_output    100
+END
+
+! Omphalos reads one output time slice per spatial_profile entry.
+!
+! The slowest run in the sweep (0.1 m/yr, i.e. a pore velocity of 1 m/yr) flushes
+! the 100 m column in ~100 yr, so all runs hold a steady fluid profile by 200 yr.
+! Quartz is barely touched on that timescale, so the 200 and 1000 yr slices are
+! interchangeable; by 5000 yr the fastest runs have begun to strip quartz from
+! the inlet, which is why the analysis uses the 1000 yr slice.
+
+OUTPUT
+time_units           years
+spatial_profile      200 1000 5000
+time_series          TracerReact2.out 100 1 1
+time_series_print    Tracer SiO2(aq) 30SiO2(aq)
+time_series_units    Mol/kgw
+time_series_interval 1
+END
+
+TRANSPORT
+distance_units meters
+time_units     years
+fix_diffusion  0.0
+dispersivity   0.0
+END
+
+BOUNDARY_CONDITIONS
+x_begin   boundary          flux
+x_end     initial           flux
+END
+
+INITIAL_CONDITIONS
+initial 1-100
+END
+
+CONDITION boundary
+units            mol/kg
+temperature      25.0
+Tracer           0.1
+SiO2(aq)         9.7e-7
+30SiO2(aq)       2.998e-8
+Quartztope       0.60     bulk_surface_area  100
+END
+
+CONDITION initial
+units            mol/kg
+temperature      25.0
+Tracer           0.0001
+set_porosity     0.999
+SiO2(aq)         0.0001
+30SiO2(aq)       0.00001
+Quartztope       0.60    bulk_surface_area  100
+END
+
+! constant_flow below is the parameter swept by quartz_flow_sweep.yaml.
+
+FLOW
+time_units       years
+distance_units   meters
+constant_flow    10.0
+END
+
+POROSITY
+fix_porosity     0.10
+END
+
+ISOTOPES
+primary  30SiO2(aq)  SiO2(aq)  0.0300
+END
+
+PRIMARY_SPECIES
+Tracer
+SiO2(aq)
+30SiO2(aq)
+END
+
+DISCRETIZATION
+xzones 100 1.0
+END
+
+MINERALS
+Quartztope   -label default  -rate -9.5
+END

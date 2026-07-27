@@ -1,0 +1,44 @@
+# Omphalos / CrunchTope example — flow-rate sweep on a 1-D quartz column.
+#
+# A dilute water is injected into a 100 m column of quartz sand. Quartz
+# dissolves kinetically towards equilibrium as the water advects, so the amount
+# of Si the fluid picks up is set by its residence time in the column. We sweep
+# the Darcy flux (FLOW / constant_flow) over three orders of magnitude and watch
+# the system move from reaction-limited (fast flow, fluid leaves undersaturated)
+# to transport-limited (slow flow, fluid leaves at quartz saturation).
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea quartz_flow_sweep.yaml local -b xargs
+# Drop '-b xargs' if GNU Parallel works on your machine; see the Troubleshooting
+# section of the top-level README.
+
+### Frontmatter — mandatory keys. Leave blank if not applicable.
+# Paths may be relative to this directory or absolute.
+template: 'quartz_column.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+# Max wall-clock seconds per input file. Each run here takes ~3 s.
+timeout: 300
+
+# Geochemical conditions that parameter modifications may target. This sweep
+# only touches a keyword block (FLOW), so no conditions are needed.
+conditions:
+
+# Number of input files (simulations) in the sweep.
+number_of_files: 10
+
+# Parallel workers used by rhea in local mode.
+nodes: 5
+
+### Sweep specification
+# 'flow' maps to the CrunchTope FLOW block; 'constant_flow' is the Darcy flux
+# in the units declared in that block (m/yr here). 'custom' takes an explicit
+# list of length number_of_files, one value per run, so run N in results.nc
+# corresponds to element N of this list.
+flow:
+  constant_flow:
+    - 'custom'
+    - [0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 25.0, 50.0, 100.0]

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-240%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-266%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -59,6 +59,7 @@
   - [Compiling Input Conditions](#compiling-input-conditions)
   - [Plotting Utilities](#plotting-utilities)
   - [Example Notebooks](#example-notebooks)
+  - [Worked Examples](#worked-examples)
 - [Advanced Topics](#advanced-topics)
   - [Non-Unique Entries](#non-unique-entries)
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
@@ -573,7 +574,8 @@ omphalos/
 │   ├── template.py          # Template parsing
 │   ├── input_file.py        # InputFile class
 │   ├── generate_inputs.py   # File generation
-│   └── run.py               # Simulation execution
+│   ├── run.py               # Simulation execution
+│   └── examples/            # Worked examples (quartz_flow_sweep: config + notebook)
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
 ├── min3p/                   # MIN3P-specific code
@@ -738,6 +740,20 @@ Two notebooks are provided in `coeus/`:
 
 - **`ExamplePlotting.ipynb`** — demonstrates loading `results.nc` groups with xarray, selecting slices by coordinate, plotting depth profiles and heatmaps, and animating output across `file_num` and `time` dimensions
 - **`analysis.ipynb`** — interactive analysis notebook for exploring results using the coeus helper functions
+
+### Worked Examples
+
+Each worked example is a self-contained directory holding a template, a sweep config, a notebook that takes the
+sweep from config to figure, and a README:
+
+- [`omphalos/examples/quartz_flow_sweep`](omphalos/examples/quartz_flow_sweep/) — **CrunchTope + rhea**: ten runs
+  sweeping the Darcy flux through a kinetically dissolving quartz column, recovering the linear scaling of
+  equilibration length with flow rate. Start here for the end-to-end workflow: config → `rhea` → `results.nc` +
+  `conditions.nc` → analysis.
+- [`min3p/examples/dissol_sweep`](min3p/examples/dissol_sweep/) — **MIN3P**: a calcite dissolution front driven by
+  varying inflow acidity.
+- [`min3p/examples/velocity_sweep`](min3p/examples/velocity_sweep/) — **MIN3P**: an advective pH front and Darcy's
+  law, driven by varying the flow gradient.
 
 ---
 

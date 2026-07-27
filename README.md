@@ -13,11 +13,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-152%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-238%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
   <img src="https://img.shields.io/badge/PFLOTRAN-supported-orange" alt="PFLOTRAN">
+  <img src="https://img.shields.io/badge/MIN3P-supported-orange" alt="MIN3P">
 </p>
 
 ---
@@ -27,7 +28,7 @@
 - **Simplify geochemical modelling** — Automate parameter sweeps and sensitivity analyses
 - **Test thousands of combinations** — Generate and run hundreds to thousands of simulations effortlessly
 - **Parallel execution** — Run simulations locally or on SLURM-managed clusters
-- **Multiple simulators** — Support for both CrunchTope and PFLOTRAN
+- **Multiple simulators** — Support for CrunchTope, PFLOTRAN, and MIN3P-THCm
 - **Unified results** — Collate all outputs into structured xarray/netCDF datasets
 - **Flexible configuration** — YAML-based configuration for easy parameter specification
 
@@ -785,14 +786,14 @@ python -m rhea.main config.yaml local -p
 
 ### MIN3P Support
 
-Enable MIN3P mode with the `-m` flag (sequential via `min3p.main`, or parallel-local via `rhea`):
+Run MIN3P either sequentially via its own entry point, or in parallel through `rhea` with the `--min3p` flag (short form `-m`). The examples use the long form to avoid visual clash with Python's own `-m` module flag:
 
 ```bash
 # Sequential
 python -m min3p.main config.yaml records.pkl
 
 # Parallel (local)
-python -m rhea.main config.yaml local -m
+python -m rhea.main config.yaml local --min3p
 ```
 
 MIN3P input files are positional (block-structured `.dat`, not key-value), so a

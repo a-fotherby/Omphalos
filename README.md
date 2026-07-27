@@ -611,7 +611,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **240 tests**:
+The project includes a comprehensive test suite with **272 tests**:
 
 ```bash
 # Run all tests
@@ -629,14 +629,23 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 
 ### Test Categories
 
-| Category | Tests | Description |
-|----------|-------|-------------|
-| `test_parameter_methods.py` | 45 | Parameter generation functions |
-| `test_keyword_block.py` | 26 | Block object classes |
-| `test_file_methods.py` | 23 | File I/O operations |
-| `test_generate_inputs.py` | 21 | Input file generation |
-| `test_template.py` | 27 | Template parsing |
-| `test_omphalos_workflow.py` | 10 | Integration tests |
+Per-module counts are deliberately left out — they go stale as soon as anyone adds a test. Run
+`pytest --collect-only -q -o addopts=''` for the current breakdown.
+
+| Module | Covers |
+|--------|--------|
+| `tests/unit/test_parameter_methods.py` | `core/parameter_methods.py` — the parameter generation methods (`linspace`, `random_uniform`, `constant`, `custom`, `fix_ratio`, `staged`) |
+| `tests/unit/test_keyword_block.py` | `core/keyword_block.py` — the `KeywordBlock` and `ConditionBlock` objects |
+| `tests/unit/test_file_methods.py` | `core/file_methods.py` — input file line searching, TecPlot output parsing, pickling, netCDF writing |
+| `tests/unit/test_template.py` | `omphalos/template.py` — template parsing: keyword and condition blocks, comments, blank lines |
+| `tests/unit/test_generate_inputs.py` | `omphalos/generate_inputs.py` — config evaluation and input file generation |
+| `tests/unit/test_run.py` | `omphalos/run.py` — CrunchTope invocation and the stdout error patterns |
+| `tests/unit/test_database.py` | `omphalos/database.py` — thermodynamic database handling |
+| `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
+| `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |
+| `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation and failed-run accounting |
+| `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
+| `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |
 
 ---
 

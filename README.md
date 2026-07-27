@@ -208,7 +208,8 @@ python -m rhea.main config.yaml cluster
 **Flags:**
 - `-p, --pflotran` — Use PFLOTRAN instead of CrunchTope
 - `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
-- `-d, --debug` — Generate files without running simulations
+- `-d, --debug` — Generate files without running simulations. `omphalos` writes them to `tmp/` as
+  `<template><N>.<ext>` (e.g. `tmp/model0.in`); `rhea` writes them into the prepared `run<N>/` directories
 - `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
 ### Collecting Results
@@ -392,7 +393,7 @@ namelists:
 | `linspace` | Linear spacing | `[min, max, repeats]` where `repeats` is the number of times each value is repeated; number of unique points = `number_of_files / repeats` |
 | `random_uniform` | Uniform random | `[min, max]` |
 | `constant` | Fixed value | `value` |
-| `custom` | Custom list | `[v1, v2, v3, ...]` |
+| `custom` | Custom list, one value per file | `[v1, v2, v3, ...]`, of length `number_of_files` |
 | `fix_ratio` | Ratio to another param | `[ref_param, multiplier]` |
 | `staged` | Stage-varying values | `[v_stage0, v_stage1, ...]` or nested lists |
 
@@ -690,7 +691,11 @@ raw = unpickle('inputs.pkl')
 dataset, errors = filter_errors(raw)
 # Returned 98 files without errors out of a total possible 100.
 # 2 files had errors.
+# File failure rate: 2.0 %.
 ```
+
+Both returned dictionaries are new and keyed by run number, and `raw` is left untouched, so the successes and
+failures can be compared afterwards and either can be joined against `results.nc` on `file_num`.
 
 Or use `quick_import` as a one-liner that loads and filters in a single call:
 
@@ -700,7 +705,8 @@ from coeus.helper import quick_import
 dataset = quick_import('inputs.pkl')
 ```
 
-`filter_errors` accepts a `verbose=True` argument to print the indices of any runs with unhandled errors.
+`filter_errors` accepts a `verbose=True` argument to list the runs that failed and the error code each
+carried.
 
 ### Attribute Tables
 

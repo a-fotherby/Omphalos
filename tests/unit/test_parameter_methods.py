@@ -177,6 +177,16 @@ class TestCustomList:
         result = pm.custom_list(input_list, 3)
         assert result is input_list
 
+    @pytest.mark.parametrize('values,num_files', [([1, 2], 4), ([1, 2, 3, 4], 2), ([], 3)])
+    def test_custom_list_length_must_match_num_files(self, values, num_files):
+        """Test that a mismatched list is rejected where it can be explained.
+
+        Without this, a config typo surfaced as an IndexError from inside generate_inputs, which says
+        nothing about which parameter was wrong.
+        """
+        with pytest.raises(pm.ParameterConfigError, match='one value per file'):
+            pm.custom_list(values, num_files)
+
 
 class TestFixRatio:
     """Tests for the fix_ratio function."""

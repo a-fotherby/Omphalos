@@ -2,55 +2,67 @@
 
 
 def quick_import(path, smalls_cats=None):
-    # Read in data for dict.
+    """Load a pickled InputFile dictionary and drop the runs that failed.
+
+    Args:
+        path: Path to the pickle written by omphalos/main.py.
+        smalls_cats: Unused. Retained for call compatibility.
+
+    Returns:
+        dict of InputFile objects that ran cleanly, keyed by run number.
+    """
     from omphalos import file_methods as fm
 
     raw = fm.unpickle(path)
-    dataset, errors1 = filter_errors(raw)
-    #for category in smalls_cats:
-    #    dataset = fix_smalls(dataset, category)
+    dataset, errors = filter_errors(raw)
 
     return dataset
 
 
 def filter_errors(dataset, verbose=False):
-    pop_list = list()
-    errors = dict()
+    """Split a dataset into the runs that succeeded and the runs that failed.
 
-    for i in dataset:
-        if dataset[i].error_code != 0:
-            pop_list.append(i)
+    A run fails by carrying a non-zero error_code, set by the simulator wrapper: 1 is a timeout, and
+    higher values are the error patterns matched in the simulator's output (see CT_ERROR_PATTERNS in
+    omphalos/run.py).
+
+    The input dictionary is left untouched; both returned dictionaries are new, and keyed by run
+    number so they stay aligned with results.nc.
+
+    Note there is no check here for runs that returned no output at all. omphalos/main.py deletes
+    InputFile.results before pickling, since the results themselves live in results.nc, so an absent
+    or empty results dict is normal in inputs.pkl rather than a sign of failure.
+
+    Args:
+        dataset: dict of InputFile objects, keyed by run number.
+        verbose: Whether to list the run numbers that failed, with their error codes.
+
+    Returns:
+        (clean, errors): two dicts of InputFile objects, keyed by run number.
+    """
+    clean = {}
+    errors = {}
+
+    for i, input_file in dataset.items():
+        if getattr(input_file, 'error_code', 0) != 0:
+            errors[i] = input_file
         else:
-            continue
+            clean[i] = input_file
 
-    for j in pop_list:
-        errors.update({j: dataset.pop(j)})
+    total = len(dataset)
+    rate = len(errors) / total * 100 if total > 0 else 0.0
 
-    total = len(dataset) + len(errors)
-
-    # Check for unidentified errors that are not currently handled.
-    # Do this by checking for empty results dict.
-    weird_errors = list()
-    #for i in dataset:
-    #    try:
-    #        dataset[i].results['totcon']
-    #    except:
-    #        weird_errors.append(i)
-
-    for j in weird_errors:
-        dataset.pop(j)
-
-    rate = (len(errors) + len(weird_errors)) / total * 100 if total > 0 else 0.0
-    print(f'Returned {len(dataset)} files without errors out of a total possible {total}.')
+    print(f'Returned {len(clean)} files without errors out of a total possible {total}.')
     print(f'{len(errors)} files had errors.')
-    print(f'{len(weird_errors)} files had unhandled errors.')
     print(f'File failure rate: {rate} %.')
-    print(f'To see unhandled errors, run with verbose=True.')
+    if errors and not verbose:
+        print('To see which files failed, run with verbose=True.')
 
-    if verbose:
-        print(f'The following files had unhandled errors: {weird_errors}')
+    if verbose and errors:
+        print('The following files had errors, as run: error_code: '
+              f'{ {i: entry.error_code for i, entry in sorted(errors.items())} }')
 
-    return dataset, errors
+    return clean, errors
 
 
 def fix_smalls(dataset, category):

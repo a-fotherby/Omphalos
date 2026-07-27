@@ -39,9 +39,14 @@ if __name__ == '__main__':
 
     if args.debug:
         print("*** DEBUG MODE: FILES NOT RUN ***")
+        # Number the files before the extension, and take only the template's file name: appending the
+        # run number to the path as given produced names like 'column.in0', and wrote next to the
+        # template rather than into tmp/ when the template was an absolute path.
+        template_path = Path(config['template'])
         for file in file_dict:
-            file_dict[file].path = tmp_dir / f'{file_dict[file].path}{file}'
+            file_dict[file].path = tmp_dir / f'{template_path.stem}{file}{template_path.suffix}'
             file_dict[file].print()
+            print(f'Wrote {file_dict[file].path}')
 
         sys.exit()
     else:

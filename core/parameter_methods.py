@@ -91,15 +91,24 @@ def constant(params, num_files):
 
 
 def custom_list(params, num_files):
-    """Use a custom list of values.
+    """Use a custom list of values, one per file.
 
     Args:
-        params: List of values to use directly
-        num_files: number of files (unused, but kept for consistent interface)
+        params: List of values to use directly, of length num_files
+        num_files: number of files in the run
 
     Returns:
         The input params list
+
+    Raises:
+        ParameterConfigError: If the list length does not match num_files
     """
+    if len(params) != num_files:
+        raise ParameterConfigError(
+            f'A custom list must give one value per file, but has {len(params)} '
+            f'value(s) for {num_files} file(s). Abort.'
+        )
+
     return params
 
 

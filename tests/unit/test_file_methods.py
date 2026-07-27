@@ -164,6 +164,25 @@ class TestDataCats:
         result = fm.data_cats(tmp_path)
         assert isinstance(result, set)
 
+    def test_data_cats_keeps_category_names_intact(self, tmp_path):
+        """Test that only the extension and output index are removed.
+
+        The old implementation used rstrip with a character set, so 'rate.tec' became 'ra' and any
+        category name ending in '.', 't', 'e' or 'c' was at risk.
+        """
+        for name in ('rate.tec', 'rate1.tec', 'saturation10.tec', 'toperatio_aq2.tec', 'volume.tec'):
+            (tmp_path / name).touch()
+
+        assert fm.data_cats(tmp_path) == {'rate', 'saturation', 'toperatio_aq', 'volume'}
+
+    def test_data_cats_unaffected_by_directory_name(self, tmp_path):
+        """Test that the containing directory's name cannot bleed into the category names."""
+        run_dir = tmp_path / 'tec.rate1'
+        run_dir.mkdir()
+        (run_dir / 'totcon1.tec').touch()
+
+        assert fm.data_cats(run_dir) == {'totcon'}
+
 
 class TestPickleFunctions:
     """Tests for pickle_data_set and unpickle functions."""
@@ -288,6 +307,38 @@ class TestDatasetToNetcdf:
 
         assert isinstance(result, xr.Dataset)
         assert 'concentration' in result.data_vars
+
+    def test_crunchtope_mode_writes_the_union_of_categories(self, tmp_path, monkeypatch):
+        """Test that a category the first run lacks is still written.
+
+        Categories used to be read off the first run alone, so anything it happened not to produce was
+        dropped for every run.
+        """
+        import netCDF4
+        import xarray as xr
+
+        def spatial(value):
+            return xr.Dataset(
+                {'species': (('X', 'Y', 'Z'), np.full((3, 1, 1), value))},
+                coords={'X': [0.5, 1.5, 2.5], 'Y': [0.5], 'Z': [0.5]},
+            )
+
+        class MockInputFile:
+            def __init__(self, file_num, categories):
+                self.file_num = file_num
+                self.error_code = 0
+                self.results = {name: spatial(float(file_num)) for name in categories}
+
+        # Run 0 produced no 'volume' output; run 1 did.
+        dataset = {0: MockInputFile(0, ['totcon']), 1: MockInputFile(1, ['totcon', 'volume'])}
+
+        monkeypatch.chdir(tmp_path)
+        fm.dataset_to_netcdf(dataset, simulator='crunchtope')
+
+        with netCDF4.Dataset(tmp_path / 'results.nc') as ds:
+            groups = set(ds.groups)
+
+        assert groups == {'totcon', 'volume'}
 
 
 class TestPathHandling:

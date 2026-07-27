@@ -68,9 +68,10 @@ def parse_output(path, output, time_ref):
     with open(file_name) as f:
         f.readline()
         headers = f.readline()
-        headers = headers.strip('VARIABLES = "')
-        headers = headers.rstrip('" \n')
-        headers = re.split(r'"\s+"', headers)
+        # Take the quoted names, rather than stripping the 'VARIABLES = "' prefix character by
+        # character: str.strip removes any of those characters, so a first column named 'SO4--'
+        # would lose its leading S.
+        headers = re.findall(r'"\s*(.*?)\s*"', headers)
 
         df = pd.read_table(
             file_name,
@@ -105,12 +106,11 @@ def data_cats(path):
     Returns:
         Set of unique category names
     """
-    path = Path(path) / '*.tec'
-    f_list = glob.glob(str(path))
-    f_list = [i.rstrip('.tec') for i in f_list]
-    f_list = [i.rstrip('0123456789') for i in f_list]
-    f_list = [i.split('/')[-1] for i in f_list]
-    f_set = set(f_list)
+    f_list = glob.glob(str(Path(path) / '*.tec'))
+    # Take the file name, drop the extension, then drop the trailing output index. Done with stem and
+    # a regex rather than rstrip, which strips any of the given characters: 'rate.tec'.rstrip('.tec')
+    # is 'ra'.
+    f_set = {re.sub(r'\d+$', '', Path(i).stem) for i in f_list}
     return f_set
 
 
@@ -233,7 +233,13 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
         from coeus.helper import fix_smalls
         from omphalos.labels import raw
 
-        for category in dataset[next(iter(dataset))].results:
+        # Take the union of categories across runs, in first-seen order. Reading them off the first
+        # run alone would drop, for every run, any category that run happened not to produce.
+        categories = {}
+        for input_file in dataset.values():
+            categories.update(dict.fromkeys(input_file.results))
+
+        for category in categories:
             dataset = fix_smalls(dataset, category)
             group = raw(dataset, category)
             group.to_netcdf(path, group=category, mode='a')

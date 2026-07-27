@@ -39,10 +39,27 @@ class TestFilterErrors:
         assert errors[1].error_code == 3
         assert 1 not in result
 
-    def test_returns_same_dataset_object(self, capsys):
-        dataset = {0: _entry(0)}
+    def test_input_dataset_is_not_mutated(self, capsys):
+        """The caller's dictionary is left intact.
+
+        filter_errors used to pop failed runs out of the dataset it was given, so the documented
+        `raw = unpickle(...); dataset, errors = filter_errors(raw)` pattern gutted `raw`.
+        """
+        dataset = {0: _entry(0), 1: _entry(1)}
         result, errors = filter_errors(dataset)
-        assert result is dataset
+
+        assert set(dataset) == {0, 1}, 'input dataset was modified'
+        assert result is not dataset
+        assert set(result) == {0}
+        assert set(errors) == {1}
+
+    def test_verbose_lists_the_failed_runs(self, capsys):
+        """verbose=True reports which runs failed and with what code."""
+        dataset = {0: _entry(0), 3: _entry(1), 7: _entry(4)}
+        filter_errors(dataset, verbose=True)
+
+        out = capsys.readouterr().out
+        assert '3: 1' in out and '7: 4' in out
 
     def test_single_error_entry(self, capsys):
         dataset = {0: _entry(2)}

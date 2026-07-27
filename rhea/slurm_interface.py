@@ -37,19 +37,28 @@ def split_dict(dictionary, num):
 def submit(path_to_config, nodes, number_of_files):
     """Submit a job to the SLURM scheduler.
 
+    Note: nothing in rhea currently calls this. Cluster runs go through rhea/main.py, which submits
+    prep_directories.sh and run_input_file.sbatch directly.
+
     Args:
         path_to_config: Path to the configuration file
         nodes: Number of nodes to use
         number_of_files: Total number of files to process
     """
+    import os
+
     # Get the directory containing this file
     rhea_dir = Path(__file__).resolve().parent
     sbatch_script = rhea_dir / 'parallel.sbatch'
 
-    subprocess.run(
-        ['sbatch', f'-n{nodes}', str(sbatch_script)],
-        env=dict(DICT_LEN=str(number_of_files), PATH_TO_CONFIG=path_to_config)
-    )
+    # Augment the environment rather than replacing it, or sbatch itself may not be found, and pass
+    # the checkout location so the batch scripts need not hardcode a path.
+    env = {**os.environ,
+           'DICT_LEN': str(number_of_files),
+           'PATH_TO_CONFIG': path_to_config,
+           'OMPHALOS_DIR': str(rhea_dir.parent)}
+
+    subprocess.run(['sbatch', f'-n{nodes}', str(sbatch_script)], env=env)
 
 
 def compile_results(dict_len, simulator='crunchtope'):

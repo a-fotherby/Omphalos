@@ -8,5 +8,8 @@ dependencies:
   - pyyaml
   - pexpect
   - netcdf4
-  - parallel
   - pytest
+  - pytest-cov
+  # Optional: only needed for `rhea <config> local -b parallel`. The default xargs backend needs
+  # nothing beyond a POSIX shell.
+  - parallel

@@ -65,6 +65,7 @@
   - [Non-Unique Entries](#non-unique-entries)
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
   - [Choosing a Parallelization Backend](#choosing-a-parallelization-backend)
+  - [Cluster Runs](#cluster-runs)
   - [Keep the Working Directory Path Short](#keep-the-working-directory-path-short)
   - [PFLOTRAN Support](#pflotran-support)
   - [MIN3P Support](#min3p-support)
@@ -208,7 +209,7 @@ python -m rhea.main config.yaml cluster
 - `-p, --pflotran` — Use PFLOTRAN instead of CrunchTope
 - `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
 - `-d, --debug` — Generate files without running simulations
-- `-b, --backend` — Parallelization backend: `parallel` (GNU Parallel, default) or `xargs`
+- `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
 ### Collecting Results
 
@@ -868,19 +869,49 @@ flow:
 
 ### Choosing a Parallelization Backend
 
-By default, Omphalos uses GNU Parallel to distribute simulations across cores. On some systems, GNU Parallel constructs a command line that exceeds the operating system's argument length limit, producing an error like:
-
-```
-parallel: Error: Command line too long (91 >= -5413) at input 0: 0
-```
-
-If you see this error, switch to the `xargs` backend with the `-b` flag:
+Local runs distribute simulations across cores with `xargs` by default, which needs nothing beyond a POSIX shell.
+GNU Parallel is available as an alternative and offers more sophisticated load balancing and progress reporting:
 
 ```bash
-python -m rhea.main config.yaml local -b xargs
+python -m rhea.main config.yaml local -b parallel
 ```
 
-`xargs` constructs shorter individual command lines and is not subject to the same limit. The tradeoff is that GNU Parallel offers more sophisticated load balancing and progress reporting; `xargs` is simpler but equally effective for most workloads.
+On some systems GNU Parallel computes a negative limit for its command line and refuses to run anything at all:
+
+```
+parallel: Error: Command line too long (20 >= -5564) at input 0: 0
+```
+
+This is a quirk of Parallel's own limit calculation on that platform, not of the command Omphalos builds — it
+happens for a bare `parallel echo hello ::: 1` too. There is no workaround from this side, so stay on `xargs`
+where you see it. `xargs` is simpler but equally effective for most workloads.
+
+### Cluster Runs
+
+`rhea <config> cluster` submits `rhea/prep_directories.sh` as a job array, waits for it, then submits
+`rhea/run_input_file.sbatch` as a second array. Site-specific settings come from the environment rather than being
+edited into the batch scripts:
+
+| Variable | Meaning |
+|----------|---------|
+| `OMPHALOS_DIR` | Path to the checkout. Exported automatically by `rhea/main.py`; falls back to `SLURM_SUBMIT_DIR` |
+| `OMPHALOS_MODULES` | Modules to load, space separated, e.g. `"Python/3.10.8-GCCcore-12.2.0 OpenMPI/4.1.5-GCC-12.2.0"` |
+| `OMPHALOS_PYTHON` | Python to run the workers with (default: `python`) |
+| `OMPHALOS_PROFILE` | Shell profile to source first, e.g. `"$HOME/.bashrc"` (used by `parallel.sbatch`) |
+| `OMPHALOS_ENV` | Conda environment to activate (default: `omphalos`, used by `parallel.sbatch`) |
+
+Set them in your shell before submitting:
+
+```bash
+export OMPHALOS_MODULES="Python/3.10.8-GCCcore-12.2.0 OpenMPI/4.1.5-GCC-12.2.0"
+rhea config.yaml cluster
+```
+
+Resource directives (`--mem-per-cpu`, `--time`, mail options) are the two `.sbatch` files' own business — edit
+them for your site, or pass overrides on the `sbatch` command line.
+
+> **Status:** the cluster path has not been exercised since the batch scripts were generalised; it is the least
+> tested part of the project. Check the first submission by hand.
 
 ### Keep the Working Directory Path Short
 

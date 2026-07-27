@@ -32,11 +32,29 @@ if __name__ == '__main__':
     parser.add_argument(
         '-b', '--backend',
         type=str,
-        choices=['parallel', 'xargs'],
-        default='parallel',
-        help='Parallelization backend: "parallel" (GNU Parallel, default) or "xargs"'
+        choices=['xargs', 'parallel'],
+        default='xargs',
+        help='Parallelization backend: "xargs" (default) or "parallel" (GNU Parallel, which offers '
+             'better load balancing and progress reporting where it is installed and working)'
     )
     args = parser.parse_args()
+
+    def run_shell(command, description, env=None, fatal=True):
+        """Run a shell command, reporting a non-zero exit rather than carrying on regardless.
+
+        A failed directory-prep step used to surface much later as a FileNotFoundError on the first
+        input file, which points at the wrong thing entirely.
+        """
+        # Augment the environment rather than replacing it: a command run with no PATH resolves
+        # executables against os.defpath only, which is how sbatch or parallel go missing.
+        full_env = {**os.environ, **env} if env else None
+        result = subprocess.run(command, shell=True, executable='/bin/bash', env=full_env)
+        if result.returncode != 0:
+            message = f'{description} exited with code {result.returncode}.'
+            if fatal:
+                sys.exit(f'ERROR: {message} Aborting.')
+            print(f'WARNING: {message}')
+        return result.returncode
 
     def build_prep_command(backend, prep_script, dict_size, parallel_exec=None):
         """Build the directory preparation command for the chosen backend."""
@@ -116,7 +134,9 @@ if __name__ == '__main__':
                 f'seq 0 {dict_size} | xargs -I {{}} -P {nodes} '
                 f'python {slurm_exec_script} -m {{}} {args.path_to_config}'
             )
-        subprocess.run(run_command, shell=True, executable='/bin/bash')
+        # A non-zero exit here means the runner itself struggled; individual simulation failures are
+        # recorded per run and reported by compile_results, so keep going and let it account for them.
+        run_shell(run_command, 'MIN3P run command', fatal=False)
 
         summary = si.compile_results(dict_size + 1, simulator='min3p')
         t_stop = time.time()
@@ -183,9 +203,12 @@ if __name__ == '__main__':
             str(prep_script)
         ]
 
-        # Run the sbatch command and capture the output
+        # Run the sbatch command and capture the output. The environment is augmented rather than
+        # replaced, or sbatch itself may not be found: with no PATH, subprocess resolves executables
+        # against os.defpath alone.
         try:
-            result = subprocess.run(sbatch_command, check=True, env=env_dict, capture_output=True, text=True)
+            result = subprocess.run(sbatch_command, check=True, env={**os.environ, **env_dict},
+                                    capture_output=True, text=True)
 
             output = result.stdout
             print("Directory prep command executed successfully.")
@@ -254,7 +277,7 @@ if __name__ == '__main__':
 
         # Run directory preparation script
         prep_command = build_prep_command(args.backend, prep_script, dict_size, parallel_exec)
-        subprocess.run(prep_command, env=env_dict, shell=True, executable='/bin/zsh')
+        run_shell(prep_command, 'Directory preparation', env=env_dict)
 
     else:
         print('ERROR: run_type must be either local or cluster')
@@ -295,12 +318,14 @@ if __name__ == '__main__':
                 sys.exit(1)
             # PFLOTRAN runs sequentially due to specific requirements
             for file in file_dict:
-                env = os.environ.copy()
-                subprocess.run([f'python {slurm_exec_script} -p {file} {args.path_to_config}'], shell=True, env=env, executable='/bin/zsh')
+                run_shell(f'python {slurm_exec_script} -p {file} {args.path_to_config}',
+                          f'PFLOTRAN run of file {file}', fatal=False)
                 print(f'File {file} complete.')
         else:
             run_command = build_run_command(args.backend, slurm_exec_script, dict_size, nodes, args.path_to_config, parallel_exec)
-            subprocess.run(run_command, shell=True, executable='/bin/bash')
+            # Individual simulation failures are recorded per run and reported by compile_results, so
+            # a non-zero exit here is a warning rather than a reason to stop before compiling.
+            run_shell(run_command, 'Run command', fatal=False)
 
         # Compile results. compile_results reports the per-run breakdown itself; exit non-zero if
         # nothing came back, so a wholly failed sweep does not look like a success to a caller.
@@ -309,7 +334,12 @@ if __name__ == '__main__':
             sys.exit(1)
 
     elif args.run_type == 'cluster':
-        submit_runs = f'sbatch --array=0-{dict_size} --export=CONFIG_PATH={args.path_to_config},PFLOTRAN="{args.pflotran}",ALL {run_sbatch}'
-        subprocess.run(submit_runs, shell=True)
+        # OMPHALOS_DIR tells the batch script where this checkout lives, so it need not hardcode a path.
+        submit_runs = (
+            f'sbatch --array=0-{dict_size} '
+            f'--export=CONFIG_PATH={args.path_to_config},PFLOTRAN="{args.pflotran}",'
+            f'OMPHALOS_DIR={_project_root},ALL {run_sbatch}'
+        )
+        run_shell(submit_runs, 'Submitting run array')
     else:
         print('ERROR: run_type must be either local or cluster')

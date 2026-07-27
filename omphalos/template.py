@@ -91,7 +91,9 @@ class Template(InputFile):
         """Return a dictionary of lines in a file, with the values as the line numbers.
 
         Will ignore any commented lines in the CT input file, but will still count their line number,
-        so line numbers in dictionary will map to the true line number in the file.
+        so line numbers in dictionary will map to the true line number in the file. Comments are
+        recognised wherever the '!' falls, so an indented comment is dropped like any other rather
+        than being parsed as a block entry. The block parsers skip the resulting gaps.
         """
         input_file = {}
 
@@ -99,7 +101,7 @@ class Template(InputFile):
             for line_num, line in enumerate(f):
                 # Input files edited on UNIX systems have newline characters that must be stripped.
                 # Also strip any trailing whitespace.
-                if line.startswith('!'):
+                if line.lstrip().startswith('!'):
                     # It's a commented line, so don't import.
                     pass
                 else:
@@ -107,6 +109,15 @@ class Template(InputFile):
 
             f.close()
         return input_file
+
+    def block_line(self, line_num):
+        """Return a line inside a keyword block, split into words, or [] if there is nothing to read.
+
+        Comment lines are dropped by read_file but their line numbers are preserved, so the index has
+        gaps where comments were; blank lines inside a block are legal CrunchTope input and carry no
+        entry. Both are nothing to read, so callers skip them.
+        """
+        return self.raw.get(line_num, '').split()
 
     def make_dict(self):
         """Returns a dict of InputFile objects, based on the Template."""
@@ -152,16 +163,11 @@ class Template(InputFile):
         try:
             for a in np.arange(block_start[0], block_end[0]):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by missing
-                # line removed due to commenting.
-                try:
-                    line_list = self.raw[a].split()
-                    keyword_dict.update({line_list[0]: line_list[1:]})
-                except BaseException:
-                    print(
-                        'BaseException: This is normally due to a commented line in the input file. If it is not, '
-                        'something has gone really wrong!')
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
+                keyword_dict.update({line_list[0]: line_list[1:]})
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
         except IndexError:
@@ -191,14 +197,11 @@ class Template(InputFile):
             keyword_dict = {}
             for a in np.arange(start, end):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by
-                # missing line removed due to commenting.
-                try:
-                    line_list = self.raw[a].split()
-                    keyword_dict.update({line_list[0]: line_list[1:]})
-                except BaseException:
-                    pass
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
+                keyword_dict.update({line_list[0]: line_list[1:]})
 
             condition.contents = keyword_dict
             self.condition_blocks.update({condition_name: condition})
@@ -231,11 +234,12 @@ class Template(InputFile):
         try:
             for a in np.arange(block_start[0], block_end[0]):
                 # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
-                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
-                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
-                # removed due to commenting.
+                # the dict key (in this specific context, the rare isotope).
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
                 try:
-                    line_list = self.raw[a].split()
                     reordered_list = [line_list[0]] + line_list[2:]
                     keyword_dict.update({line_list[1]: reordered_list})
                 except IndexError:
@@ -243,10 +247,6 @@ class Template(InputFile):
                     # This will raise an IndexError, so catch it and allocate
                     # the dict entries accordingly.
                     keyword_dict.update({line_list[0]: line_list[1:]})
-                except BaseException:
-                    print(
-                        'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                        'something has gone really wrong!')
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
         except IndexError:
@@ -279,12 +279,12 @@ class Template(InputFile):
         keyword_dict = {}
         try:
             for a in np.arange(block_start[0], block_end[0]):
-                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
-                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
-                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
-                # removed due to commenting.
+                # Use the coordinate set as the dict key, since a condition may be applied over several
+                # non-contiguous regions. Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
                 try:
-                    line_list = self.raw[a].split()
                     # Regex extracts keys as unique coordinate sets.
                     key = re.findall(r"\d+-\d+", self.raw[a])
                     key = ' '.join(key)
@@ -299,10 +299,6 @@ class Template(InputFile):
                     # This will raise an IndexError, so catch it and allocate
                     # the dict entries accordingly.
                     keyword_dict.update({line_list[0]: line_list[1:]})
-                except BaseException:
-                    print(
-                        'BaseException: this is normally due to a commented line in the input file. If it is not, '
-                        'something has gone really wrong!')
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
         except IndexError:
@@ -333,47 +329,38 @@ class Template(InputFile):
         zone_entries = {'permeability_x', 'permeability_y', 'permeability_z', 'pressure'}
         try:
             for a in np.arange(block_start[0], block_end[0]):
-                # Split the line into a list, using whitespace as the delimiter, and use the second left most word as
-                # the dict key (in this specific context, the rare isotope) Commented lines are removed but line
-                # number index is preserved. So put in try-except statement to ignore error thrown by missing line
-                # removed due to commenting.
-                try:
-                    if self.raw[a].split()[0] in zone_entries != -1 and self.raw[a].find('zone') != -1:
-                        try:
-                            line_list = self.raw[a].split()
-                            # Regex extracts keys as unique coordinate sets.
-                            key = re.findall(r"\d+-\d+", self.raw[a])
-                            key = ' '.join((line_list[0], ' '.join(key)))
-                            # Check to see if the fix keyword has been invoked.
-                            if line_list[-1] == 'fix':
-                                entry = line_list[1:3] + [line_list[-1]]
-                            else:
-                                entry = line_list[1:3]
-                            keyword_dict.update({key: entry})
-                        except IndexError:
-                            # The block keyword is by itself, so there is no coordinate to use as a key.
-                            # This will raise an IndexError, so catch it and allocate
-                            # the dict entries accordingly.
-                            keyword_dict.update({line_list[0]: line_list[1:]})
-                        except BaseException:
-                            print(
-                                'BaseException: this is normally due to a commented line in the input file. If it is '
-                                'not, something has gone really wrong!')
-                    elif self.raw[a].split()[0] == "pump":
-                        try:
-                            line_list = self.raw[a].split()
-                            newpumpname = f'{line_list[0]}&{line_list[3]}&{line_list[4]}&{line_list[5]}'
-                            keyword_dict.update({newpumpname: line_list[1:]})
-                        except BaseException:
-                            pass
-                    else:
-                        try:
-                            line_list = self.raw[a].split()
-                            keyword_dict.update({line_list[0]: line_list[1:]})
-                        except BaseException:
-                            pass
-                except KeyError:
+                # Entries that apply over a zone are keyed by their coordinate set, since the left most
+                # word repeats. Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
                     continue
+
+                if line_list[0] in zone_entries and 'zone' in self.raw[a]:
+                    try:
+                        # Regex extracts keys as unique coordinate sets.
+                        key = re.findall(r"\d+-\d+", self.raw[a])
+                        key = ' '.join((line_list[0], ' '.join(key)))
+                        # Check to see if the fix keyword has been invoked.
+                        if line_list[-1] == 'fix':
+                            entry = line_list[1:3] + [line_list[-1]]
+                        else:
+                            entry = line_list[1:3]
+                        keyword_dict.update({key: entry})
+                    except IndexError:
+                        # The block keyword is by itself, so there is no coordinate to use as a key.
+                        # This will raise an IndexError, so catch it and allocate
+                        # the dict entries accordingly.
+                        keyword_dict.update({line_list[0]: line_list[1:]})
+                elif line_list[0] == 'pump':
+                    try:
+                        newpumpname = f'{line_list[0]}&{line_list[3]}&{line_list[4]}&{line_list[5]}'
+                        keyword_dict.update({newpumpname: line_list[1:]})
+                    except IndexError:
+                        # Too few words to name the pump by its cell indices, so leave the entry out.
+                        pass
+                else:
+                    keyword_dict.update({line_list[0]: line_list[1:]})
+
                 block.contents = keyword_dict
                 self.keyword_blocks.update({keyword: block})
         except IndexError:
@@ -408,28 +395,23 @@ class Template(InputFile):
         try:
             for a in np.arange(block_start[0], block_end[0]):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by missing
-                # line removed due to commenting.
-                try:
-                    line_list = self.raw[a].split()
-                    # If keyword block title, don't modify.
-                    if line_list[0] == 'MINERALS':
-                        new_min_name = 'MINERALS'
-                    else:
-                        mineral_name = line_list[0]
-                        # Look for -label keyword. If not found, then kinetics label is 'default'.
-                        try:
-                            label_index = line_list.index('-label')
-                            kinetics_label = line_list[label_index + 1]
-                        except ValueError:
-                            kinetics_label = 'default'
-                        new_min_name = f'{mineral_name}&{kinetics_label}'
-                    keyword_dict.update({new_min_name: line_list[1:]})
-                except BaseException:
-                    print(
-                        'BaseException: This is normally due to a commented line in the input file. If it is not, '
-                        'something has gone really wrong!')
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
+                # If keyword block title, don't modify.
+                if line_list[0] == 'MINERALS':
+                    new_min_name = 'MINERALS'
+                else:
+                    mineral_name = line_list[0]
+                    # Look for -label keyword. If not found, then kinetics label is 'default'.
+                    try:
+                        label_index = line_list.index('-label')
+                        kinetics_label = line_list[label_index + 1]
+                    except ValueError:
+                        kinetics_label = 'default'
+                    new_min_name = f'{mineral_name}&{kinetics_label}'
+                keyword_dict.update({new_min_name: line_list[1:]})
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
         except IndexError:

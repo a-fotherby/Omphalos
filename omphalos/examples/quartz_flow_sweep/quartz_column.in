@@ -6,10 +6,6 @@
 ! (SiO2(aq), 30SiO2(aq)) records the extent of reaction.
 !
 ! quartz_flow_sweep.yaml sweeps FLOW / constant_flow (the Darcy flux, m/yr).
-!
-! NOTE ON COMMENTS: keep '!' comment lines outside keyword blocks. Omphalos
-! strips comments when it reads a template, and a comment inside a block leaves
-! a gap in the line index that makes the parser emit a harmless warning.
 
 TITLE
 Quartz dissolution in a 1-D advective column.

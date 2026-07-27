@@ -97,6 +97,15 @@ class Template(InputFile):
             f.close()
         return input_file
 
+    def block_line(self, line_num):
+        """Return a line inside a keyword block, split into words, or [] if there is nothing to read.
+
+        Comment lines are dropped by read_file but their line numbers are preserved, so the index has
+        gaps where comments were; blank lines inside a block are legal input and carry no entry. Both
+        are nothing to read, so callers skip them.
+        """
+        return self.raw.get(line_num, '').split()
+
     def make_dict(self):
         """Returns a dict of InputFile objects, based on the Template."""
         import numpy as np
@@ -139,26 +148,22 @@ class Template(InputFile):
         try:
             for a in np.arange(block_start[0], block_end[0]):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by missing
-                # line removed due to commenting.
-                try:
-                    line_list = self.raw[a].split()
-                    if line_list[0].strip() == '/':
-                        line_list[0] = line_list[0] + ('_'*mangle_count)
-                        mangle_count += 1
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
 
-                    keyword_dict.update({line_list[0]: line_list[1:]})
+                if line_list[0].strip() == '/':
+                    line_list[0] = line_list[0] + ('_'*mangle_count)
+                    mangle_count += 1
 
-                    keys_to_remove = [key for key in range(block_start[0], block_end[-1] + 1) if key in self.verbatim]
+                keyword_dict.update({line_list[0]: line_list[1:]})
 
-                    for key in keys_to_remove:
-                        value = self.verbatim.pop(key)
+                keys_to_remove = [key for key in range(block_start[0], block_end[-1] + 1) if key in self.verbatim]
 
-                except BaseException:
-                    print(
-                        'BaseException: This is normally due to a commented line in the input file. If it is not, '
-                        'something has gone really wrong!')
+                for key in keys_to_remove:
+                    value = self.verbatim.pop(key)
+
             block.contents = keyword_dict
         except IndexError:
             print(
@@ -295,14 +300,11 @@ class Template(InputFile):
             keyword_dict = {}
             for a in np.arange(start, end):
                 # Split the line into a list, using whitespace as the delimiter, use left most entry as dict key.
-                # Commented lines are removed but line number index is preserved.
-                # So put in try-except statement to ignore error thrown by
-                # missing line removed due to commenting.
-                try:
-                    line_list = self.raw[a].split()
-                    keyword_dict.update({line_list[0]: line_list[1:]})
-                except BaseException:
-                    pass
+                # Commented and blank lines carry no entry, so skip them.
+                line_list = self.block_line(a)
+                if not line_list:
+                    continue
+                keyword_dict.update({line_list[0]: line_list[1:]})
             block_name = keyword_dict['REGION'][0]
 
             block.contents = keyword_dict

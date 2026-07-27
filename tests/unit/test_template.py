@@ -206,6 +206,142 @@ class TestTemplateInheritance:
         assert hasattr(sample_template, 'get_results')
 
 
+class TestTemplateCommentsAndBlankLines:
+    """Tests for comments and blank lines inside keyword blocks.
+
+    read_file drops comment lines but preserves line numbers, so the line index has gaps; blank lines
+    inside a block are legal CrunchTope input and carry no entry. Both are nothing to read, and used to
+    be caught by a broad `except BaseException` that printed a warning, silently dropped an entry, or -
+    in the ISOTOPES and FLOW parsers - abandoned the rest of the block.
+    """
+
+    @staticmethod
+    def _template(tmp_path, body, capsys=None):
+        """Build a Template from a minimal input file containing the given body."""
+        from omphalos.template import Template
+
+        path = tmp_path / 'test.in'
+        path.write_text(body)
+        template = Template({
+            'template': str(path),
+            'database': 'test.dbs',
+            'aqueous_database': None,
+            'catabolic_pathways': None,
+            'conditions': None,
+            'number_of_files': 1,
+        })
+        if capsys is not None:
+            capsys.readouterr()      # discard the "keyword does not exist" notices
+        return template
+
+    BODY = """TITLE
+Test
+END
+
+MINERALS
+! a comment at column 1
+   ! an indented comment
+
+Calcite -label default -rate -9.0
+END
+
+ISOTOPES
+! a comment
+primary 30SiO2(aq) SiO2(aq) 0.0300
+
+END
+
+FLOW
+! a comment
+
+constant_flow 10.0
+END
+
+PRIMARY_SPECIES
+H+
+END
+
+INITIAL_CONDITIONS
+initial 1-10
+END
+
+CONDITION initial
+! a comment
+temperature 25.0
+
+Calcite 0.1
+END
+"""
+
+    def test_comments_and_blanks_do_not_become_entries(self, tmp_path):
+        """Test that comments and blank lines never appear as block entries."""
+        template = self._template(tmp_path, self.BODY)
+
+        for name, block in template.keyword_blocks.items():
+            # Checked by prefix, since the MINERALS parser would key a comment as '!&default'.
+            assert not [k for k in block.contents if k.startswith('!')], f'comment parsed as an entry in {name}'
+            if name == 'INITIAL_CONDITIONS':
+                # This block is keyed by coordinate set, so its header line legitimately keys on ''.
+                assert block.contents[''] == ['INITIAL_CONDITIONS']
+                continue
+            assert '' not in block.contents, f'blank line parsed as an entry in {name}'
+        for name, condition in template.condition_blocks.items():
+            assert not [k for k in condition.contents if k.startswith('!')], \
+                f'comment parsed as an entry in condition {name}'
+            assert '' not in condition.contents, f'blank line parsed as an entry in condition {name}'
+
+    def test_real_entries_survive_a_comment(self, tmp_path):
+        """Test that entries after a comment or blank line are still parsed."""
+        template = self._template(tmp_path, self.BODY)
+
+        assert 'Calcite&default' in template.keyword_blocks['MINERALS'].contents
+        assert template.keyword_blocks['FLOW'].contents['constant_flow'] == ['10.0']
+        assert 'temperature' in template.condition_blocks['initial'].contents
+
+    def test_blank_line_does_not_abandon_isotopes_block(self, tmp_path):
+        """Test that a blank line in ISOTOPES leaves the block parsed.
+
+        The old handler let the IndexError escape to the block-level guard, which reported the keyword
+        as missing and discarded everything parsed so far.
+        """
+        template = self._template(tmp_path, self.BODY)
+
+        assert 'ISOTOPES' in template.keyword_blocks
+        # The block is keyed on the rare isotope, with the major isotope kept in the entry.
+        assert template.keyword_blocks['ISOTOPES'].contents['30SiO2(aq)'] == ['primary', 'SiO2(aq)', '0.0300']
+
+    def test_no_warning_printed_for_comments(self, tmp_path, capsys):
+        """Test that an ordinary template with comments parses without warnings."""
+        self._template(tmp_path, self.BODY)
+
+        out = capsys.readouterr().out
+        assert 'BaseException' not in out
+        assert 'gone really wrong' not in out
+
+    def test_keyboard_interrupt_is_not_swallowed(self, tmp_path, monkeypatch):
+        """Test that an interrupt during parsing propagates instead of being reported as a comment."""
+        from omphalos.template import Template
+
+        template = self._template(tmp_path, self.BODY)
+
+        def boom(line_num):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(template, 'block_line', boom)
+        with pytest.raises(KeyboardInterrupt):
+            Template.get_keyword_block(template, 'MINERALS')
+
+    def test_block_line_returns_empty_for_gaps(self, tmp_path):
+        """Test the helper directly: absent line numbers and blank lines both read as nothing."""
+        template = self._template(tmp_path, self.BODY)
+        template.raw = {0: 'MINERALS', 2: '', 3: '   ', 4: 'Calcite -rate -9.0'}
+
+        assert template.block_line(1) == []      # comment line, dropped from the index
+        assert template.block_line(2) == []      # blank line
+        assert template.block_line(3) == []      # whitespace-only line
+        assert template.block_line(4) == ['Calcite', '-rate', '-9.0']
+
+
 class TestTemplateSortConditionBlock:
     """Tests for condition block sorting."""
 

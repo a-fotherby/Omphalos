@@ -67,15 +67,13 @@ Troubleshooting section of the top-level README. Drop it if GNU Parallel behaves
   dissolving: by 5 kyr the fastest runs have stripped 16% of the quartz near the inlet. The notebook checks both
   before trusting the 1000 yr slice.
 
-## One thing the template shows about writing Omphalos templates
+## Writing a template Omphalos can read
 
-**Keep `!` comments outside keyword blocks** — the note at the top of `quartz_column.in` says so too. Omphalos
-strips comments when reading a template, and a comment *inside* a block leaves a gap in the line index, which
-makes the parser print a `BaseException` warning for it.
+Three things that used to bite here, and no longer do:
 
-Two things that used to bite here no longer do:
-
-- This template has no gas chemistry and so declares no `GASES` block. `sort_condition_block` treats any block
-  the input file does not declare as contributing no names, so that is fine.
+- `!` comments and blank lines are fine anywhere, inside keyword blocks included. They are stripped when the
+  template is read, so they do not survive into the generated `run*/` input files.
+- This template has no gas chemistry and so declares no `GASES` block. Any block the input file does not declare
+  simply contributes no names when condition entries are sorted.
 - Condition blocks may be written `CONDITION`, `Condition` or `condition`, as CrunchTope itself allows. Only the
   `CONDITION` keyword is matched case insensitively; every other block name must still be capitalised.

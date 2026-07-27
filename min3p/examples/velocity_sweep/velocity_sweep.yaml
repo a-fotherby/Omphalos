@@ -1,0 +1,18 @@
+# Omphalos / MIN3P example — advective-transport (flow) sweep on MCD-2-advection.
+#
+# A high-pH water (pH 10) is injected into a pH-6 column; a hydraulic-head
+# gradient drives it through by advection. We sweep the OUTFLOW-boundary head
+# (the driving gradient, hence the Darcy velocity) and watch how far the pH
+# front migrates. Demonstrates flow-parameter sweeps and the .vel velocity field.
+template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/test.dat
+number_of_files: 4
+timeout: 300
+database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/database/MCD
+modifications:
+  outflow_head:
+    block: 'boundary conditions - variably saturated flow'
+    keyword: 'boundary type#2'     # zone 2 = outflow boundary
+    line: 0
+    token: 1                       # the hydraulic-head value ('first' <head>)
+    method: custom
+    params: [0.99, 0.97, 0.94, 0.90]

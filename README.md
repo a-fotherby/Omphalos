@@ -818,9 +818,12 @@ concatenated over `file_num`. Three output families are captured: spatial
 breakthrough (`gb*`, time series at observation points), and batch (`lb*`, time
 series per zone).
 
-A worked end-to-end example (sweep config + notebook + figure) lives in
-[`min3p/examples/dissol_sweep/`](min3p/examples/dissol_sweep/) — a calcite
-dissolution front driven by varying inflow acidity.
+Worked end-to-end examples (sweep config + notebook + figure) live in
+[`min3p/examples/`](min3p/examples/):
+[`dissol_sweep`](min3p/examples/dissol_sweep/) — a calcite dissolution front
+driven by varying inflow acidity; and
+[`velocity_sweep`](min3p/examples/velocity_sweep/) — an advective pH front and
+Darcy's law, driven by varying the flow gradient.
 
 **Restart chains** continue a run across stages via MIN3P's `'restart'`
 mechanism (each stage picks up from the previous stage's `restart.tmp` state).

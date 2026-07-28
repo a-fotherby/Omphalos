@@ -102,3 +102,61 @@ class TestFileNumLabelling:
 
         expected = float(dataset[0].condition_blocks['initial'].concentrations['Ca++'][0])
         assert np.allclose(ds['Ca++'].values, expected)
+
+
+class TestInitialConditionsPh:
+    """Tests for reporting the initial pH field.
+
+    CrunchTope declares pH as a condition parameter, not as an H+ concentration, so it is absent
+    from the species output however 'concentrations' is set and has to be asked for by name.
+    """
+
+    def test_ph_is_off_by_default(self, sparse_dataset):
+        """Test that the default output is unchanged."""
+        dataset = _with_results(sparse_dataset)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = attr.initial_conditions(dataset, concentrations=True, minerals=False)
+
+        assert 'pH' not in ds.data_vars
+
+    def test_ph_is_reported_when_requested(self, sparse_dataset):
+        """Test that pH appears as a variable carrying the value the condition block declares."""
+        dataset = _with_results(sparse_dataset)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = attr.initial_conditions(dataset, concentrations=True, minerals=False, ph=True)
+
+        expected = float(dataset[0].condition_blocks['initial'].parameters['pH'][0])
+        assert 'pH' in ds.data_vars
+        assert np.allclose(ds['pH'].values, expected)
+
+    def test_ph_keeps_the_grid_and_run_labelling(self, sparse_dataset):
+        """Test that the pH field is shaped and labelled like every other variable."""
+        dataset = _with_results(sparse_dataset)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = attr.initial_conditions(dataset, concentrations=True, minerals=False, ph=True)
+
+        assert ds['pH'].dims == ds['Ca++'].dims
+        assert list(ds['file_num'].values) == [0, 5]
+
+    def test_ph_alone_still_carries_the_coordinates(self, sparse_dataset):
+        """Test that pH can be requested on its own.
+
+        With neither concentrations nor minerals loaded there is no output to take the grid
+        coordinates from, so this path has to fetch them itself.
+        """
+        dataset = _with_results(sparse_dataset)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = attr.initial_conditions(dataset, concentrations=False, minerals=False, ph=True)
+
+        assert list(ds.data_vars) == ['pH']
+        for coord in ('X', 'Y', 'Z', 'file_num'):
+            assert coord in ds.coords
+
+    def test_variables_match_the_array_columns(self, sparse_dataset):
+        """Test that adding pH does not misalign the species labels against the array columns."""
+        dataset = _with_results(sparse_dataset)
+        expected = sc.condition_variables(dataset[0], primary_species=True, mineral_vols=False, ph=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ds = attr.initial_conditions(dataset, concentrations=True, minerals=False, ph=True)
+
+        assert list(ds.data_vars) == expected

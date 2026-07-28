@@ -2,6 +2,7 @@
 
 import io
 import contextlib
+import copy
 import os
 
 import numpy as np
@@ -42,6 +43,25 @@ def initial_first_template(omphalos_test_dir):
     return _template(omphalos_test_dir, 'sukinda_cr.yaml')
 
 
+def _drop_ph(block):
+    """Remove pH from a condition block, as a condition constraining H+ directly would have.
+
+    Sorting is lazy: ConditionBlock.parameters stays empty until check_condition_sort runs, which
+    re-derives it from the raw contents whenever it finds it empty. So the entry has to go from both
+    dictionaries, and the block has to have been sorted first for the parameters edit to survive.
+    """
+    block.parameters.pop('pH', None)
+    block.contents.pop('pH', None)
+
+
+def _sorted_blocks(template):
+    """Return the condition blocks, sorted into species types as condition_variables would."""
+    for condition in template.condition_blocks:
+        template.check_condition_sort(condition)
+
+    return template.condition_blocks
+
+
 class TestConditionVariables:
     """Tests for the variable ordering shared by populate_array and its callers."""
 
@@ -74,6 +94,46 @@ class TestConditionVariables:
 
         assert both == concs + mins
         assert sc.condition_variables(initial_first_template, False, False) == []
+
+    def test_ph_is_off_by_default(self, initial_first_template):
+        """Test that pH is only reported when asked for."""
+        assert 'pH' not in sc.condition_variables(initial_first_template, True, True)
+
+    def test_ph_is_appended_last(self, initial_first_template):
+        """Test that enabling pH adds a column without disturbing the existing ones.
+
+        pH must come last so that a caller turning it on does not shift the species columns.
+        """
+        without = sc.condition_variables(initial_first_template, True, True, ph=False)
+        with_ph = sc.condition_variables(initial_first_template, True, True, ph=True)
+
+        assert with_ph == without + ['pH']
+
+    def test_ph_alone(self, initial_first_template):
+        """Test that pH can be requested without species or minerals."""
+        assert sc.condition_variables(initial_first_template, False, False, ph=True) == ['pH']
+
+    def test_ph_absent_from_conditions_gives_no_column(self, initial_first_template):
+        """Test that a template declaring no pH contributes no pH column, as for any other name."""
+        for block in _sorted_blocks(initial_first_template).values():
+            _drop_ph(block)
+
+        assert sc.condition_variables(initial_first_template, False, False, ph=True) == []
+
+    def test_ph_keyword_is_case_insensitive(self, initial_first_template):
+        """Test that the input file's spelling of the keyword does not matter.
+
+        The parser keys condition entries on the verbatim leftmost word, so 'PH' and 'ph' reach the
+        parameters dict unchanged and must still be recognised.
+        """
+        renamed = 0
+        for block in _sorted_blocks(initial_first_template).values():
+            if 'pH' in block.parameters:
+                block.parameters['PH'] = block.parameters.pop('pH')
+                renamed += 1
+
+        assert renamed, 'template declares no pH, so the test would pass vacuously'
+        assert sc.condition_variables(initial_first_template, False, False, ph=True) == ['pH']
 
 
 class TestPopulateArray:
@@ -139,3 +199,74 @@ class TestPopulateArray:
     def test_unused_condition_alone_gives_no_rows(self, initial_first_template):
         """Test that a condition never applied as an initial condition contributes nothing."""
         assert sc.compute_rows(initial_first_template, 'boundary') == []
+
+
+class TestPh:
+    """Tests for reading pH out of the condition block parameters."""
+
+    def test_ph_value_is_placed_over_the_region(self, pump_first_template):
+        """Test that the pH a condition declares is written to the cells it covers."""
+        names = sc.condition_variables(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            array = sc.populate_array(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+
+        expected = float(pump_first_template.condition_blocks['upper_laterite'].parameters['pH'][0])
+        assert np.allclose(array[:, names.index('pH')], expected)
+
+    def test_ph_is_not_converted_to_a_concentration(self, pump_first_template):
+        """Test that the value recorded is pH itself, not 10**-pH.
+
+        pH is -log10 of the H+ activity, so a concentration cannot be recovered without the activity
+        coefficients from the speciation solve. The value is passed through unchanged instead.
+        """
+        names = sc.condition_variables(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            array = sc.populate_array(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+
+        assert array[0, names.index('pH')] > 1, 'value looks like a concentration, not a pH'
+
+    def test_ph_does_not_disturb_the_species_columns(self, pump_first_template):
+        """Test that the species columns hold the same data whether or not pH is requested."""
+        names = sc.condition_variables(pump_first_template, primary_species=True, mineral_vols=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            without = sc.populate_array(pump_first_template, primary_species=True, mineral_vols=True)
+            with_ph = sc.populate_array(pump_first_template, primary_species=True, mineral_vols=True, ph=True)
+
+        assert with_ph.shape[1] == without.shape[1] + 1
+        np.testing.assert_array_equal(with_ph[:, :len(names)], without)
+
+    def test_non_numeric_ph_becomes_nan(self, pump_first_template):
+        """Test that a charge-balanced pH is not forced to a number.
+
+        column.in constrains the pump condition with 'pH charge', which is a constraint rather than
+        a value; the same is legal for the condition applied as the initial state.
+        """
+        pump_first_template.condition_blocks['upper_laterite'].parameters['pH'] = ['charge']
+
+        names = sc.condition_variables(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            array = sc.populate_array(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+
+        assert np.isnan(array[:, names.index('pH')]).all()
+
+    def test_condition_without_ph_gets_nan(self, pump_first_template):
+        """Test that a condition constraining H+ directly, rather than by pH, is not invented a value.
+
+        The pH column exists because another condition declares one, so the cells belonging to this
+        condition must read nan rather than silently inheriting a neighbour's pH.
+        """
+        blocks = _sorted_blocks(pump_first_template)
+        # Split the column: the second half gets a condition that declares no pH at all.
+        blocks['upper_laterite'].region = [[[1, 50], [1, 1], [1, 1]]]
+        no_ph = copy.deepcopy(blocks['upper_laterite'])
+        _drop_ph(no_ph)
+        no_ph.region = [[[51, 100], [1, 1], [1, 1]]]
+        blocks['no_ph'] = no_ph
+
+        names = sc.condition_variables(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            array = sc.populate_array(pump_first_template, primary_species=False, mineral_vols=False, ph=True)
+
+        column = array[:, names.index('pH')]
+        assert not np.isnan(column[:50]).any()
+        assert np.isnan(column[50:]).all()

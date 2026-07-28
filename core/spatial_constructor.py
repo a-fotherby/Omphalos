@@ -9,12 +9,32 @@ to make the xarray object.
 import numpy as np
 
 
-def condition_variables(input_file, primary_species=True, mineral_vols=False):
+# The column name used for pH, and the condition block parameter it is read from.
+PH_NAME = 'pH'
+
+
+def _ph_entry(block):
+    """Return the pH token a condition block declares, or None if it declares none.
+
+    CrunchTope takes pH as a condition block parameter rather than as an H+ concentration, so
+    InputFile.sort_condition_block files it under ConditionBlock.parameters and it never appears
+    among the concentrations. The keyword is matched case insensitively because the input file
+    parser preserves whatever spelling the file used.
+    """
+    for name, entry in block.parameters.items():
+        if name.lower() == PH_NAME.lower() and entry:
+            return entry[0]
+
+    return None
+
+
+def condition_variables(input_file, primary_species=True, mineral_vols=False, ph=False):
     """Return the ordered variable names that populate_array writes as array columns.
 
-    Names are collected across every condition block, concentrations first and then mineral volumes,
-    in first-seen order. Taking the union means a condition that declares an extra species cannot
-    shift the columns belonging to another one.
+    Names are collected across every condition block, concentrations first, then mineral volumes,
+    then pH, in first-seen order. Taking the union means a condition that declares an extra species
+    cannot shift the columns belonging to another one. pH is placed last so that turning it on
+    leaves the existing columns where they were.
 
     Callers that label the array must use this same ordering; core.attributes.initial_conditions does.
 
@@ -22,12 +42,14 @@ def condition_variables(input_file, primary_species=True, mineral_vols=False):
         input_file: The input file to read condition blocks from.
         primary_species: Whether to include primary species concentrations.
         mineral_vols: Whether to include mineral volume fractions.
+        ph: Whether to include pH. Contributes a column only if some condition declares pH.
 
     Returns:
         list of variable names, in column order
     """
     concentration_names = []
     mineral_names = []
+    ph_names = []
 
     for condition in input_file.condition_blocks:
         input_file.check_condition_sort(condition)
@@ -43,14 +65,22 @@ def condition_variables(input_file, primary_species=True, mineral_vols=False):
                 if name not in mineral_names:
                     mineral_names.append(name)
 
-    return concentration_names + mineral_names
+        if ph and not ph_names and _ph_entry(block) is not None:
+            ph_names.append(PH_NAME)
+
+    return concentration_names + mineral_names + ph_names
 
 
-def _condition_row(input_file, condition, names, primary_species, mineral_vols):
+def _condition_row(input_file, condition, names, primary_species, mineral_vols, ph=False):
     """Build one row of initial values for a condition, ordered to match names.
 
     Values a condition does not declare, and values that are not numeric (CrunchTope accepts
     'charge', a mineral name, or a gas name in place of a concentration), come back as nan.
+
+    pH is recorded as pH, not converted to an H+ concentration: CrunchTope's pH is -log10 of the H+
+    activity, and recovering a concentration from it needs the activity coefficients that only the
+    speciation solve produces. Those are not available from the input file, so converting here would
+    mean inventing an ideal-solution assumption the model itself does not make.
     """
     block = input_file.condition_blocks[condition]
 
@@ -62,6 +92,10 @@ def _condition_row(input_file, condition, names, primary_species, mineral_vols):
     if mineral_vols:
         # The condition block entry also carries surface area info, hence the first token again.
         values.update({name: entry[0] for name, entry in block.mineral_volumes.items()})
+    if ph:
+        ph_entry = _ph_entry(block)
+        if ph_entry is not None:
+            values[PH_NAME] = ph_entry
 
     row = np.full(len(names), np.nan)
     for i, name in enumerate(names):
@@ -75,7 +109,7 @@ def _condition_row(input_file, condition, names, primary_species, mineral_vols):
     return row
 
 
-def populate_array(input_file, primary_species=True, mineral_vols=False):
+def populate_array(input_file, primary_species=True, mineral_vols=False, ph=False):
     """Populates an empty initial condition spatial array with species and mineral data.
 
     Every condition block contributes the rows of the region(s) it is applied over in
@@ -87,12 +121,14 @@ def populate_array(input_file, primary_species=True, mineral_vols=False):
         input_file: The input file containing the data for population.
         primary_species: Whether to include primary species concentrations.
         mineral_vols: Whether to include mineral volume fractions.
+        ph: Whether to include pH, recorded as pH rather than as an H+ concentration.
+            A condition that constrains H+ directly instead of declaring pH gets nan.
 
     Returns:
         numpy array with spatial initial conditions, of shape
         (number of grid cells, number of variables), with columns ordered as condition_variables()
     """
-    names = condition_variables(input_file, primary_species, mineral_vols)
+    names = condition_variables(input_file, primary_species, mineral_vols, ph)
     array = initialise_array(input_file, len(names))
     covered = np.zeros(array.shape[0], dtype=bool)
 
@@ -104,7 +140,7 @@ def populate_array(input_file, primary_species=True, mineral_vols=False):
             # condition, has no rows to fill.
             continue
 
-        row = _condition_row(input_file, condition, names, primary_species, mineral_vols)
+        row = _condition_row(input_file, condition, names, primary_species, mineral_vols, ph)
         array[row_list] = row
         covered[row_list] = True
 

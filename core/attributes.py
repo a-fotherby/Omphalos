@@ -172,7 +172,7 @@ def primary_species(input_file, condition):
     return primary_species_df_row
 
 
-def initial_conditions(dataset, concentrations=True, minerals=False):
+def initial_conditions(dataset, concentrations=True, minerals=False, ph=False):
     """Returns an attribute DataFrame containing the spatial initial condition.
 
     Extracts spatial initial conditions for each InputFile in a data set.
@@ -181,6 +181,10 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
         dataset: Dictionary of InputFile objects
         concentrations: Whether to include species concentrations
         minerals: Whether to include mineral volumes
+        ph: Whether to include pH as a 'pH' variable. CrunchTope declares pH as a condition
+            parameter rather than an H+ concentration, so it is absent from the concentrations
+            however 'concentrations' is set, and is reported as pH rather than converted to [H+]
+            (see spatial_constructor._condition_row for why).
 
     Returns:
         xarray Dataset with initial conditions for all files
@@ -193,11 +197,6 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
     for file in dataset:
         for condition in dataset[file].condition_blocks:
             dataset[file].check_condition_sort(condition)
-
-    # TODO: add pH option for initial condition construction. Currently
-    # concentrations does not support the H+ ion because sc.populate_array
-    # doesn't support pH directly. Will need to add looking in the parameters
-    # dict for pH and adding that to the spatial array either as pH or [H+].
 
     # Make list of species now so that when we stack the coords to the list
     # format, we have a copy that doesn't include X Y and Z. Initial conditions
@@ -217,9 +216,15 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
 
     template_arr = xr.merge((conc_ds, mins_ds))
 
+    if ph and not (concentrations or minerals):
+        # The template is only ever read for its grid coordinates, and a pH-only request has not
+        # loaded anything to take them from. Read the concentration output for its coordinates
+        # alone; none of its data variables are used.
+        template_arr = lbls.raw(dataset, 'totcon')
+
     # Take the column order from the same function that builds the array, rather than re-deriving it
     # here: the two must agree or the species end up labelled with each other's data.
-    var_list = sc.condition_variables(dataset[nxt], concentrations, minerals)
+    var_list = sc.condition_variables(dataset[nxt], concentrations, minerals, ph)
 
     # Unstack the template array to make it compatible with data out of the sc.
     # Template array is typically some lbls.raw call of the same type. Data vars
@@ -231,7 +236,7 @@ def initial_conditions(dataset, concentrations=True, minerals=False):
     # For each file in the dataset, generate the spatial array describing the
     # initial condition in the long format.
     for i, file in enumerate(dataset):
-        update_array = sc.populate_array(dataset[file], concentrations, minerals)
+        update_array = sc.populate_array(dataset[file], concentrations, minerals, ph)
         # If it is the first time, get the shape of the array that will contain
         # the initial condition for each file in the dataset (i.e.
         # (no. of files) x (no. of species) x (no. of grid cells). Initialize that array.

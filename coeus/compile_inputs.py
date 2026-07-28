@@ -60,6 +60,31 @@ def load_input_files(directory, verbose=True):
     return input_files, missing
 
 
+def pairing_warning(directory='.', output='conditions.nc'):
+    """Return a warning if the chosen name may not pair with the results file intended, else None.
+
+    results.nc is numbered when a sweep is re-run in the same directory — results1.nc, results2.nc —
+    and each parameter record belongs to the results file carrying the same suffix. Writing the
+    default conditions.nc where several results files exist therefore pairs it with the *first* sweep,
+    which may not be the one meant; both are indexed by run number, so a mismatch would join
+    silently. `rhea --compile-inputs` derives the name from the results it just wrote and cannot hit
+    this.
+    """
+    from core.file_methods import matching_output_name
+
+    if output != 'conditions.nc':
+        return None
+
+    results = sorted(p.name for p in Path(directory).glob('results*.nc'))
+    if len(results) < 2:
+        return None
+
+    suggestions = ', '.join(f'{r} -> {matching_output_name(r)}' for r in results)
+    return (f'Warning: {len(results)} results files here ({", ".join(results)}). This record is being '
+            f'written to conditions.nc, which pairs with results.nc. For another sweep, pass -o to '
+            f'match it: {suggestions}.')
+
+
 def compile_inputs(config, output='conditions.nc', directory=None, verbose=True):
     """Write the parameter values a sweep actually used to a netCDF file.
 
@@ -243,6 +268,10 @@ if __name__ == "__main__":
 
     with open(cli_args.config) as f:
         run_config = yaml.safe_load(f)
+
+    warning = pairing_warning(output=cli_args.output)
+    if warning:
+        print(warning)
 
     try:
         compile_inputs(run_config, output=cli_args.output)

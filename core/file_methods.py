@@ -193,6 +193,60 @@ def unpickle(file_path):
         return data
 
 
+def unique_output_path(name='results.nc', directory=None):
+    """Return a path under directory that does not exist yet, numbering the name if it is taken.
+
+    A second sweep run in the same directory writes results1.nc rather than overwriting results.nc,
+    a third results2.nc, and so on.
+
+    Args:
+        name: Desired file name, e.g. 'results.nc'.
+        directory: Directory to place it in (default: the current directory).
+
+    Returns:
+        pathlib.Path that did not exist at the time of the call.
+    """
+    directory = Path(directory) if directory is not None else Path()
+    stem = Path(name).stem
+    suffix = Path(name).suffix
+
+    path = directory / name
+    n = 1
+    while path.is_file():
+        # If it does exist, mangle name.
+        path = directory / f'{stem}{n}{suffix}'
+        n += 1
+
+    return path
+
+
+def matching_output_name(results_path, name='conditions.nc'):
+    """Return the file name that pairs with a written results file.
+
+    results.nc pairs with conditions.nc, results1.nc with conditions1.nc, and so on, so that two
+    sweeps run in the same directory cannot leave one sweep's results beside another's parameter
+    record — which would join silently, both being indexed by run number.
+
+    Args:
+        results_path: Path of the results file that was written, or None.
+        name: Base name to derive from it.
+
+    Returns:
+        str: file name carrying the same numeric suffix as results_path, or name unchanged if
+        results_path is None or carries no suffix.
+    """
+    if results_path is None:
+        return name
+
+    match = re.search(r'(\d+)$', Path(results_path).stem)
+    if not match:
+        return name
+
+    stem = Path(name).stem
+    suffix = Path(name).suffix
+    return f'{stem}{match.group(1)}{suffix}'
+
+
 def dataset_to_netcdf(dataset, simulator='crunchtope'):
     """Convert a dataset to netCDF format.
 
@@ -203,22 +257,14 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
         simulator: One of 'crunchtope', 'pflotran', or 'min3p'
 
     Returns:
-        For pflotran: Returns the concatenated xarray Dataset
-        For crunchtope/min3p: Writes to file and returns None
+        For pflotran: the concatenated xarray Dataset.
+        For crunchtope/min3p: the Path written, so callers can say where the results went and name
+        anything that pairs with them after it.
     """
     import xarray as xr
-    import pathlib as pl
 
     # Check that output file doesn't already exist.
-    path = pl.Path() / 'results.nc'
-    n = 1
-    while True:
-        if path.is_file():
-            # If it does exist, mangle name.
-            path = pl.Path() / f'results{n}.nc'
-            n += 1
-        else:
-            break
+    path = unique_output_path('results.nc')
 
     if simulator == 'pflotran':
         # PFLOTRAN-style: concatenate all results and return
@@ -273,7 +319,7 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
                 group.to_netcdf(path, group=category, mode='a')
             except Exception as exc:  # noqa: BLE001 - warn and skip misaligned category
                 print(f'WARNING: MIN3P category "{category}" not written to netCDF. ({exc})')
-        return None
+        return path
     else:
         # CrunchTope-style: process by category and write to file
         from coeus.helper import fix_smalls
@@ -300,3 +346,5 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             group.to_netcdf(path, group=category, mode='a')
             # Only one category is held at a time, so let this one go before building the next.
             del group
+
+        return path

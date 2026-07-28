@@ -114,7 +114,10 @@ def compile_results(dict_len, simulator='crunchtope'):
 
     Returns:
         dict: Summary of the run with keys 'total', 'compiled', 'no_output' (list of run numbers
-        that returned nothing) and 'errors' ({run number: error code} for runs that failed).
+        that returned nothing), 'errors' ({run number: error code} for runs that failed) and
+        'results' (the Path written, or None if nothing was). A second sweep in the same directory
+        writes results1.nc rather than overwriting, so callers that need to name anything alongside
+        the results should take the suffix from that path.
     """
     import shutil
     import tempfile
@@ -141,8 +144,9 @@ def compile_results(dict_len, simulator='crunchtope'):
 
             results_dict[i] = _spill_results(input_file, i, spill_dir)
 
+        results_path = None
         if results_dict:
-            fm.dataset_to_netcdf(results_dict, simulator=simulator)
+            results_path = fm.dataset_to_netcdf(results_dict, simulator=simulator)
             for file in results_dict:
                 del results_dict[file].results
         else:
@@ -157,4 +161,4 @@ def compile_results(dict_len, simulator='crunchtope'):
         print(f'Files that failed during the run ({len(errors)}), as run: error_code: {errors}')
 
     return {'total': dict_len, 'compiled': len(results_dict), 'no_output': no_output,
-            'errors': errors}
+            'errors': errors, 'results': results_path}

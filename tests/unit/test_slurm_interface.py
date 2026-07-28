@@ -66,7 +66,8 @@ class TestCompileResults:
 
         summary = si.compile_results(3)
 
-        assert summary == {'total': 3, 'compiled': 3, 'no_output': [], 'errors': {}}
+        # 'results' is None here only because this fixture stubs out the netCDF writer.
+        assert summary == {'total': 3, 'compiled': 3, 'no_output': [], 'errors': {}, 'results': None}
         assert sorted(compiled[0]) == [0, 1, 2]
 
     def test_error_codes_are_counted_and_excluded(self, fake_runs):
@@ -184,3 +185,31 @@ class TestSpilling:
         si.compile_results(1, simulator='pflotran')
 
         assert isinstance(compiled[0][0], xr.Dataset)
+
+
+class TestResultsPathReporting:
+    """Tests that compile_results says where it put the results.
+
+    The parameter record written by rhea --compile-inputs is named after the results file, so the two
+    stay paired when a sweep is re-run in the same directory.
+    """
+
+    def test_summary_carries_the_written_path(self, monkeypatch, tmp_path):
+        """Test that whatever the writer reports comes back in the summary."""
+        from core import file_methods as fm
+
+        written = tmp_path / 'results1.nc'
+        monkeypatch.setattr(fm, 'unpickle', lambda path: _input_file())
+        monkeypatch.setattr(fm, 'dataset_to_netcdf', lambda dataset, simulator='crunchtope': written)
+
+        summary = si.compile_results(1)
+
+        assert summary['results'] == written
+
+    def test_summary_reports_none_when_nothing_was_written(self, fake_runs):
+        """Test that a wholly failed sweep reports no results file, so nothing is named after it."""
+        fake_runs({0: _input_file(error_code=1)})
+
+        summary = si.compile_results(1)
+
+        assert summary['results'] is None

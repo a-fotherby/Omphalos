@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-313%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-330%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -210,8 +210,8 @@ python -m rhea.main config.yaml cluster
 - `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
 - `-d, --debug` — Generate files without running simulations. `omphalos` writes them to `tmp/` as
   `<template><N>.<ext>` (e.g. `tmp/model0.in`); `rhea` writes them into the prepared `run<N>/` directories
-- `-c, --compile-inputs` — After a local CrunchTope run, also write `conditions.nc` recording the
-  parameter values the sweep used (see [Compiling Input Conditions](#compiling-input-conditions))
+- `-c, --compile-inputs` — After a local CrunchTope run, also record the parameter values the sweep used,
+  named to pair with the results file just written (see [Compiling Input Conditions](#compiling-input-conditions))
 - `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
 ### Collecting Results
@@ -236,6 +236,19 @@ print(volumes.dims)
 `file_num` is labelled with the run numbers that compiled successfully, so a sweep with failed or timed-out runs
 produces fewer slices than `number_of_files` and the labels tell you which runs survived. Select by run number
 with `.sel(file_num=...)`, and join against `conditions.nc` on the same coordinate rather than by position.
+
+**Sweeps run in the same directory are numbered, not overwritten.** A second sweep writes `results1.nc`, a third
+`results2.nc`, and so on. The parameter record written by `--compile-inputs` takes its name from the results file
+it belongs to, so the pairs stay together:
+
+| Sweep | Results | Parameter record |
+|-------|---------|------------------|
+| 1st | `results.nc` | `conditions.nc` |
+| 2nd | `results1.nc` | `conditions1.nc` |
+| 3rd | `results2.nc` | `conditions2.nc` |
+
+Always read a pair with matching suffixes. Mixing them — one sweep's results with another's parameters — joins
+without complaint, since both are indexed by run number.
 
 Available groups depend on your CrunchTope OUTPUT block configuration. Common groups include:
 - `totcon` — Total concentrations
@@ -651,7 +664,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **313 tests**:
+The project includes a comprehensive test suite with **330 tests**:
 
 ```bash
 # Run all tests
@@ -784,10 +797,19 @@ The simplest way to get it is to ask for it when starting the run, with `-c`:
 rhea config.yaml local --compile-inputs
 ```
 
-`conditions.nc` is then written straight after `results.nc`, from the same working directory. The flag applies to
-local CrunchTope runs: a cluster submission returns before its array has finished, and MIN3P and PFLOTRAN describe
-their parameters differently, so in those cases it says so and skips rather than writing something misleading. If
+The record is written straight after the results, into the same working directory and named to match: alongside
+`results.nc` it is `conditions.nc`, alongside `results1.nc` it is `conditions1.nc`. The flag applies to local
+CrunchTope runs: a cluster submission returns before its array has finished, and MIN3P and PFLOTRAN describe their
+parameters differently, so in those cases it says so and skips rather than writing something misleading. If
 compiling the record fails, the run still reports its results — the failure is a warning, not an error.
+
+Run by hand, the script writes `conditions.nc` unless told otherwise, since it has no way of knowing which sweep
+you mean. Where several `results*.nc` exist it says so and shows the pairing, so pass `-o` to match the one you
+want:
+
+```bash
+python /path/to/omphalos/coeus/compile_inputs.py config.yaml -o conditions1.nc   # pairs with results1.nc
+```
 
 It can equally be run after the fact, from the directory holding the run directories:
 

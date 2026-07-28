@@ -75,8 +75,13 @@ if __name__ == '__main__':
               f'{"MIN3P" if args.min3p else "PFLOTRAN"} backend. Skipped.')
         compile_inputs_wanted = False
 
-    def compile_input_record(config):
-        """Record the parameter values the run used in conditions.nc, if asked and supported.
+    def compile_input_record(config, results_path=None):
+        """Record the parameter values the run used, if asked and supported.
+
+        Named to pair with the results file just written: a second sweep in the same directory writes
+        results1.nc, and its record goes to conditions1.nc. Without that, the record would overwrite
+        the first sweep's, leaving one sweep's results beside another's parameters — which would join
+        silently, both being indexed by run number.
 
         A failure here does not invalidate the results that were just compiled, so it warns rather
         than exiting.
@@ -85,9 +90,16 @@ if __name__ == '__main__':
             return
 
         from coeus.compile_inputs import compile_inputs
+        from core import file_methods as fm
+
+        if results_path is not None:
+            output = fm.matching_output_name(results_path)
+        else:
+            # Nothing was written to pair with, so just avoid clobbering an existing record.
+            output = fm.unique_output_path('conditions.nc').name
 
         try:
-            compile_inputs(config, verbose=False)
+            compile_inputs(config, output=output, verbose=False)
         except Exception as exc:  # noqa: BLE001 - the results are already written; do not lose them
             print(f'WARNING: could not compile the input record: {exc}')
 
@@ -174,7 +186,7 @@ if __name__ == '__main__':
         run_shell(run_command, 'MIN3P run command', fatal=False)
 
         summary = si.compile_results(dict_size + 1, simulator='min3p')
-        compile_input_record(config)
+        compile_input_record(config, results_path=summary['results'])
         t_stop = time.time()
         print(f'MIN3P files compiled: {summary["compiled"]} of {summary["total"]}. '
               f'Time elapsed: {t_stop - t_start}')
@@ -371,12 +383,13 @@ if __name__ == '__main__':
         # Compile results. compile_results reports the per-run breakdown itself; exit non-zero if
         # nothing came back, so a wholly failed sweep does not look like a success to a caller.
         summary = si.compile_results(dict_size + 1)
-        compile_input_record(config)
+        compile_input_record(config, results_path=summary['results'])
         if not summary['compiled']:
             sys.exit(1)
 
     elif args.run_type == 'cluster':
-        compile_input_record(config)
+        # No compile_input_record here: --compile-inputs is refused for cluster runs up front, since
+        # the array has not finished by the time this returns.
         # OMPHALOS_DIR tells the batch script where this checkout lives, so it need not hardcode a path.
         submit_runs = (
             f'sbatch --array=0-{dict_size} '

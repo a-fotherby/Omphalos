@@ -27,7 +27,9 @@ TESTS = REPO / 'tests'
 # The two places the suite size is quoted. Group 2 is the number in each case.
 BADGE = re.compile(r'(tests-)(\d+)(%20passed)')
 PROSE = re.compile(r'(test suite with \*\*)(\d+)( tests\*\*)')
-COLLECTED = re.compile(r'^(\d+) tests? collected', re.MULTILINE)
+# Tolerate ANSI colour codes: pytest colourises even into a pipe in some environments, which
+# defeated a plain start-of-line match and left the counts silently unchanged.
+COLLECTED = re.compile(r'^(?:\x1b\[[\d;]*m)*(\d+) tests? collected', re.MULTILINE)
 
 
 def declared_conda_env():
@@ -47,7 +49,7 @@ def collect_commands():
     the active conda environment, a pytest on PATH, and finally the environment the project itself
     declares in requirements.yml.
     """
-    args = ['--collect-only', '-q', '-o', 'addopts=', '-p', 'no:cacheprovider']
+    args = ['--collect-only', '-q', '--color=no', '-o', 'addopts=', '-p', 'no:cacheprovider']
     commands = [[sys.executable, '-m', 'pytest'] + args]
 
     conda_prefix = os.environ.get('CONDA_PREFIX')

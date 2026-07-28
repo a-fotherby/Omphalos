@@ -283,6 +283,53 @@ ZONE T="zone1"
         assert 'pH' in result.data_vars
 
 
+class TestOutputNaming:
+    """Tests for naming the output files a run writes.
+
+    A second sweep in the same directory must not overwrite the first, and the parameter record must
+    end up named for the results it belongs to: one sweep's results beside another's parameters would
+    join silently, both being indexed by run number.
+    """
+
+    def test_unique_path_is_the_plain_name_when_free(self, tmp_path):
+        """Test that the first run gets the unadorned name."""
+        assert fm.unique_output_path('results.nc', tmp_path) == tmp_path / 'results.nc'
+
+    def test_unique_path_numbers_a_taken_name(self, tmp_path):
+        """Test that successive runs number upwards rather than overwriting."""
+        (tmp_path / 'results.nc').touch()
+        assert fm.unique_output_path('results.nc', tmp_path) == tmp_path / 'results1.nc'
+
+        (tmp_path / 'results1.nc').touch()
+        (tmp_path / 'results2.nc').touch()
+        assert fm.unique_output_path('results.nc', tmp_path) == tmp_path / 'results3.nc'
+
+    def test_unique_path_works_for_any_name(self, tmp_path):
+        """Test the helper is not specific to results.nc."""
+        (tmp_path / 'conditions.nc').touch()
+        assert fm.unique_output_path('conditions.nc', tmp_path) == tmp_path / 'conditions1.nc'
+
+    def test_unique_path_ignores_directories(self, tmp_path):
+        """Test that a directory of the same name does not count as taken."""
+        (tmp_path / 'results.nc').mkdir()
+        assert fm.unique_output_path('results.nc', tmp_path) == tmp_path / 'results.nc'
+
+    @pytest.mark.parametrize('results,expected', [
+        ('results.nc', 'conditions.nc'),
+        ('results1.nc', 'conditions1.nc'),
+        ('results12.nc', 'conditions12.nc'),
+        ('/somewhere/else/results3.nc', 'conditions3.nc'),
+        (None, 'conditions.nc'),
+    ])
+    def test_matching_name_carries_the_suffix_across(self, results, expected):
+        """Test that the record is named for the results file it describes."""
+        assert fm.matching_output_name(results) == expected
+
+    def test_matching_name_accepts_another_base(self):
+        """Test that the base name to derive from can be chosen."""
+        assert fm.matching_output_name('results2.nc', 'inputs.nc') == 'inputs2.nc'
+
+
 class TestDatasetToNetcdf:
     """Tests for the dataset_to_netcdf function."""
 
@@ -307,6 +354,34 @@ class TestDatasetToNetcdf:
 
         assert isinstance(result, xr.Dataset)
         assert 'concentration' in result.data_vars
+
+    def test_crunchtope_mode_returns_the_path_it_wrote(self, tmp_path, monkeypatch):
+        """Test that the writer reports where the results went, and numbers a second call.
+
+        Callers name the parameter record after this path, so that two sweeps in one directory cannot
+        leave one sweep's results beside another's parameters.
+        """
+        import xarray as xr
+
+        class MockInputFile:
+            def __init__(self, file_num):
+                self.file_num = file_num
+                self.error_code = 0
+                self.results = {'totcon': xr.Dataset(
+                    {'species': (('X', 'Y', 'Z'), np.full((3, 1, 1), float(file_num)))},
+                    coords={'X': [0.5, 1.5, 2.5], 'Y': [0.5], 'Z': [0.5]},
+                )}
+
+        monkeypatch.chdir(tmp_path)
+        dataset = {0: MockInputFile(0)}
+
+        first = fm.dataset_to_netcdf(dataset, simulator='crunchtope')
+        assert first == Path('results.nc')
+
+        dataset = {0: MockInputFile(0)}
+        second = fm.dataset_to_netcdf(dataset, simulator='crunchtope')
+        assert second == Path('results1.nc')
+        assert fm.matching_output_name(second) == 'conditions1.nc'
 
     def test_crunchtope_mode_writes_the_union_of_categories(self, tmp_path, monkeypatch):
         """Test that a category the first run lacks is still written.

@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from coeus.compile_inputs import compile_inputs, load_input_files
+from coeus.compile_inputs import compile_inputs, load_input_files, pairing_warning
 
 
 def _input_file(flow=1.0, condition_ph='7.0'):
@@ -183,3 +183,40 @@ class TestCompileInputs:
         ds = xr.open_dataset(summary['output'], group='flow')
         assert np.isnan(ds['nonexistent_entry'].values).all()
         assert 'Could not read' in capsys.readouterr().out
+
+
+class TestPairingWarning:
+    """Tests for the guard against writing a record that pairs with the wrong results file.
+
+    A sweep re-run in the same directory writes results1.nc, and its record belongs in
+    conditions1.nc. The standalone script cannot know which sweep it is being run for, so it says so
+    rather than silently pairing with the first.
+    """
+
+    def test_silent_with_a_single_results_file(self, tmp_path):
+        """Test that the ordinary case says nothing."""
+        (tmp_path / 'results.nc').touch()
+        assert pairing_warning(tmp_path) is None
+
+    def test_silent_with_no_results_file(self, tmp_path):
+        """Test that compiling before any results exist is not flagged."""
+        assert pairing_warning(tmp_path) is None
+
+    def test_warns_when_several_results_files_exist(self, tmp_path):
+        """Test that an ambiguous directory is flagged, with the pairing spelled out."""
+        for name in ('results.nc', 'results1.nc', 'results2.nc'):
+            (tmp_path / name).touch()
+
+        warning = pairing_warning(tmp_path)
+
+        assert warning is not None
+        assert '3 results files' in warning
+        assert 'results1.nc -> conditions1.nc' in warning
+        assert 'results2.nc -> conditions2.nc' in warning
+
+    def test_silent_when_the_name_was_chosen_explicitly(self, tmp_path):
+        """Test that passing -o means the caller has already decided; no need to warn."""
+        for name in ('results.nc', 'results1.nc'):
+            (tmp_path / name).touch()
+
+        assert pairing_warning(tmp_path, output='conditions1.nc') is None

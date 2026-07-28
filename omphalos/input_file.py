@@ -4,33 +4,56 @@ import re
 import pandas as pd
 import xarray as xr
 
+from core.keyword_block import strip_entry_key
 from omphalos import file_methods as fm
 
 
-def _validate_spatial_profile(line, max_line_length=132):
-    """Validate that a spatial_profile line doesn't exceed CrunchTope's line limit.
+# Marks a line continued on the next one.
+CONTINUATION = '&'
 
-    CrunchTope has a 132 character line limit. If the spatial_profile entry
-    exceeds this, raise an error advising the user to use more stages with
-    fewer output times per stage.
+# CrunchTope reads at most this many characters from a physical line.
+MAX_LINE_LENGTH = 132
+
+# Entries whose value is a list the manual allows to be continued across lines with a trailing
+# ampersand, so an over-long one can be wrapped rather than truncated by CrunchTope. Only these are
+# wrapped; every other entry is written as a single line, as before.
+CONTINUABLE_ENTRIES = ('spatial_profile', 'time_series_print', 'MakeMovie')
+
+
+def _format_entry_line(entry, words, max_line_length=MAX_LINE_LENGTH):
+    """Return the text for a keyword block entry, continued over several lines if it is too long.
+
+    CrunchTope reads only the first 132 characters of a line, so a long list of output times has to
+    be broken up. The manual's mechanism is a trailing ampersand, with the continuation carrying on
+    from the next line; Template.join_continuations reads it back as one entry.
 
     Args:
-        line: List containing ['spatial_profile', time1, time2, ...].
-        max_line_length: Maximum characters per line (default 132).
+        entry: The keyword being written, used to decide whether wrapping is allowed.
+        words: The whole line, starting with the keyword.
+        max_line_length: Maximum characters per physical line.
 
-    Raises:
-        ValueError: If the line exceeds the maximum length.
+    Returns:
+        The text to write, ending in a newline.
     """
-    full_line = ' '.join(str(x) for x in line)
+    words = [str(word) for word in words]
+    text = ' '.join(words)
 
-    if len(full_line) > max_line_length:
-        num_times = len(line) - 1  # Exclude 'spatial_profile' keyword
-        raise ValueError(
-            f"spatial_profile line exceeds CrunchTope's {max_line_length} character limit "
-            f"({len(full_line)} characters with {num_times} output times). "
-            f"Reduce the number of output times per stage by using more stages in "
-            f"restart_chain with fewer spatial_profile times in each stage."
-        )
+    if len(text) <= max_line_length or entry not in CONTINUABLE_ENTRIES:
+        return f'{text}\n'
+
+    lines = []
+    current = [words[0]]
+    for word in words[1:]:
+        # Leave room for the continuation marker this line will need if anything follows it.
+        too_long = len(' '.join(current + [word, CONTINUATION])) > max_line_length
+        if too_long and len(current) > 1:
+            lines.append(' '.join(current + [CONTINUATION]))
+            current = [word]
+        else:
+            current.append(word)
+    lines.append(' '.join(current))
+
+    return '\n'.join(lines) + '\n'
 
 
 class InputFile:
@@ -63,9 +86,22 @@ class InputFile:
         # Making a list of a dict returns the keys, which is what callers need.
         return list(block.contents) if block is not None else []
 
+    def _exchanger_names(self):
+        """Return the exchanger names declared in the ION_EXCHANGE block.
+
+        Entries there read 'exchange <name> [on <mineral>]', so the name is the first value rather
+        than the key: the key is the repeated 'exchange' keyword plus its uniqueness suffix.
+        """
+        block = self.keyword_blocks.get('ION_EXCHANGE')
+        if block is None:
+            return []
+
+        return [values[0] for key, values in block.contents.items()
+                if key.split('&')[0] == 'exchange' and values]
+
     def sort_condition_block(self, condition):
         """Sort a condition block dictionary into dictionaries for each types of species (mineral, gas, aqueous,
-        parameter).
+        exchanger, surface complex, parameter).
 
         This is required when you need to distinguish between types of entry in a condition block.
         """
@@ -75,6 +111,11 @@ class InputFile:
         mineral_list = [mineral.split('&')[0] for mineral in self._block_entries('MINERALS')]
         gases_list = self._block_entries('GASES')
         primary_species_list = self._block_entries('PRIMARY_SPECIES')
+        # A condition gives a cation exchange capacity for each exchanger and a site density for each
+        # surface complex. Both are named in their own keyword block, so they can be told apart from
+        # condition-wide parameters like units and temperature rather than being lumped in with them.
+        exchanger_list = self._exchanger_names()
+        surface_complex_list = self._block_entries('SURFACE_COMPLEXATION')
 
         if not primary_species_list:
             print(
@@ -82,8 +123,8 @@ class InputFile:
                 f"'{condition}' will be sorted as a parameter. Check the input file, or run the "
                 "get_keyword_blocks() method first.")
 
-        # For each entry in the dictionary, compare with the PRIMARY_SPECIES,
-        # MINERALS, and GASES blocks to assign the entry to the right dict.
+        # For each entry in the dictionary, compare with the PRIMARY_SPECIES, MINERALS, GASES,
+        # ION_EXCHANGE and SURFACE_COMPLEXATION blocks to assign the entry to the right dict.
         contents = self.condition_blocks[condition].contents
         # Maybe there is a way to make this if logic compact? Worth thinking
         # about maybe...
@@ -96,6 +137,12 @@ class InputFile:
                     {entry: contents[entry]})
             elif entry in primary_species_list:
                 self.condition_blocks[condition].concentrations.update(
+                    {entry: contents[entry]})
+            elif entry in exchanger_list:
+                self.condition_blocks[condition].exchangers.update(
+                    {entry: contents[entry]})
+            elif entry in surface_complex_list:
+                self.condition_blocks[condition].surface_complexes.update(
                     {entry: contents[entry]})
             else:
                 self.condition_blocks[condition].parameters.update(
@@ -157,14 +204,12 @@ class InputFile:
                     for entry in self.keyword_blocks[block].contents:
                         line = copy.deepcopy(
                             self.keyword_blocks[block].contents[entry])
-                        line.insert(0, entry)
+                        # Repeatable keywords carry a suffix that makes their key unique; the file
+                        # wants the keyword itself back at the start of the line.
+                        keyword = strip_entry_key(block, entry)
+                        line.insert(0, keyword)
 
-                        # Validate spatial_profile line length (132 char limit)
-                        if entry == 'spatial_profile':
-                            _validate_spatial_profile(line)
-
-                        line.append('\n')
-                        f.write(' '.join(line))
+                        f.write(_format_entry_line(keyword, line))
                 f.write('END\n\n')
 
             for block in self.condition_blocks:
@@ -182,6 +227,8 @@ class InputFile:
                     self.condition_blocks[block].concentrations,
                     self.condition_blocks[block].gases,
                     self.condition_blocks[block].mineral_volumes,
+                    self.condition_blocks[block].exchangers,
+                    self.condition_blocks[block].surface_complexes,
                 ]:
                     for entry in species_type:
                         # Ugh, weird workaround because of various type error - need to be a string to compose the

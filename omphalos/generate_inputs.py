@@ -13,9 +13,13 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'output': ['OUTPUT', slice(None)],
           'concentrations': ['geochemical condition', -1],
           'mineral_volumes': ['geochemical condition', 0],
+          # mineral_ssa's position is found from the entry itself, since the surface area value sits at
+          # a different offset depending on which of the manual's forms the condition uses.
           'mineral_ssa': ['geochemical condition', -1],
           'parameters': ['geochemical condition', -1],
           'gases': ['geochemical condition', -1],
+          'exchangers': ['geochemical condition', -1],
+          'surface_complexes': ['geochemical condition', -1],
           'mineral_rates': ['MINERALS', -1],
           'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
           'flow': ['FLOW', 0],

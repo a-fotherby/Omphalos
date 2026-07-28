@@ -10,6 +10,30 @@ from omphalos.input_file import InputFile
 from omphalos.keyword_block import ConditionBlock
 from omphalos.namelist import CrunchNameList
 
+from core.keyword_block import KEY_SEPARATOR, REPEATABLE_ENTRIES
+from omphalos.input_file import CONTINUATION
+
+
+def block_entry_key(keyword, line_list):
+    """Return the dictionary key for a line inside the named keyword block.
+
+    Repeatable keywords get a composite key so that several of them can coexist; everything else is
+    keyed on its leftmost word as before.
+
+    Args:
+        keyword: The keyword block the line belongs to.
+        line_list: The line, split into words.
+
+    Returns:
+        The key to store the entry under.
+    """
+    name = line_list[0]
+
+    if name in REPEATABLE_ENTRIES.get(keyword, ()) and len(line_list) > 1:
+        return f'{name}{KEY_SEPARATOR}{line_list[1]}'
+
+    return name
+
 
 class Template(InputFile):
     """Subclass of InputFile with special __init__ method for importing the template input file."""
@@ -68,9 +92,11 @@ class Template(InputFile):
                 print('*** Later input files found ***')
                 for later_file in later_files:
                     try:
-                        # By default we propagate the changes specified in the Omphalos config.
-                        # I.e. if we change a boundary condition we expect it to be the same in later restarts.
-                        # TODO: Varying conditions from the config over restarts.
+                        # The changes specified in the Omphalos config propagate unchanged down the
+                        # chain. I.e. if we change a boundary condition we expect it to be the same
+                        # in later restarts. To vary parameters between restarts instead, use a
+                        # restart_chain config with the 'staged' parameter method, which supersedes
+                        # this path (see configure_staged_input_files in generate_inputs.py).
                         later_config = copy.deepcopy(self.config)
                         later_config['template'] = later_file
                         later_config['restart'] = True
@@ -94,6 +120,9 @@ class Template(InputFile):
         so line numbers in dictionary will map to the true line number in the file. Comments are
         recognised wherever the '!' falls, so an indented comment is dropped like any other rather
         than being parsed as a block entry. The block parsers skip the resulting gaps.
+
+        Lines continued with a trailing ampersand are joined onto the line they continue, so an entry
+        broken across several lines is read as the single entry it represents.
         """
         input_file = {}
 
@@ -108,6 +137,57 @@ class Template(InputFile):
                     input_file.update({line_num: line.rstrip('\n ')})
 
             f.close()
+
+        return Template.join_continuations(input_file)
+
+    @staticmethod
+    def join_continuations(input_file):
+        """Join lines continued with a trailing ampersand onto the line they continue.
+
+        The manual allows long entries to be broken over several lines by ending each but the last
+        with an ampersand, so the tokens belong to one entry. Read line by line they instead become a
+        stray '&' token plus a bogus entry keyed on the continuation's first word, which then breaks
+        anything that reads the values as numbers.
+
+        The consumed lines are removed, leaving a gap. Line numbers are not renumbered, so the END
+        statements the block parsers search for keep their positions, and those parsers already skip
+        gaps left by comments.
+
+        Args:
+            input_file: Dictionary of lines keyed by line number.
+
+        Returns:
+            The same dictionary, with continuations joined.
+        """
+        line_nums = sorted(input_file)
+
+        for i, line_num in enumerate(line_nums):
+            if line_num not in input_file:
+                # Already consumed as the continuation of an earlier line.
+                continue
+
+            next_index = i + 1
+            while input_file[line_num].rstrip().endswith(CONTINUATION):
+                # Skip over comment and blank gaps to find the line being continued onto.
+                while next_index < len(line_nums) and line_nums[next_index] not in input_file:
+                    next_index += 1
+
+                trimmed = input_file[line_num].rstrip()[:-len(CONTINUATION)].rstrip()
+
+                # A continuation marker with nothing to continue onto, or with the block's END next,
+                # is malformed. Drop the marker rather than swallowing the END and losing the block.
+                if next_index >= len(line_nums):
+                    input_file[line_num] = trimmed
+                    break
+                continuation = input_file[line_nums[next_index]]
+                if continuation.split() and continuation.split()[0].upper() == 'END':
+                    input_file[line_num] = trimmed
+                    break
+
+                input_file[line_num] = f'{trimmed} {continuation.strip()}'
+                del input_file[line_nums[next_index]]
+                next_index += 1
+
         return input_file
 
     def block_line(self, line_num):
@@ -167,7 +247,7 @@ class Template(InputFile):
                 line_list = self.block_line(a)
                 if not line_list:
                     continue
-                keyword_dict.update({line_list[0]: line_list[1:]})
+                keyword_dict.update({block_entry_key(keyword, line_list): line_list[1:]})
             block.contents = keyword_dict
             self.keyword_blocks.update({keyword: block})
         except IndexError:

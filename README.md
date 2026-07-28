@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-330%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-384%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -63,6 +63,7 @@
   - [Worked Examples](#worked-examples)
 - [Advanced Topics](#advanced-topics)
   - [Non-Unique Entries](#non-unique-entries)
+  - [Line Continuation](#line-continuation)
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
   - [Choosing a Parallelization Backend](#choosing-a-parallelization-backend)
   - [Cluster Runs](#cluster-runs)
@@ -373,7 +374,18 @@ Modify geochemical conditions with subcategories:
 | `mineral_volumes` | Mineral volume fractions |
 | `mineral_ssa` | Mineral surface areas |
 | `gases` | Gas partial pressures |
-| `parameters` | Temperature, pH, etc. |
+| `exchangers` | Cation exchange capacities, e.g. `Xna- -cec 0.001` |
+| `surface_complexes` | Surface hydroxyl site densities, e.g. `>FeOH_strong 3.8e-6` |
+| `parameters` | Temperature, pH, units, `SolidDensity`, etc. |
+
+Exchangers and surface complexes are recognised by name from the `ION_EXCHANGE` and
+`SURFACE_COMPLEXATION` blocks. Configs written before they had their own subcategories named them
+under `parameters`; that still works.
+
+`mineral_ssa` finds the surface area value rather than assuming its position, so it works for all of
+the manual's forms — a bare trailing value, an explicit `bsa`/`ssa`/`bulk_surface_area`/
+`specific_surface_area` keyword, and a secondary phase carrying a trailing nucleation threshold
+(`Calcite 0.0 specific_surface_area 2.0 0.0001`, where the threshold is left alone).
 
 ```yaml
 concentrations:
@@ -664,7 +676,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **330 tests**:
+The project includes a comprehensive test suite with **384 tests**:
 
 ```bash
 # Run all tests
@@ -760,6 +772,18 @@ spatial = attr.initial_conditions(dataset, concentrations=True)        # Dataset
 every condition block into account. Its variables are ordered by `core.spatial_constructor.condition_variables`,
 which is also what orders the underlying array — use that function if you need the ordering yourself. Grid cells
 that no condition region covers are left at zero and reported.
+
+pH is not a primary species concentration in a CrunchTope condition block but a parameter alongside `temperature`,
+so it never appears among the concentrations and has to be asked for by name:
+
+```python
+spatial = attr.initial_conditions(dataset, concentrations=True, ph=True)   # adds a 'pH' variable
+```
+
+The value is reported as pH, not converted to `[H+]`: CrunchTope's pH is −log₁₀ of the H⁺ *activity*, and
+recovering a concentration needs the activity coefficients that only the speciation solve produces. The `pH`
+column comes last, so switching it on leaves the species columns where they were. A condition that constrains H⁺
+directly, or by charge balance (`pH charge`), reads `nan` rather than borrowing a neighbouring condition's value.
 
 ### Recovering Failed Runs
 
@@ -902,6 +926,42 @@ mineral_rates:
 ```
 
 > **Important:** Do not use ampersands (`&`) in mineral names in your input files.
+
+The same `&` convention covers the keywords CrunchTope allows to repeat within a block. Entries are
+keyed on the leftmost word, so these would otherwise overwrite each other; the token after the keyword
+makes the key unique:
+
+| Block | Keyword | Key format | Repeats because |
+|-------|---------|------------|-----------------|
+| `OUTPUT` | `time_series` | `time_series&<filename>` | one per output location |
+| `ION_EXCHANGE` | `exchange` | `exchange&<exchanger>` | one per exchanger |
+| `TRANSPORT` | `D_25` | `D_25&<species>` | one per species |
+
+```yaml
+transport:
+  # Vary the diffusion coefficient of one species only
+  D_25&Ca++:
+    - 'linspace'
+    - [0.5e-9, 1.0e-9, 1]
+```
+
+Naming the bare keyword (`D_25`) works while the template has only one such line; if there are
+several, Omphalos reports the candidates rather than picking one.
+
+### Line Continuation
+
+Long entries may be continued across lines with a trailing ampersand, as the manual documents for
+`spatial_profile`, `time_series_print` and `MakeMovie`:
+
+```
+spatial_profile 100.0 200.0 &
+                300.0 400.0
+```
+
+Omphalos joins these into a single entry when reading, so `spatial_profile` above is four output times
+rather than two plus a stray `&`. On writing, an entry that would exceed CrunchTope's 132 character
+line limit is wrapped back across lines the same way — previously an over-long `spatial_profile` was a
+hard error telling you to use more stages.
 
 ### Pump Keyword in FLOW Block
 

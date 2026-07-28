@@ -7,6 +7,8 @@ from core.keyword_block import (
     ConditionBlock,
     KeywordBlockModificationError,
     ConditionBlockModificationError,
+    resolve_entry,
+    surface_area_position,
 )
 
 
@@ -131,6 +133,113 @@ class TestConditionBlock:
 
         block.modify('Calcite', '2.0', 1, species_type='mineral_ssa')
         assert block.mineral_volumes['Calcite'][1] == '2.0'
+
+
+class TestSurfaceAreaPosition:
+    """Tests for locating the surface area value in a condition block mineral entry.
+
+    The manual's format is '<phase> <volume fraction> [<surface area keyword>] <value> [<threshold>]'.
+    Both the keyword and the trailing nucleation threshold are optional, so the value's offset varies.
+    """
+
+    def test_bare_trailing_value(self):
+        """Test the form with no keyword, which CrunchTope reads as a bulk surface area."""
+        assert surface_area_position('Calcite', ['0.01', '1.0']) == 1
+
+    @pytest.mark.parametrize('keyword', ['bulk_surface_area', 'bsa', 'specific_surface_area', 'ssa'])
+    def test_each_surface_area_keyword(self, keyword):
+        """Test that the value is found after any of the documented keywords."""
+        assert surface_area_position('Calcite', ['0.01', keyword, '2.0']) == 2
+
+    def test_trailing_threshold_is_not_mistaken_for_the_value(self):
+        """Test the secondary mineral form, where indexing from the end lands on the threshold."""
+        entry = ['0.0', 'specific_surface_area', '2.0', '0.0001']
+
+        assert surface_area_position('Calcite', entry) == 2
+
+    def test_volume_fraction_alone_is_reported(self):
+        """Test that an entry with no surface area at all says so rather than corrupting the entry."""
+        with pytest.raises(ConditionBlockModificationError, match='no surface area'):
+            surface_area_position('Calcite', ['0.01'])
+
+    def test_keyword_with_no_value_is_reported(self):
+        """Test that a truncated entry is reported rather than indexed past the end."""
+        with pytest.raises(ConditionBlockModificationError, match='no value after it'):
+            surface_area_position('Calcite', ['0.01', 'ssa'])
+
+    def test_modify_finds_the_value_not_the_threshold(self):
+        """Test the whole path: a sweep of a secondary mineral's SSA leaves the threshold alone.
+
+        Sweeping mineral_ssa used to overwrite the trailing token, so the surface area never changed
+        and the nucleation threshold was set to the requested surface area instead.
+        """
+        block = ConditionBlock()
+        block.mineral_volumes = {'Calcite': ['0.0', 'specific_surface_area', '2.0', '0.0001']}
+
+        block.modify('Calcite', 99.0, -1, species_type='mineral_ssa')
+
+        assert block.mineral_volumes['Calcite'] == ['0.0', 'specific_surface_area', '99.0', '0.0001']
+
+
+class TestResolveEntry:
+    """Tests for resolving a bare keyword to the composite key of a repeatable entry."""
+
+    def test_exact_key_wins(self):
+        """Test that an exact match is used as given."""
+        contents = {'D_25&H+': ['H+', '1.0'], 'D_25': ['x']}
+
+        assert resolve_entry(contents, 'D_25') == 'D_25'
+
+    def test_unique_composite_key_is_found(self):
+        """Test that a bare keyword resolves while only one such entry exists."""
+        contents = {'fix_diffusion': ['1.0'], 'D_25&H+': ['H+', '1.0']}
+
+        assert resolve_entry(contents, 'D_25') == 'D_25&H+'
+
+    def test_ambiguous_keyword_is_reported(self):
+        """Test that a bare keyword matching several entries asks which one is meant."""
+        contents = {'D_25&H+': ['H+', '1.0'], 'D_25&Na+': ['Na+', '2.0']}
+
+        with pytest.raises(KeyError, match='matches several entries'):
+            resolve_entry(contents, 'D_25')
+
+    def test_missing_entry_still_raises_keyerror(self):
+        """Test that an unknown name behaves as a plain dictionary lookup would."""
+        with pytest.raises(KeyError):
+            resolve_entry({'fix_diffusion': ['1.0']}, 'gas_diffusion')
+
+
+class TestConditionBlockSpeciesTypeFallback:
+    """Tests that configs written before exchangers and surface complexes were split out still work."""
+
+    def test_exchanger_named_as_a_parameter(self):
+        """Test that an exchanger targeted through 'parameters' is still found."""
+        block = ConditionBlock()
+        block.exchangers = {'Xna-': ['-cec', '0.001']}
+
+        block.modify('Xna-', 0.005, -1, species_type='parameters')
+
+        assert block.exchangers['Xna-'] == ['-cec', '0.005']
+
+    def test_surface_complex_named_as_a_parameter(self):
+        """Test that a surface complex targeted through 'parameters' is still found."""
+        block = ConditionBlock()
+        block.surface_complexes = {'>FeOH_strong': ['3.8e-6']}
+
+        block.modify('>FeOH_strong', 1.0e-5, -1, species_type='parameters')
+
+        assert block.surface_complexes['>FeOH_strong'] == ['1e-05']
+
+    def test_a_real_parameter_is_unaffected(self):
+        """Test that the fallback does not interfere with an entry that is a parameter."""
+        block = ConditionBlock()
+        block.parameters = {'temperature': ['25.0']}
+        block.exchangers = {'temperature': ['should not be touched']}
+
+        block.modify('temperature', 30.0, 0, species_type='parameters')
+
+        assert block.parameters['temperature'] == ['30.0']
+        assert block.exchangers['temperature'] == ['should not be touched']
 
     def test_modify_parameters(self):
         """Test modifying parameters in ConditionBlock."""

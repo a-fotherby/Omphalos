@@ -430,3 +430,339 @@ class TestTemplateLaterInputs:
     def test_later_inputs_is_dict(self, sample_template):
         """Test that later_inputs is a dictionary."""
         assert isinstance(sample_template.later_inputs, dict)
+
+
+# An input file exercising the parts of the CrunchTope input format where a keyword may repeat, where
+# a line may be continued, and where a condition entry is neither a species nor a parameter.
+MANUAL_FEATURES_BODY = """TITLE
+Test
+END
+
+RUNTIME
+time_units years
+END
+
+OUTPUT
+time_units years
+spatial_profile 100.0 200.0 &
+300.0 400.0
+time_series obs_a.out 10
+time_series obs_b.out 50
+END
+
+DISCRETIZATION
+xzones 10 1.0
+END
+
+PRIMARY_SPECIES
+H+
+Ca++
+END
+
+MINERALS
+Calcite -label default
+END
+
+ION_EXCHANGE
+exchange Xna- on Kaolinite
+exchange Xca- on Kaolinite
+convention Gaines-Thomas
+END
+
+SURFACE_COMPLEXATION
+>FeOH_strong on Fe(OH)3
+>FeOH_weak on Fe(OH)3
+END
+
+TRANSPORT
+fix_diffusion 1.0e-9
+D_25 H+ 9.31e-9
+D_25 Ca++ 0.79e-9
+END
+
+INITIAL_CONDITIONS
+initial 1-10
+END
+
+CONDITION initial
+units mmol/kg
+temperature 25.0
+Ca++ 1.0
+Calcite 0.1 specific_surface_area 2.0 0.0001
+>FeOH_strong 3.8e-6
+Xna- -cec 0.001
+SolidDensity CalculateFromMinerals
+END
+"""
+
+
+def _build_template(tmp_path, body=MANUAL_FEATURES_BODY, name='test.in'):
+    """Build a Template from an input file containing the given body."""
+    import contextlib
+    import io
+
+    from omphalos.template import Template
+
+    path = tmp_path / name
+    path.write_text(body)
+    with contextlib.redirect_stdout(io.StringIO()):
+        return Template({
+            'template': str(path),
+            'database': 'test.dbs',
+            'aqueous_database': None,
+            'catabolic_pathways': None,
+            'conditions': None,
+            'number_of_files': 1,
+        })
+
+
+def _round_trip(template, tmp_path):
+    """Write the template back out and return the text, as CrunchTope would receive it."""
+    import contextlib
+    import io
+
+    out = tmp_path / 'out.in'
+    template.path = str(out)
+    with contextlib.redirect_stdout(io.StringIO()):
+        template.print()
+
+    return out.read_text()
+
+
+class TestTemplateRepeatableEntries:
+    """Tests for keywords CrunchTope allows to appear more than once in a block.
+
+    Entries are keyed on the leftmost word, so these used to overwrite each other and everything but
+    the last occurrence was silently dropped from the input file written for each run.
+    """
+
+    def test_every_time_series_is_kept(self, tmp_path):
+        """Test that both time series survive, each with its own filename and node."""
+        contents = _build_template(tmp_path).keyword_blocks['OUTPUT'].contents
+
+        assert contents['time_series&obs_a.out'] == ['obs_a.out', '10']
+        assert contents['time_series&obs_b.out'] == ['obs_b.out', '50']
+
+    def test_every_exchanger_is_kept(self, tmp_path):
+        """Test that a multi-exchanger ION_EXCHANGE block keeps all of its exchangers."""
+        contents = _build_template(tmp_path).keyword_blocks['ION_EXCHANGE'].contents
+
+        assert contents['exchange&Xna-'] == ['Xna-', 'on', 'Kaolinite']
+        assert contents['exchange&Xca-'] == ['Xca-', 'on', 'Kaolinite']
+
+    def test_every_diffusion_coefficient_is_kept(self, tmp_path):
+        """Test that per-species D_25 lines all survive.
+
+        The manual notes that even one D_25 entry switches GIMRT to the full Nernst-Planck solve, so
+        losing these quietly reduces a multi-species setup to one species.
+        """
+        contents = _build_template(tmp_path).keyword_blocks['TRANSPORT'].contents
+
+        assert contents['D_25&H+'] == ['H+', '9.31e-9']
+        assert contents['D_25&Ca++'] == ['Ca++', '0.79e-9']
+
+    def test_non_repeatable_keywords_keep_a_plain_key(self, tmp_path):
+        """Test that only the repeatable keywords are given a composite key."""
+        template = _build_template(tmp_path)
+
+        assert template.keyword_blocks['TRANSPORT'].contents['fix_diffusion'] == ['1.0e-9']
+        assert template.keyword_blocks['ION_EXCHANGE'].contents['convention'] == ['Gaines-Thomas']
+
+    def test_round_trip_writes_every_line(self, tmp_path):
+        """Test that the file written for a run carries all the repeated lines, not just the last."""
+        template = _build_template(tmp_path)
+        text = _round_trip(template, tmp_path)
+
+        for line in ('time_series obs_a.out 10', 'time_series obs_b.out 50',
+                     'exchange Xna- on Kaolinite', 'exchange Xca- on Kaolinite',
+                     'D_25 H+ 9.31e-9', 'D_25 Ca++ 0.79e-9'):
+            assert line in text, f'{line!r} was dropped on the way out'
+
+    def test_a_bare_keyword_still_resolves_when_unique(self, tmp_path):
+        """Test that a config naming the bare keyword works while only one such line exists."""
+        template = _build_template(tmp_path)
+        block = template.keyword_blocks['OUTPUT']
+        del block.contents['time_series&obs_b.out']
+
+        block.modify('time_series', 99, -1)
+
+        assert block.contents['time_series&obs_a.out'] == ['obs_a.out', '99']
+
+    def test_an_ambiguous_bare_keyword_is_reported(self, tmp_path):
+        """Test that a bare keyword matching several lines asks which one is meant."""
+        block = _build_template(tmp_path).keyword_blocks['TRANSPORT']
+
+        with pytest.raises(KeyError, match='matches several entries'):
+            block.modify('D_25', 1.0, -1)
+
+    def test_a_specific_repeated_entry_can_be_modified(self, tmp_path):
+        """Test that naming the composite key modifies just that line."""
+        block = _build_template(tmp_path).keyword_blocks['TRANSPORT']
+
+        block.modify('D_25&H+', 1.0, -1)
+
+        assert block.contents['D_25&H+'] == ['H+', '1.0']
+        assert block.contents['D_25&Ca++'] == ['Ca++', '0.79e-9']
+
+
+class TestTemplateLineContinuation:
+    """Tests for entries continued across lines with a trailing ampersand."""
+
+    def test_a_continued_entry_becomes_one_entry(self, tmp_path):
+        """Test that the continuation's values join the entry they continue."""
+        contents = _build_template(tmp_path).keyword_blocks['OUTPUT'].contents
+
+        assert contents['spatial_profile'] == ['100.0', '200.0', '300.0', '400.0']
+
+    def test_the_continuation_leaves_no_bogus_entry(self, tmp_path):
+        """Test that the continuation line does not become an entry keyed on its first value."""
+        contents = _build_template(tmp_path).keyword_blocks['OUTPUT'].contents
+
+        assert '300.0' not in contents
+        for values in contents.values():
+            assert '&' not in values
+
+    def test_continuation_over_several_lines(self, tmp_path):
+        """Test that an entry may be continued more than once."""
+        from omphalos.template import Template
+
+        joined = Template.join_continuations({
+            0: 'OUTPUT',
+            1: 'spatial_profile 1.0 &',
+            2: '2.0 &',
+            3: '3.0',
+            4: 'END',
+        })
+
+        assert joined[1] == 'spatial_profile 1.0 2.0 3.0'
+        assert 2 not in joined and 3 not in joined
+        assert joined[4] == 'END'
+
+    def test_continuation_skips_a_comment_gap(self, tmp_path):
+        """Test that a comment between the two halves of an entry does not break the join.
+
+        read_file drops comments but keeps their line numbers, so the continuation is not the very
+        next key in the index.
+        """
+        template = _build_template(tmp_path, MANUAL_FEATURES_BODY.replace(
+            'spatial_profile 100.0 200.0 &\n', 'spatial_profile 100.0 200.0 &\n! a comment\n'))
+
+        assert template.keyword_blocks['OUTPUT'].contents['spatial_profile'] == \
+            ['100.0', '200.0', '300.0', '400.0']
+
+    def test_a_dangling_marker_does_not_swallow_the_end(self, tmp_path):
+        """Test that a continuation marker with END next drops the marker and keeps the block.
+
+        Joining END onto the entry would lose the block boundary and take the rest of the file with it.
+        """
+        from omphalos.template import Template
+
+        joined = Template.join_continuations({0: 'OUTPUT', 1: 'spatial_profile 1.0 &', 2: 'END'})
+
+        assert joined[1] == 'spatial_profile 1.0'
+        assert joined[2] == 'END'
+
+    def test_a_dangling_marker_at_end_of_file_is_dropped(self, tmp_path):
+        """Test that a trailing marker with nothing after it leaves no stray token."""
+        from omphalos.template import Template
+
+        joined = Template.join_continuations({0: 'spatial_profile 1.0 &'})
+
+        assert joined[0] == 'spatial_profile 1.0'
+
+    def test_staged_restarts_can_offset_continued_times(self, tmp_path):
+        """Test that a continued spatial_profile can drive a staged restart chain.
+
+        The stray '&' token used to reach float() and raise, so no template using the documented
+        continuation syntax could run staged restarts at all.
+        """
+        from omphalos import generate_inputs as gi
+
+        template = _build_template(tmp_path)
+        gi._auto_adjust_spatial_profile(template, 1)
+
+        assert template.keyword_blocks['OUTPUT'].contents['spatial_profile'] == \
+            ['500.0', '600.0', '700.0', '800.0']
+
+    def test_a_short_continued_entry_is_written_on_one_line(self, tmp_path):
+        """Test that an entry that fits is written without a continuation marker."""
+        template = _build_template(tmp_path)
+        text = _round_trip(template, tmp_path)
+
+        assert 'spatial_profile 100.0 200.0 300.0 400.0' in text
+
+    def test_a_long_entry_is_wrapped(self, tmp_path):
+        """Test that an entry too long for CrunchTope's 132 character line is continued.
+
+        Writing it as one line would have it silently truncated at 132 characters.
+        """
+        from omphalos.input_file import MAX_LINE_LENGTH
+
+        template = _build_template(tmp_path)
+        times = [str(float(t)) for t in range(1, 61)]
+        template.keyword_blocks['OUTPUT'].contents['spatial_profile'] = times
+        text = _round_trip(template, tmp_path)
+
+        written = [line for line in text.splitlines() if line.startswith('spatial_profile')]
+        assert len(written) == 1, 'the entry should start exactly one line'
+        for line in text.splitlines():
+            assert len(line) <= MAX_LINE_LENGTH, f'line exceeds the limit: {line!r}'
+
+    def test_a_wrapped_entry_reads_back_unchanged(self, tmp_path):
+        """Test that wrapping and re-reading is lossless, so a restart chain keeps its times."""
+        template = _build_template(tmp_path)
+        times = [str(float(t)) for t in range(1, 61)]
+        template.keyword_blocks['OUTPUT'].contents['spatial_profile'] = times
+        text = _round_trip(template, tmp_path)
+
+        reread = _build_template(tmp_path, text, name='reread.in')
+
+        assert reread.keyword_blocks['OUTPUT'].contents['spatial_profile'] == times
+
+
+class TestTemplateConditionSpeciesTypes:
+    """Tests for sorting condition entries that are neither species nor condition-wide parameters."""
+
+    def test_exchanger_cec_is_sorted_as_an_exchanger(self, tmp_path):
+        """Test that a cation exchange capacity is recognised from the ION_EXCHANGE block."""
+        template = _build_template(tmp_path)
+        template.check_condition_sort('initial')
+        block = template.condition_blocks['initial']
+
+        assert block.exchangers == {'Xna-': ['-cec', '0.001']}
+        assert 'Xna-' not in block.parameters
+
+    def test_surface_site_density_is_sorted_as_a_surface_complex(self, tmp_path):
+        """Test that a surface hydroxyl site density is recognised from SURFACE_COMPLEXATION."""
+        template = _build_template(tmp_path)
+        template.check_condition_sort('initial')
+        block = template.condition_blocks['initial']
+
+        assert block.surface_complexes == {'>FeOH_strong': ['3.8e-6']}
+        assert '>FeOH_strong' not in block.parameters
+
+    def test_condition_wide_parameters_are_left_alone(self, tmp_path):
+        """Test that genuine condition parameters stay where they were."""
+        template = _build_template(tmp_path)
+        template.check_condition_sort('initial')
+        parameters = template.condition_blocks['initial'].parameters
+
+        for entry in ('units', 'temperature', 'SolidDensity'):
+            assert entry in parameters
+
+    def test_species_are_unaffected(self, tmp_path):
+        """Test that the split does not disturb the concentrations or mineral volumes."""
+        template = _build_template(tmp_path)
+        template.check_condition_sort('initial')
+        block = template.condition_blocks['initial']
+
+        assert 'Ca++' in block.concentrations
+        assert 'Calcite' in block.mineral_volumes
+
+    def test_round_trip_keeps_them(self, tmp_path):
+        """Test that entries moved out of parameters are still written to the input file."""
+        template = _build_template(tmp_path)
+        text = _round_trip(template, tmp_path)
+
+        assert 'Xna- -cec 0.001' in text
+        assert '>FeOH_strong 3.8e-6' in text

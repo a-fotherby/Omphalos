@@ -30,6 +30,11 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--min3p', action='store_true')
     parser.add_argument('-d', '--debug', action='store_true')
     parser.add_argument(
+        '-c', '--compile-inputs', action='store_true',
+        help='After the run, record the parameter values it used in conditions.nc, as '
+             'coeus/compile_inputs.py does. CrunchTope local runs only.'
+    )
+    parser.add_argument(
         '-b', '--backend',
         type=str,
         choices=['xargs', 'parallel'],
@@ -55,6 +60,36 @@ if __name__ == '__main__':
                 sys.exit(f'ERROR: {message} Aborting.')
             print(f'WARNING: {message}')
         return result.returncode
+
+    # Settle --compile-inputs before anything runs, so an unsupported combination is known now rather
+    # than after a sweep. It reads the per-run pickles the workers leave behind, so it needs runs that
+    # have finished: a cluster submission returns as soon as the array is queued. MIN3P and PFLOTRAN
+    # describe their parameters differently, so it would have nothing meaningful to read there.
+    compile_inputs_wanted = args.compile_inputs
+    if args.compile_inputs and args.run_type != 'local':
+        print('WARNING: --compile-inputs needs the completed runs, which a cluster submission does '
+              'not wait for. Run coeus/compile_inputs.py once the array has finished.')
+        compile_inputs_wanted = False
+    elif args.compile_inputs and (args.min3p or args.pflotran):
+        print(f'WARNING: --compile-inputs reads CrunchTope config blocks, so it does not apply to the '
+              f'{"MIN3P" if args.min3p else "PFLOTRAN"} backend. Skipped.')
+        compile_inputs_wanted = False
+
+    def compile_input_record(config):
+        """Record the parameter values the run used in conditions.nc, if asked and supported.
+
+        A failure here does not invalidate the results that were just compiled, so it warns rather
+        than exiting.
+        """
+        if not compile_inputs_wanted:
+            return
+
+        from coeus.compile_inputs import compile_inputs
+
+        try:
+            compile_inputs(config, verbose=False)
+        except Exception as exc:  # noqa: BLE001 - the results are already written; do not lose them
+            print(f'WARNING: could not compile the input record: {exc}')
 
     def build_prep_command(backend, prep_script, dict_size, parallel_exec=None):
         """Build the directory preparation command for the chosen backend."""
@@ -139,6 +174,7 @@ if __name__ == '__main__':
         run_shell(run_command, 'MIN3P run command', fatal=False)
 
         summary = si.compile_results(dict_size + 1, simulator='min3p')
+        compile_input_record(config)
         t_stop = time.time()
         print(f'MIN3P files compiled: {summary["compiled"]} of {summary["total"]}. '
               f'Time elapsed: {t_stop - t_start}')
@@ -241,6 +277,11 @@ if __name__ == '__main__':
             print("Error occurred while running sbatch command.")
             print("Return code:", e.returncode)
             print("Error output:", e.stderr)
+        except FileNotFoundError:
+            # No sbatch on PATH: cluster mode was asked for off a cluster, which is worth saying
+            # plainly rather than as a traceback.
+            sys.exit('ERROR: sbatch not found. Cluster mode needs a SLURM scheduler; '
+                     'use run_type "local" on a workstation.')
 
     elif args.run_type == 'local':
         if config['aqueous_database'] is None:
@@ -330,10 +371,12 @@ if __name__ == '__main__':
         # Compile results. compile_results reports the per-run breakdown itself; exit non-zero if
         # nothing came back, so a wholly failed sweep does not look like a success to a caller.
         summary = si.compile_results(dict_size + 1)
+        compile_input_record(config)
         if not summary['compiled']:
             sys.exit(1)
 
     elif args.run_type == 'cluster':
+        compile_input_record(config)
         # OMPHALOS_DIR tells the batch script where this checkout lives, so it need not hardcode a path.
         submit_runs = (
             f'sbatch --array=0-{dict_size} '

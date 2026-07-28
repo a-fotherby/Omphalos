@@ -1,69 +1,105 @@
-if __name__ == "__main__":
-    import argparse
-    import pickle
-    import re
-    import sys
-    from pathlib import Path
+"""Compile the varied input parameters of a rhea run into a netCDF file.
 
-    _project_root = Path(__file__).resolve().parent.parent
-    if str(_project_root) not in sys.path:
-        sys.path.insert(0, str(_project_root))
+Run as a script after a sweep, or called by ``rhea <config> local --compile-inputs`` to have it happen
+as part of the run. Reads the completed ``input_file<N>_complete.pkl`` written into each ``run<N>/``
+directory and records the parameter values those runs actually used, in groups mirroring the config.
 
-    import numpy as np
-    import xarray as xr
-    import yaml
+Essential for ``random_uniform`` sweeps, where the YAML alone cannot say what was run.
+"""
 
-    from omphalos.generate_inputs import CT_IDs, CT_NMLs, evaluate_config
+import pickle
+import re
+import sys
+from pathlib import Path
 
-    parser = argparse.ArgumentParser(
-        description='Compile varied input conditions from a rhea run into a netCDF file.'
-    )
-    parser.add_argument('config', help='Path to the YAML config file used for the run')
-    parser.add_argument(
-        '-o', '--output', default='conditions.nc',
-        help='Output filename (default: conditions.nc)'
-    )
-    cli_args = parser.parse_args()
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
-    with open(cli_args.config) as f:
-        config = yaml.safe_load(f)
 
-    # Auto-detect staged runs from the config
-    staged_mode = bool(config.get('restart_chain') and config['restart_chain'].get('stages'))
-    if staged_mode:
-        num_stages = config['restart_chain']['stages']
-        print(f'Staged run detected ({num_stages} stages). Re-deriving staged parameter values from config.')
-        stage_configs = {s: evaluate_config(config, stage_num=s) for s in range(num_stages)}
-        stage_nums = np.arange(num_stages)
+def load_input_files(directory, verbose=True):
+    """Load the completed InputFile pickle from every run directory under directory.
 
-    # Discover and load completed InputFile pickles from run directories
-    directory = Path.cwd()
+    Args:
+        directory: Directory holding the run0/, run1/, ... directories.
+        verbose: Whether to name each pickle as it is loaded.
+
+    Returns:
+        (input_files, missing): a dict of {run number: InputFile}, and the run numbers whose pickle
+        was absent (a run that failed before it could record anything).
+
+    Raises:
+        FileNotFoundError: If there are no run directories, or none of them holds a pickle.
+    """
+    directory = Path(directory)
     run_dirs = sorted(
         [d for d in directory.iterdir() if re.match(r'run\d+$', d.name) and d.is_dir()],
         key=lambda d: int(re.search(r'\d+', d.name).group())
     )
 
     if not run_dirs:
-        print('No run directories found in the current directory.')
-        sys.exit(1)
+        raise FileNotFoundError(f'No run directories found in {directory}.')
 
     input_files = {}
+    missing = []
     for run_dir in run_dirs:
         run_num = int(re.search(r'\d+', run_dir.name).group())
         pkl_path = run_dir / f'input_file{run_num}_complete.pkl'
         if pkl_path.exists():
             with open(pkl_path, 'rb') as f:
                 input_files[run_num] = pickle.load(f)
-            print(f'Loaded {pkl_path}')
+            if verbose:
+                print(f'Loaded {pkl_path}')
         else:
+            missing.append(run_num)
             print(f'Warning: {pkl_path} not found, skipping.')
 
     if not input_files:
-        print('No input file pickles found.')
-        sys.exit(1)
+        raise FileNotFoundError(f'No input file pickles found in {directory}.')
 
+    return input_files, missing
+
+
+def compile_inputs(config, output='conditions.nc', directory=None, verbose=True):
+    """Write the parameter values a sweep actually used to a netCDF file.
+
+    Values are read from the per-run pickles, so they reflect what ran rather than what the config
+    asked for. Parameters using the 'staged' method are re-derived from the config for each stage,
+    since a single input file only carries the values of its own stage.
+
+    Args:
+        config: The run's config, as a dict.
+        output: Output file name, written inside directory.
+        directory: Directory holding the run directories (default: the current directory).
+        verbose: Whether to name each pickle and group as it is handled.
+
+    Returns:
+        dict: 'output' (Path written, or None if nothing was), 'groups' (number written), 'runs'
+        (run numbers read) and 'missing' (run numbers whose pickle was absent).
+
+    Raises:
+        FileNotFoundError: If there are no run directories, or none of them holds a pickle.
+    """
+    import numpy as np
+    import xarray as xr
+
+    from omphalos.generate_inputs import CT_IDs, CT_NMLs, evaluate_config
+
+    directory = Path(directory) if directory is not None else Path.cwd()
+
+    # Auto-detect staged runs from the config
+    staged_mode = bool(config.get('restart_chain') and config['restart_chain'].get('stages'))
+    num_stages = config['restart_chain']['stages'] if staged_mode else 0
+    stage_configs = {}
+    stage_nums = None
+    if staged_mode:
+        print(f'Staged run detected ({num_stages} stages). Re-deriving staged parameter values from config.')
+        stage_configs = {s: evaluate_config(config, stage_num=s) for s in range(num_stages)}
+        stage_nums = np.arange(num_stages)
+
+    input_files, missing = load_input_files(directory, verbose=verbose)
     file_nums = sorted(input_files.keys())
-    output_path = directory / cli_args.output
+    output_path = directory / output
 
     if output_path.exists():
         output_path.unlink()
@@ -85,6 +121,11 @@ if __name__ == "__main__":
         if staged_mode:
             coords['stage_num'] = stage_nums
         return coords
+
+    def write(dataset, group):
+        dataset.to_netcdf(output_path, group=group, mode='a')
+        if verbose:
+            print(f'Written group: {group}')
 
     groups_written = 0
 
@@ -123,10 +164,7 @@ if __name__ == "__main__":
                                 values.append(float('nan'))
                         data_vars[entry] = make_var(values)
 
-                ds = xr.Dataset(data_vars, coords=make_coords())
-                group = f'{block}/{condition}'
-                ds.to_netcdf(output_path, group=group, mode='a')
-                print(f'Written group: {group}')
+                write(xr.Dataset(data_vars, coords=make_coords()), f'{block}/{condition}')
                 groups_written += 1
 
         else:
@@ -148,9 +186,7 @@ if __name__ == "__main__":
                             values.append(float('nan'))
                     data_vars[entry] = make_var(values)
 
-            ds = xr.Dataset(data_vars, coords=make_coords())
-            ds.to_netcdf(output_path, group=block, mode='a')
-            print(f'Written group: {block}')
+            write(xr.Dataset(data_vars, coords=make_coords()), block)
             groups_written += 1
 
     if 'namelists' in config:
@@ -179,13 +215,36 @@ if __name__ == "__main__":
                                 values.append(float('nan'))
                         data_vars[parameter] = make_var(values)
 
-                ds = xr.Dataset(data_vars, coords=make_coords())
-                group = f'namelists/{nml_type}/{reaction_name}'
-                ds.to_netcdf(output_path, group=group, mode='a')
-                print(f'Written group: {group}')
+                write(xr.Dataset(data_vars, coords=make_coords()), f'namelists/{nml_type}/{reaction_name}')
                 groups_written += 1
 
     if groups_written == 0:
         print('No varied parameters found in the config.')
-    else:
-        print(f'\nConditions written to {output_path} ({groups_written} group(s))')
+        return {'output': None, 'groups': 0, 'runs': file_nums, 'missing': missing}
+
+    print(f'\nConditions written to {output_path} ({groups_written} group(s))')
+    return {'output': output_path, 'groups': groups_written, 'runs': file_nums, 'missing': missing}
+
+
+if __name__ == "__main__":
+    import argparse
+
+    import yaml
+
+    parser = argparse.ArgumentParser(
+        description='Compile varied input conditions from a rhea run into a netCDF file.'
+    )
+    parser.add_argument('config', help='Path to the YAML config file used for the run')
+    parser.add_argument(
+        '-o', '--output', default='conditions.nc',
+        help='Output filename (default: conditions.nc)'
+    )
+    cli_args = parser.parse_args()
+
+    with open(cli_args.config) as f:
+        run_config = yaml.safe_load(f)
+
+    try:
+        compile_inputs(run_config, output=cli_args.output)
+    except FileNotFoundError as error:
+        sys.exit(str(error))

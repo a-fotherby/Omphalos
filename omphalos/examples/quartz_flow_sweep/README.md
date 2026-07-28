@@ -35,17 +35,18 @@ The sweep is run offline, in the shell; the notebook then reads what it produced
 cd omphalos/examples/quartz_flow_sweep
 conda activate omphalos
 
-# 1. Generate the ten input files and run them in parallel (~5 s in total).
-rhea quartz_flow_sweep.yaml local
+# 1. Run the ten simulations in parallel (~5 s in total), writing results.nc, and record the
+#    parameter values they used in conditions.nc.
+rhea quartz_flow_sweep.yaml local --compile-inputs
 
-# 2. Record the parameter values that were actually used, alongside the results.
-python ../../../coeus/compile_inputs.py quartz_flow_sweep.yaml
-
-# 3. Regenerate the figure and notebook outputs (any env with xarray + matplotlib).
+# 2. Regenerate the figure and notebook outputs (any env with xarray + matplotlib).
 conda run -n JupyterEnv jupyter nbconvert --to notebook --execute --inplace quartz_flow_sweep.ipynb
 ```
 
-Steps 1 and 2 need a working CrunchTope binary, configured in `omphalos/settings.py` by `install.sh`. Step 3
+Without `--compile-inputs`, step 1 writes only `results.nc`; `python ../../../coeus/compile_inputs.py
+quartz_flow_sweep.yaml` then produces `conditions.nc` separately.
+
+Step 1 needs a working CrunchTope binary, configured in `omphalos/settings.py` by `install.sh`. Step 2
 needs only `xarray` and `matplotlib`, so the analysis travels: copy the two netCDF files anywhere and open the
 notebook there.
 

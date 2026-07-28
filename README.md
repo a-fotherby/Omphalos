@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-299%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-313%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -210,6 +210,8 @@ python -m rhea.main config.yaml cluster
 - `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
 - `-d, --debug` — Generate files without running simulations. `omphalos` writes them to `tmp/` as
   `<template><N>.<ext>` (e.g. `tmp/model0.in`); `rhea` writes them into the prepared `run<N>/` directories
+- `-c, --compile-inputs` — After a local CrunchTope run, also write `conditions.nc` recording the
+  parameter values the sweep used (see [Compiling Input Conditions](#compiling-input-conditions))
 - `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
 ### Collecting Results
@@ -649,7 +651,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **299 tests**:
+The project includes a comprehensive test suite with **313 tests**:
 
 ```bash
 # Run all tests
@@ -679,6 +681,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_generate_inputs.py` | `omphalos/generate_inputs.py` — config evaluation and input file generation |
 | `tests/unit/test_spatial_constructor.py` | `core/spatial_constructor.py` — the spatial initial-condition array and its column ordering |
 | `tests/unit/test_attributes.py` | `core/attributes.py` — attribute tables and their file_num labelling |
+| `tests/unit/test_compile_inputs.py` | `coeus/compile_inputs.py` — the record of what a sweep actually ran |
 | `tests/unit/test_run.py` | `omphalos/run.py` — CrunchTope invocation and the stdout error patterns |
 | `tests/unit/test_database.py` | `omphalos/database.py` — thermodynamic database handling |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
@@ -772,7 +775,21 @@ This is an alternative to the standard `compile_results` path when working with 
 
 ### Compiling Input Conditions
 
-After a rhea run, `compile_inputs.py` reads the completed `input_fileN_complete.pkl` files from each `run*/` directory and writes the varied input parameters to a `conditions.nc` file, using the YAML config to determine which parameters to extract.
+`compile_inputs` reads the completed `input_fileN_complete.pkl` files from each `run*/` directory and writes the
+varied input parameters to a `conditions.nc` file, using the YAML config to determine which parameters to extract.
+
+The simplest way to get it is to ask for it when starting the run, with `-c`:
+
+```bash
+rhea config.yaml local --compile-inputs
+```
+
+`conditions.nc` is then written straight after `results.nc`, from the same working directory. The flag applies to
+local CrunchTope runs: a cluster submission returns before its array has finished, and MIN3P and PFLOTRAN describe
+their parameters differently, so in those cases it says so and skips rather than writing something misleading. If
+compiling the record fails, the run still reports its results — the failure is a warning, not an error.
+
+It can equally be run after the fact, from the directory holding the run directories:
 
 ```bash
 cd /path/to/your/results
@@ -783,6 +800,15 @@ An alternative output filename can be specified with `-o`:
 
 ```bash
 python /path/to/omphalos/coeus/compile_inputs.py config.yaml -o my_conditions.nc
+```
+
+Or call it directly, which is what the flag does:
+
+```python
+from coeus.compile_inputs import compile_inputs
+
+summary = compile_inputs(config, output='conditions.nc', directory='.')
+# {'output': PosixPath('conditions.nc'), 'groups': 3, 'runs': [0, 1, 2], 'missing': []}
 ```
 
 The output is a netCDF file with groups mirroring the YAML config structure:

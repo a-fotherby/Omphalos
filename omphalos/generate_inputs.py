@@ -5,6 +5,8 @@ import re
 import shutil
 from pathlib import Path
 
+import numpy as np
+
 import core.keyword_block as kb
 import core.spatial_constructor as sc
 import omphalos.parameter_methods as pm
@@ -86,9 +88,15 @@ def config_auxiliary_files(config):
     """
     found = []
     for stage_grid in (config.get('restart_chain') or {}).get('grid') or []:
-        name = (stage_grid or {}).get('porosity_file')
+        # The filename may carry a trailing format specifier, which is not part of the path.
+        name = str((stage_grid or {}).get('porosity_file') or '').split(' ')[0]
         if name and name not in found:
             found.append(name)
+        # Files a 'refine' shorthand generated. They exist by the time this is read, because
+        # resolve_grid writes them as it resolves.
+        for refined in ((stage_grid or {}).get('files') or {}).values():
+            if refined not in found:
+                found.append(refined)
 
     return found
 
@@ -389,6 +397,11 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             f"Valid keys are: {valid_restart_chain_keys}"
         )
 
+    # Expand any 'refine' shorthand into explicit grids and files before anything reads them. Done
+    # once here rather than per run, since the grids do not vary between runs and the refined files
+    # would otherwise be rewritten identically for every one of them.
+    resolve_grid(config, template)
+
     if template.config['conditions'] is not None:
         for condition in template.config['conditions']:
             template.sort_condition_block(condition)
@@ -516,6 +529,114 @@ def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
             del runtime_block.contents['restart']
 
 
+#: Keys a user may write in a restart_chain grid entry. 'files' is added by resolve_grid.
+VALID_GRID_KEYS = {'xzones', 'porosity_file', 'refine'}
+
+
+def resolve_grid(config, template):
+    """Expand the ``refine`` shorthand into explicit per-stage grids, in place.
+
+    ``refine: 10`` on a stage means: take the previous stage's grid, split every cell into ten, and
+    regenerate every spatial input file the deck reads to match. Written out by hand that is an
+    xzones line and one file per ``read_*file`` keyword, per stage.
+
+    The whole ``grid`` may be given as ``{'refine': 10}`` instead of a list, which applies the same
+    factor at every stage after the first.
+
+    Everything downstream sees explicit ``xzones`` and filenames, so nothing else needs to know the
+    shorthand exists -- including the auxiliary-file staging, which picks up the generated files
+    because they are named in the resolved config.
+
+    Args:
+        config: The config yaml file, as a dict. Its restart_chain grid is replaced in place.
+        template: The Template, read for the starting grid and the files the deck names.
+
+    Returns:
+        list: The resolved grid, one entry per stage.
+    """
+    chain = config.get('restart_chain') or {}
+    grid = chain.get('grid')
+    if not grid:
+        return []
+
+    num_stages = chain.get('stages', 0)
+    if isinstance(grid, dict):
+        # A bare {'refine': N}: the first stage keeps the template's grid, the rest refine.
+        grid = [{}] + [dict(grid) for _ in range(max(0, num_stages - 1))]
+
+    for stage_num, entry in enumerate(grid):
+        unknown = set(entry or {}) - VALID_GRID_KEYS
+        if unknown:
+            raise ValueError(
+                f"ConfigError: Unknown key(s) in restart_chain grid for stage {stage_num}: "
+                f"{unknown}. Valid keys are: {sorted(VALID_GRID_KEYS)}"
+            )
+
+    discretization = template.keyword_blocks.get('DISCRETIZATION')
+    zones = list(discretization.contents.get('xzones', [])) if discretization else []
+    # Filenames as the deck currently names them, updated stage by stage as they are refined.
+    current_files = {name: name for name in auxiliary_files(template)}
+
+    resolved = []
+    for stage_num, entry in enumerate(grid):
+        entry = dict(entry or {})
+        factor = entry.pop('refine', None)
+
+        if factor is not None:
+            if not zones:
+                raise ValueError(
+                    f'ConfigError: restart_chain grid stage {stage_num} asks to refine, but '
+                    'neither the template nor an earlier stage declares xzones to refine from.'
+                )
+            zones = refine_zones(zones, factor)
+            entry['xzones'] = zones
+            entry['files'] = _refine_stage_files(current_files, zones, factor, stage_num)
+            current_files = {original: entry['files'].get(current, current)
+                             for original, current in current_files.items()}
+        elif 'xzones' in entry:
+            zones = [str(token) for token in entry['xzones']]
+
+        resolved.append(entry)
+
+    chain['grid'] = resolved
+
+    return resolved
+
+
+def _refine_stage_files(current_files, zones, factor, stage_num):
+    """Write a refined copy of each spatial input file, returning {old name: new name}.
+
+    A file whose row count does not match the grid it is being refined from is left alone and
+    reported. That covers the fields stored on cell faces rather than cell centres, whose row count
+    convention differs, and a file that was already the wrong length before any of this.
+    """
+    nx_new = sc.zone_cell_count(zones)
+    nx_old = nx_new // int(factor)
+    renamed = {}
+
+    for name in current_files.values():
+        path = Path(name)
+        try:
+            rows = len(np.atleast_1d(np.loadtxt(path)))
+        except OSError as error:
+            print(f'Warning: cannot refine "{name}" for stage {stage_num} ({error.strerror}). '
+                  'The stage will read it at its current length and CrunchTope will stop.')
+            continue
+
+        if rows != nx_old:
+            print(f'Warning: "{name}" has {rows} rows, not the {nx_old} cells of the grid it is '
+                  f'being refined from, so it has been left alone. Provide a stage {stage_num} '
+                  'version by hand if CrunchTope needs one.')
+            continue
+
+        refined = path.with_name(f'{path.stem}_stage{stage_num}{path.suffix}')
+        refine_data_file(path, refined, factor, zones)
+        renamed[name] = str(refined)
+        print(f'Refined {name} -> {refined} ({rows} -> {nx_new} rows) for stage {stage_num}.')
+
+    return renamed
+
+
 def stage_grid(config, stage_num):
     """Return the grid settings a restart chain declares for one stage, or an empty dict.
 
@@ -531,6 +652,77 @@ def stage_grid(config, stage_num):
         return {}
 
     return grids[stage_num] or {}
+
+
+def refine_zones(zones, factor):
+    """Split every cell of an xzones specification into *factor* cells of equal width.
+
+    Grading and total column length are both preserved exactly: a zone of 20 cells 5 cm wide
+    becomes 20 * factor cells of 5 / factor cm.
+
+    Args:
+        zones: The tokens following an xzones keyword.
+        factor: Integer refinement factor, at least 2.
+
+    Returns:
+        list of tokens for the refined grid.
+    """
+    if int(factor) != factor or factor < 2:
+        raise ValueError(f'ConfigError: refine must be an integer of at least 2, got {factor!r}')
+
+    factor = int(factor)
+    refined = []
+    for index in range(0, len(zones), 2):
+        count = int(float(zones[index]))
+        width = float(zones[index + 1]) if index + 1 < len(zones) else 1.0
+        refined.extend([str(count * factor), f'{width / factor:.10g}'])
+
+    return refined
+
+
+def _cell_centres(zones, nx):
+    """Physical cell-centre positions of a grid, measured from the start of the column."""
+    from omphalos.restart_file import cell_widths
+
+    edges = np.concatenate(([0.0], np.cumsum(cell_widths(zones, nx))))
+
+    return 0.5 * (edges[:-1] + edges[1:])
+
+
+def refine_data_file(source, destination, factor, zones=None):
+    """Write a refined copy of a spatial input file by replicating each value *factor* times.
+
+    Step replication, not interpolation. A porosity profile made of discrete layers must not be
+    smoothed: linear interpolation rounds off the steps and so changes the effective diffusivity
+    through ``cementation_exponent``. Replication gives each fine cell the value of the coarse cell
+    containing it, which is the same field sampled more finely and introduces nothing that was not
+    already there. The same argument makes it safe for every other field, at the cost of leaving a
+    genuinely smooth profile looking like a staircase; supply the file per stage if that matters.
+
+    A two-column file carries position alongside the value. CrunchTope reads that column into a
+    dummy and discards it -- values go to cells 1..nx in file order -- but it is rewritten with the
+    refined grid's cell centres so the file still reads correctly to a human.
+
+    Args:
+        source: File to refine.
+        destination: File to write.
+        factor: Integer refinement factor.
+        zones: The refined grid's xzones tokens, used to regenerate a position column.
+
+    Returns:
+        int: The number of rows written.
+    """
+    table = np.loadtxt(source)
+    values = np.repeat(table if table.ndim == 1 else table[:, -1], int(factor))
+
+    if table.ndim == 1:
+        np.savetxt(destination, values)
+    else:
+        positions = (_cell_centres(zones, len(values)) if zones
+                     else np.repeat(table[:, 0], int(factor)))
+        np.savetxt(destination, np.column_stack([positions, values]))
+
+    return len(values)
 
 
 def rescale_region(bounds, nx_old, nx_new):
@@ -592,6 +784,19 @@ def _rescale_initial_conditions(input_file, nx_old, nx_new):
     input_file.condition_regions()
 
 
+def _rename_data_file(input_file, original, refined):
+    """Point every read_*file keyword naming *original* at *refined* instead.
+
+    Only the filename token changes. Anything after it is a format specifier -- 'FullForm',
+    'SingleColumn' -- and dropping it would leave CrunchTope reading the file under a different
+    convention than the deck asked for.
+    """
+    for block in input_file.keyword_blocks.values():
+        for keyword, entry in block.contents.items():
+            if AUX_FILE_KEYWORD.match(keyword) and entry and entry[0] == original:
+                block.contents[keyword] = [refined] + list(entry[1:])
+
+
 def _warn_about_fixed_coordinates(input_file, stage_num):
     """Report deck entries that name a cell index the grid change does not move.
 
@@ -627,12 +832,8 @@ def _configure_grid(input_file, config, stage_num):
     if not grid:
         return
 
-    unknown = set(grid) - {'xzones', 'porosity_file'}
-    if unknown:
-        raise ValueError(
-            f"ConfigError: Unknown key(s) in restart_chain grid for stage {stage_num}: {unknown}. "
-            f"Valid keys are: {{'xzones', 'porosity_file'}}"
-        )
+    for original, refined in (grid.get('files') or {}).items():
+        _rename_data_file(input_file, original, refined)
 
     if 'xzones' in grid:
         discretization = input_file.keyword_blocks.setdefault(
@@ -655,7 +856,9 @@ def _configure_grid(input_file, config, stage_num):
         # Written under the manual's spelling, but replacing whatever spelling the template used:
         # CrunchTope matches the keyword case insensitively, so leaving both in would read the
         # template's file rather than this stage's.
+        format_tokens = []
         for existing in [k for k in porosity.contents if k.lower() == 'read_porosityfile']:
+            format_tokens = list(porosity.contents[existing][1:])
             del porosity.contents[existing]
 
         # fix_porosity is read first and, if positive, jumps straight past read_porosityfile
@@ -669,7 +872,12 @@ def _configure_grid(input_file, config, stage_num):
                   f'{superseded} has been dropped from its POROSITY block: CrunchTope would '
                   'otherwise ignore the file.')
 
-        porosity.contents['read_PorosityFile'] = [str(grid['porosity_file'])]
+        # Keep whatever format specifier followed the template's filename: dropping it would leave
+        # CrunchTope reading a two-column FullForm file as a single column, or the reverse.
+        tokens = str(grid['porosity_file']).split()
+        if len(tokens) == 1 and format_tokens:
+            tokens += format_tokens
+        porosity.contents['read_PorosityFile'] = tokens
 
 
 def _configure_spatial_profile(input_file, spatial_profile_config, stage_num):

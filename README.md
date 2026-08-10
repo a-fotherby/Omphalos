@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-533%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-554%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -676,7 +676,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **533 tests**:
+The project includes a comprehensive test suite with **554 tests**:
 
 ```bash
 # Run all tests

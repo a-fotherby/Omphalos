@@ -537,3 +537,226 @@ class TestConfigureGrid:
                             stage_num=1)
 
         assert stage.condition_blocks['initial'].region == [[[1, 20], [1, 1], [1, 1]]]
+
+
+class TestRefineZones:
+    """Tests for deriving a finer grid from a coarser one."""
+
+    def test_uniform(self):
+        assert gi.refine_zones(['10', '10.0'], 2) == ['20', '5']
+
+    def test_grading_and_length_are_preserved(self):
+        refined = gi.refine_zones(['4', '10.0', '12', '2.5', '4', '7.5'], 5)
+
+        assert refined == ['20', '2', '60', '0.5', '20', '1.5']
+        counts = [int(refined[i]) for i in range(0, len(refined), 2)]
+        widths = [float(refined[i]) for i in range(1, len(refined), 2)]
+        assert sum(counts) == 100
+        assert sum(c * w for c, w in zip(counts, widths)) == pytest.approx(100.0)
+
+    def test_bare_count_takes_unit_width(self):
+        assert gi.refine_zones(['10'], 2) == ['20', '0.5']
+
+    @pytest.mark.parametrize('factor', [1, 0, -2, 1.5])
+    def test_useless_factors_are_rejected(self, factor):
+        with pytest.raises(ValueError, match='at least 2'):
+            gi.refine_zones(['10', '1.0'], factor)
+
+
+class TestRefineDataFile:
+    """Tests for regenerating a spatial input file on a finer grid."""
+
+    def test_single_column_is_replicated(self, tmp_path):
+        source, destination = tmp_path / 'in.dat', tmp_path / 'out.dat'
+        np.savetxt(source, [0.3, 0.4, 0.5])
+
+        rows = gi.refine_data_file(source, destination, 3)
+
+        assert rows == 9
+        assert np.allclose(np.loadtxt(destination), np.repeat([0.3, 0.4, 0.5], 3))
+
+    def test_steps_are_not_smoothed(self, tmp_path):
+        """A layered porosity profile must keep its steps: interpolation would round them off and
+        so change the effective diffusivity through cementation_exponent."""
+        source, destination = tmp_path / 'in.dat', tmp_path / 'out.dat'
+        np.savetxt(source, [0.2, 0.2, 0.8, 0.8])
+
+        gi.refine_data_file(source, destination, 4)
+        result = np.loadtxt(destination)
+
+        assert set(np.unique(result)) == {0.2, 0.8}, 'intermediate values were invented'
+
+    def test_two_column_positions_are_rebuilt(self, tmp_path):
+        """CrunchTope discards the position column, but it should still describe the new grid."""
+        source, destination = tmp_path / 'in.dat', tmp_path / 'out.dat'
+        np.savetxt(source, np.column_stack([[5.0, 15.0], [4.0, 20.0]]))
+
+        gi.refine_data_file(source, destination, 2, zones=['4', '5.0'])
+        result = np.loadtxt(destination)
+
+        assert np.allclose(result[:, 0], [2.5, 7.5, 12.5, 17.5])
+        assert np.allclose(result[:, 1], [4.0, 4.0, 20.0, 20.0])
+
+
+class TestResolveGrid:
+    """Tests for expanding the refine shorthand into explicit per-stage grids."""
+
+    @staticmethod
+    def _template(tmp_path, extra_blocks=''):
+        from omphalos.template import Template
+
+        source = Path(__file__).resolve().parents[1] / 'omphalos_test' / 'sukinda_column.in'
+        text = source.read_text()
+        if extra_blocks:
+            text = text.replace('TEMPERATURE', f'TEMPERATURE\n{extra_blocks}', 1)
+        deck = tmp_path / 'deck.in'
+        deck.write_text(text)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template({'template': str(deck), 'aqueous_database': None,
+                             'catabolic_pathways': None, 'database': None, 'conditions': None,
+                             'later_inputfiles': None})
+
+    def test_dict_form_refines_every_stage_after_the_first(self, tmp_path):
+        template = self._template(tmp_path)
+        config = {'restart_chain': {'stages': 3, 'grid': {'refine': 2}}}
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            resolved = gi.resolve_grid(config, template)
+
+        assert len(resolved) == 3
+        assert resolved[0] == {}
+        assert resolved[1]['xzones'] == ['20', '5']
+        assert resolved[2]['xzones'] == ['40', '2.5'], 'each stage refines the one before it'
+
+    def test_list_form_refines_one_stage(self, tmp_path):
+        template = self._template(tmp_path)
+        config = {'restart_chain': {'stages': 2, 'grid': [{}, {'refine': 5}]}}
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            resolved = gi.resolve_grid(config, template)
+
+        assert resolved[1]['xzones'] == ['50', '2']
+
+    def test_refine_follows_an_explicit_grid(self, tmp_path):
+        """A stage may set its grid outright and a later one refine that."""
+        template = self._template(tmp_path)
+        config = {'restart_chain': {'stages': 2,
+                                    'grid': [{'xzones': [4, 10.0, 12, 2.5, 4, 7.5]},
+                                             {'refine': 2}]}}
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            resolved = gi.resolve_grid(config, template)
+
+        assert resolved[1]['xzones'] == ['8', '5', '24', '1.25', '8', '3.75']
+
+    def test_data_files_are_refined_with_the_grid(self, tmp_path):
+        """The gap this closes: a temperature file sized for the coarse grid makes the refined
+        stage die with 'Fortran runtime error: End of file'."""
+        (tmp_path / 'temps.dat').write_text('\n'.join(str(4.0 + i) for i in range(10)) + '\n')
+        template = self._template(tmp_path, 'read_temperaturefile temps.dat')
+        config = {'restart_chain': {'stages': 2, 'grid': {'refine': 2}}}
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                resolved = gi.resolve_grid(config, template)
+        finally:
+            os.chdir(cwd)
+
+        assert resolved[1]['files'] == {'temps.dat': 'temps_stage1.dat'}
+        assert len(np.loadtxt(tmp_path / 'temps_stage1.dat')) == 20
+
+    def test_refined_files_are_staged(self, tmp_path):
+        """rhea copies what the config names, so the generated file has to appear there."""
+        (tmp_path / 'temps.dat').write_text('\n'.join(str(4.0 + i) for i in range(10)) + '\n')
+        template = self._template(tmp_path, 'read_temperaturefile temps.dat')
+        config = {'restart_chain': {'stages': 2, 'grid': {'refine': 2}}}
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                gi.resolve_grid(config, template)
+        finally:
+            os.chdir(cwd)
+
+        assert 'temps_stage1.dat' in gi.config_auxiliary_files(config)
+
+    def test_wrong_length_file_is_left_alone(self, tmp_path, capsys):
+        """A file stored on cell faces has a different row count, and guessing would corrupt it."""
+        (tmp_path / 'flow.dat').write_text('\n'.join(str(i) for i in range(11)) + '\n')
+        template = self._template(tmp_path, 'read_flowfile flow.dat')
+        config = {'restart_chain': {'stages': 2, 'grid': {'refine': 2}}}
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            gi.resolve_grid(config, template)
+        finally:
+            os.chdir(cwd)
+
+        assert not config['restart_chain']['grid'][1].get('files')
+        assert 'has 11 rows' in capsys.readouterr().out
+
+    def test_refine_without_a_grid_to_refine_from(self, tmp_path):
+        template = self._template(tmp_path)
+        template.keyword_blocks['DISCRETIZATION'].contents.pop('xzones')
+        config = {'restart_chain': {'stages': 2, 'grid': {'refine': 2}}}
+
+        with pytest.raises(ValueError, match='declares xzones to refine from'):
+            gi.resolve_grid(config, template)
+
+    def test_unknown_key_is_rejected(self, tmp_path):
+        template = self._template(tmp_path)
+        config = {'restart_chain': {'stages': 2, 'grid': [{}, {'refined': 2}]}}
+
+        with pytest.raises(ValueError, match='Unknown key'):
+            gi.resolve_grid(config, template)
+
+    def test_no_grid_is_a_no_op(self, tmp_path):
+        template = self._template(tmp_path)
+
+        assert gi.resolve_grid({'restart_chain': {'stages': 2}}, template) == []
+        assert gi.resolve_grid({}, template) == []
+
+
+class TestFormatTokenIsKept:
+    """A read_*file keyword may carry a format specifier after the filename."""
+
+    def test_porosity_format_survives_a_per_stage_override(self, tmp_path):
+        """Dropping 'FullForm' would leave CrunchTope reading a two-column file as one column."""
+        from omphalos.template import Template
+
+        source = Path(__file__).resolve().parents[1] / 'omphalos_test' / 'sukinda_column.in'
+        deck = tmp_path / 'deck.in'
+        deck.write_text(source.read_text().replace(
+            'POROSITY', 'POROSITY\nread_PorosityFile poro.dat FullForm', 1))
+        with contextlib.redirect_stdout(io.StringIO()):
+            template = Template({'template': str(deck), 'aqueous_database': None,
+                                 'catabolic_pathways': None, 'database': None, 'conditions': None,
+                                 'later_inputfiles': None})
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            gi._configure_grid(template, {'restart_chain': {'grid': [{'porosity_file': 'fine.dat'}]}}, 0)
+
+        assert template.keyword_blocks['POROSITY'].contents['read_PorosityFile'] == \
+            ['fine.dat', 'FullForm']
+
+    def test_renaming_a_file_keeps_its_format(self, tmp_path):
+        from omphalos.template import Template
+
+        source = Path(__file__).resolve().parents[1] / 'omphalos_test' / 'sukinda_column.in'
+        deck = tmp_path / 'deck.in'
+        deck.write_text(source.read_text().replace(
+            'TEMPERATURE', 'TEMPERATURE\nread_temperaturefile t.dat FullForm', 1))
+        with contextlib.redirect_stdout(io.StringIO()):
+            template = Template({'template': str(deck), 'aqueous_database': None,
+                                 'catabolic_pathways': None, 'database': None, 'conditions': None,
+                                 'later_inputfiles': None})
+
+        gi._rename_data_file(template, 't.dat', 't_stage1.dat')
+
+        assert template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'] == \
+            ['t_stage1.dat', 'FullForm']

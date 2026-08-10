@@ -319,40 +319,123 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
             print(f'Error in run {run_num}, stage {stage_num}. Stopping staged execution.')
             break
 
-    concat_staged_results(stages_dict)
+    host = concat_staged_results(stages_dict)
 
-    return stages_dict[0]
+    return stages_dict[host]
+
+
+def snap_to_grid(dataset, target_x):
+    """Place a dataset's cells at their nearest position on *target_x*, NaN everywhere else.
+
+    A scatter, not an interpolation: every stored value is one the model actually produced, moved
+    by at most half a target cell to the nearest column of the finer grid. Nothing is invented for
+    the cells in between, which stay NaN.
+
+    Note that ``reindex(X=target_x, method='nearest')`` is *not* this. That fills every target cell
+    from the nearest source cell, which is a piecewise-constant upsample -- it would present a
+    10-cell result as though it resolved 3500 cells.
+
+    Args:
+        dataset: An xarray Dataset with an X coordinate of physical positions.
+        target_x: The X coordinate to place it on.
+
+    Returns:
+        The dataset on *target_x*, or None if two of its cells would land on the same target cell,
+        which would silently discard one of them.
+    """
+    source_x = np.asarray(dataset['X'].values, dtype=float)
+    if len(source_x) == len(target_x) and np.allclose(source_x, target_x):
+        return dataset
+
+    nearest = np.abs(target_x[np.newaxis, :] - source_x[:, np.newaxis]).argmin(axis=1)
+    snapped = target_x[nearest]
+    if len(np.unique(snapped)) != len(snapped):
+        return None
+
+    return dataset.assign_coords(X=snapped).reindex(X=target_x)
+
+
+def _align_stage_grids(datasets):
+    """Put every stage's dataset for one category on a single X coordinate.
+
+    The target is the grid with the most cells, so the finest stage -- the one a refinement chain
+    exists to produce -- stays dense on its own grid. Aligning on the union of every stage's cell
+    positions instead, which is what xr.concat does unaided, punches NaN holes into that stage at
+    the coarse stages' positions.
+
+    Falls back to the union if any stage cannot be snapped without collision, which is lossless
+    where snapping would not be.
+
+    Args:
+        datasets: One dataset per stage, in stage order.
+
+    Returns:
+        tuple: (datasets to concatenate, index of the stage whose grid was used, or None if the
+        union was kept).
+    """
+    sizes = [ds.sizes.get('X', 0) for ds in datasets]
+    if len(set(sizes)) == 1:
+        return datasets, 0
+
+    finest = int(np.argmax(sizes))
+    target_x = np.asarray(datasets[finest]['X'].values, dtype=float)
+
+    aligned = [snap_to_grid(ds, target_x) for ds in datasets]
+    if any(ds is None for ds in aligned):
+        print('Warning: stage grids do not nest, so two cells of one stage would land on the same '
+              'cell of the finest. Keeping the union of all stage positions instead, which loses '
+              'nothing but leaves gaps in every stage.')
+        return datasets, None
+
+    return aligned, finest
 
 
 def concat_staged_results(stages_dict):
-    """Concatenate results from all stages into the first stage InputFile.
+    """Concatenate results from all stages along time, onto one grid.
+
+    Where the stages share a grid this is a plain concatenation into the first stage, as it has
+    always been. Where a chain changes resolution, each stage's cells are placed at their nearest
+    position on the finest stage's grid and the cells no stage covers are left NaN, so the record
+    of the coarse spin-up is kept at the depths it was computed for without inventing values
+    between them.
+
+    The results go to the stage whose grid they are on, so that anything deriving geometry from the
+    returned InputFile -- core.attributes.initial_conditions, via omphalos.labels -- reads the same
+    grid the results are on.
 
     Args:
         stages_dict: Dict mapping stage_num to InputFile for this run.
+
+    Returns:
+        int: The stage number the concatenated results were written to.
     """
     num_stages = len(stages_dict)
 
-    stage_results = []
-    for stage_num in range(num_stages):
-        stage_file = stages_dict[stage_num]
-        if stage_file.results:
-            stage_results.append(stage_file.results)
+    produced = [(stage_num, stages_dict[stage_num].results) for stage_num in range(num_stages)
+                if stages_dict[stage_num].results]
 
-    if len(stage_results) <= 1:
-        return
+    if len(produced) <= 1:
+        return produced[0][0] if produced else 0
 
-    first_stage = stages_dict[0]
-    concatenated_results = {}
+    # The union across stages, not the first stage's alone: a category only a later stage produced
+    # would otherwise be dropped. Sorted so the netCDF group order does not vary between runs.
+    categories = sorted({category for _, results in produced for category in results})
 
-    for category in first_stage.results:
-        datasets = []
-        for stage_result in stage_results:
-            if category in stage_result:
-                datasets.append(stage_result[category])
+    concatenated = {}
+    host = 0
+    for category in categories:
+        stage_nums = [stage_num for stage_num, results in produced if category in results]
+        datasets = [results[category] for _, results in produced if category in results]
 
-        if len(datasets) > 1:
-            concatenated_results[category] = xr.concat(datasets, dim='time')
-        elif len(datasets) == 1:
-            concatenated_results[category] = datasets[0]
+        if len(datasets) == 1:
+            concatenated[category] = datasets[0]
+            continue
 
-    first_stage.results = concatenated_results
+        aligned, finest = _align_stage_grids(datasets)
+        concatenated[category] = xr.concat(aligned, dim='time')
+        if finest is not None:
+            host = max(host, stage_nums[finest])
+
+    stages_dict[host].results = concatenated
+
+    return host

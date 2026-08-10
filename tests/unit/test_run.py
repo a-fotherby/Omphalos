@@ -212,3 +212,187 @@ class TestPorosityProfile:
     def test_missing_file_warns_and_declines(self, capsys):
         assert run._porosity_profile(self._stage({'read_PorosityFile': ['nope.dat']}), 10) is None
         assert 'could not read porosity file' in capsys.readouterr().out
+
+
+class TestSnapToGrid:
+    """Tests for placing one stage's cells on another stage's grid."""
+
+    @staticmethod
+    def _dataset(x_values, fill=1.0):
+        import numpy as np
+        import xarray as xr
+
+        return xr.Dataset(
+            {'C': (('time', 'X'), np.full((1, len(x_values)), fill))},
+            coords={'time': [0.0], 'X': np.asarray(x_values, dtype=float)},
+        )
+
+    def test_identical_grid_is_returned_unchanged(self):
+        dataset = self._dataset([5.0, 15.0, 25.0])
+
+        assert run.snap_to_grid(dataset, dataset['X'].values) is dataset
+
+    def test_values_land_on_the_nearest_target_cell(self):
+        import numpy as np
+
+        coarse = self._dataset([5.0, 15.0])
+        target = np.array([2.5, 7.5, 12.5, 17.5])
+
+        snapped = run.snap_to_grid(coarse, target)
+
+        assert list(snapped['X'].values) == [2.5, 7.5, 12.5, 17.5]
+        # 5.0 is equidistant from 2.5 and 7.5, so argmin takes the first; 15.0 -> 12.5 or 17.5.
+        assert np.sum(~np.isnan(snapped['C'].values)) == 2
+
+    def test_uncovered_cells_are_nan(self):
+        import numpy as np
+
+        snapped = run.snap_to_grid(self._dataset([50.0]), np.array([10.0, 30.0, 50.0, 70.0]))
+        row = snapped['C'].isel(time=0).values
+
+        assert row[2] == 1.0
+        assert np.isnan(row[[0, 1, 3]]).all()
+
+    def test_nothing_is_interpolated_between_cells(self):
+        """The failure mode to avoid: reindex(method='nearest') would fill every target cell."""
+        import numpy as np
+
+        snapped = run.snap_to_grid(self._dataset([25.0, 75.0]), np.linspace(5, 95, 10))
+
+        assert np.sum(~np.isnan(snapped['C'].values)) == 2, 'values were spread, not scattered'
+
+    def test_collision_is_refused(self):
+        """Two source cells on one target cell would silently discard one of them."""
+        import numpy as np
+
+        fine = self._dataset([10.0, 11.0, 12.0])
+
+        assert run.snap_to_grid(fine, np.array([11.0, 90.0])) is None
+
+
+class TestAlignStageGrids:
+    """Tests for choosing the grid a chain's results are reported on."""
+
+    @staticmethod
+    def _dataset(n, length=100.0, fill=1.0):
+        import numpy as np
+        import xarray as xr
+
+        edges = np.linspace(0, length, n + 1)
+        return xr.Dataset(
+            {'C': (('time', 'X'), np.full((1, n), fill))},
+            coords={'time': [0.0], 'X': 0.5 * (edges[:-1] + edges[1:])},
+        )
+
+    def test_matching_grids_are_untouched(self):
+        datasets = [self._dataset(10), self._dataset(10)]
+
+        aligned, finest = run._align_stage_grids(datasets)
+
+        assert aligned is datasets
+        assert finest == 0
+
+    def test_finest_grid_wins(self):
+        """The stage a refinement chain exists to produce must stay dense on its own grid."""
+        import numpy as np
+
+        datasets = [self._dataset(10), self._dataset(40)]
+
+        aligned, finest = run._align_stage_grids(datasets)
+
+        assert finest == 1
+        assert aligned[1].sizes['X'] == 40
+        assert np.sum(~np.isnan(aligned[1]['C'].values)) == 40, 'the fine stage has holes'
+        assert np.sum(~np.isnan(aligned[0]['C'].values)) == 10
+
+    def test_finest_grid_wins_regardless_of_stage_order(self):
+        """A chain that coarsens still reports on the finest grid it produced."""
+        datasets = [self._dataset(40), self._dataset(10)]
+
+        _, finest = run._align_stage_grids(datasets)
+
+        assert finest == 0
+
+    def test_union_is_kept_when_snapping_would_collide(self, capsys):
+        import numpy as np
+        import xarray as xr
+
+        # Three cells packed inside one cell of the target grid: they cannot all be placed. The
+        # target is the widest-spread stage, so the clustered one is the one that cannot be snapped.
+        clustered = xr.Dataset({'C': (('time', 'X'), np.ones((1, 3)))},
+                               coords={'time': [0.0], 'X': np.array([50.0, 50.1, 50.2])})
+        datasets = [clustered, self._dataset(10)]
+
+        aligned, finest = run._align_stage_grids(datasets)
+
+        assert aligned is datasets
+        assert finest is None
+        assert 'do not nest' in capsys.readouterr().out
+
+
+class TestConcatStagedResults:
+    """Tests for collecting a chain's stages into one result set."""
+
+    @staticmethod
+    def _stage(results):
+        stage = Mock()
+        stage.results = results
+        return stage
+
+    @staticmethod
+    def _dataset(n, time, fill=1.0):
+        import numpy as np
+        import xarray as xr
+
+        edges = np.linspace(0, 100.0, n + 1)
+        return xr.Dataset(
+            {'C': (('time', 'X'), np.full((1, n), fill))},
+            coords={'time': [time], 'X': 0.5 * (edges[:-1] + edges[1:])},
+        )
+
+    def test_same_grid_goes_to_the_first_stage(self):
+        """Unchanged behaviour for a chain that does not change resolution."""
+        stages = {0: self._stage({'totcon': self._dataset(10, 1.0)}),
+                  1: self._stage({'totcon': self._dataset(10, 2.0)})}
+
+        host = run.concat_staged_results(stages)
+
+        assert host == 0
+        assert list(stages[host].results['totcon'].time.values) == [1.0, 2.0]
+        assert stages[host].results['totcon'].sizes['X'] == 10
+
+    def test_differing_grids_go_to_the_finest_stage(self):
+        """The returned InputFile must describe the grid its results are on."""
+        import numpy as np
+
+        stages = {0: self._stage({'totcon': self._dataset(10, 1.0)}),
+                  1: self._stage({'totcon': self._dataset(40, 2.0)})}
+
+        host = run.concat_staged_results(stages)
+
+        assert host == 1
+        results = stages[1].results['totcon']
+        assert results.sizes['X'] == 40
+        assert np.sum(~np.isnan(results.isel(time=1)['C'].values)) == 40
+        assert np.sum(~np.isnan(results.isel(time=0)['C'].values)) == 10
+
+    def test_a_category_only_a_later_stage_produced_survives(self):
+        """Reading the categories off the first stage alone would drop it."""
+        stages = {0: self._stage({'totcon': self._dataset(10, 1.0)}),
+                  1: self._stage({'totcon': self._dataset(10, 2.0),
+                                  'volume': self._dataset(10, 2.0)})}
+
+        host = run.concat_staged_results(stages)
+
+        assert 'volume' in stages[host].results
+
+    def test_single_stage_with_results_is_left_alone(self):
+        """A chain whose later stages failed keeps what the one that ran produced."""
+        stages = {0: self._stage({'totcon': self._dataset(10, 1.0)}), 1: self._stage({})}
+
+        assert run.concat_staged_results(stages) == 0
+
+    def test_no_results_at_all(self):
+        stages = {0: self._stage({}), 1: self._stage({})}
+
+        assert run.concat_staged_results(stages) == 0

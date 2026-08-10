@@ -29,6 +29,8 @@ conda run -n JupyterEnv jupyter nbconvert --to notebook --execute --inplace diss
 
 ## The result
 
+![Calcite dissolution front](dissol_sweep.png)
+
 As the injected water becomes more acidic, calcite near the inlet is consumed
 (its volume fraction collapses to the numerical floor), the low-pH front breaks
 through instead of being buffered, and a Ca²⁺ pulse is released at the migrating

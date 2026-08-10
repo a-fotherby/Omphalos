@@ -33,6 +33,8 @@ conda run -n JupyterEnv jupyter nbconvert --to notebook --execute --inplace velo
 
 ## The result
 
+![Advective pH front](velocity_sweep.png)
+
 - **Transport:** the injected high-pH front penetrates further as the driving
   head gradient increases (front at ~0.5 m for the mildest gradient up to
   near-breakthrough for the steepest, after 40 days).

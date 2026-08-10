@@ -55,6 +55,8 @@ Runs are farmed out with `xargs` by default; add `-b parallel` to use GNU Parall
 
 ## The result
 
+![Flow-rate sweep](quartz_flow_sweep.png)
+
 - **Transport control.** The steady-state Si profile stretches out with flow rate: at 0.1 m yr⁻¹ the fluid is at
   quartz saturation within the first metre, while at 100 m yr⁻¹ it takes ~35 m. Every run still leaves the column
   saturated, so a whole-column measurement would see nothing — the sweep is what exposes the length scale.

@@ -67,6 +67,7 @@
   - [Pump Keyword in FLOW Block](#pump-keyword-in-flow-block)
   - [Choosing a Parallelization Backend](#choosing-a-parallelization-backend)
   - [Cluster Runs](#cluster-runs)
+  - [Inspecting a Restart File](#inspecting-a-restart-file)
   - [Keep the Working Directory Path Short](#keep-the-working-directory-path-short)
   - [PFLOTRAN Support](#pflotran-support)
   - [MIN3P Support](#min3p-support)
@@ -332,6 +333,14 @@ than being runnable: for sweeps you can run, see [Worked Examples](#worked-examp
 | `number_of_files` | Number of simulations | Yes | `100` |
 | `nodes` | Parallel workers/SLURM nodes | Yes | `4` |
 
+> **Spatial data files need no frontmatter entry.** Any file your template names with a `read_*file`
+> keyword — `read_PorosityFile`, `read_temperaturefile`, `read_TortuosityFile`, `read_permfile`,
+> `read_saturationfile` and the rest — is found by reading the template and copied into every run
+> directory alongside the databases. Relative paths are preserved, so `data/porosity.dat` lands in a
+> `data` subdirectory of the run; absolute paths are left alone, since they resolve from anywhere.
+> The filename is the *first* token of the keyword: anything after it is a format specifier, as in
+> `read_PorosityFile porosity.dat FullForm`.
+
 ### Parameter Modification
 
 #### Keyword Blocks
@@ -481,6 +490,8 @@ Omphalos supports two-dimensional parameter variation through staged restarts:
 This is useful for simulating scenarios where conditions change over time, such as shifts in boundary conditions or perturbation experiments.
 
 > **Template requirements:** Your CrunchTope template must have a `spatial_profile` entry in the OUTPUT block — Omphalos uses this to offset output times across stages. Do not include `save_restart` or `restart` directives in the template; Omphalos sets these automatically.
+
+> **Run chains with `rhea`, not `omphalos`.** Staged restarts are executed by the parallel runner; the sequential `omphalos` entry point does not run them, even with one file. `rhea config.yaml local` is the right command for a single-run chain.
 
 #### Configuration
 
@@ -693,8 +704,9 @@ omphalos/
 │   ├── input_file.py        # InputFile class
 │   ├── generate_inputs.py   # File generation
 │   ├── run.py               # Simulation execution
+│   ├── restart_file.py      # Read/regrid CrunchTope .rst restart files (also a CLI)
 │   ├── example.yaml         # Annotated reference config
-│   └── examples/            # Worked examples (quartz_flow_sweep: config + notebook)
+│   └── examples/            # Worked examples (quartz_flow_sweep, grid_refinement_chain)
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
 ├── min3p/                   # MIN3P-specific code
@@ -1099,6 +1111,41 @@ them for your site, or pass overrides on the `sbatch` command line.
 
 > **Status:** the cluster path has not been exercised since the batch scripts were generalised; it is the least
 > tested part of the project. Check the first submission by hand.
+
+### Inspecting a Restart File
+
+`omphalos/restart_file.py` doubles as a command-line tool for looking inside a CrunchTope `.rst`,
+which is otherwise an opaque Fortran dump. It is the thing to reach for when a chain fails.
+
+```bash
+# What is in the file, and how each record decomposes onto the grid
+python -m omphalos.restart_file inspect run.rst --nx 350 --input model.in
+
+# Is the layout understood? Round-trips byte-identically, matches the tecplot output,
+# and reports the state invariants a restart depends on
+python -m omphalos.restart_file verify run.rst --nx 350 --input model.in \
+    --identity --reference . --file-num 12 --invariants
+
+# Resample onto a different grid by hand
+python -m omphalos.restart_file regrid run.rst --nx-in 350 --nx-out 3500 \
+    -o fine.rst --input model.in --porosity-file porosity_fine.dat
+```
+
+Pass `--input` with the deck: it supplies the species counts that fix the leading array dimensions,
+without which several records cannot be resolved. `--file-num` is the tecplot output the restart
+corresponds to — a restart is written at the *end* of a run, so that is the last output, not the
+first.
+
+Two things `verify` reports separately, because they are not the same kind of statement.
+`sp10 == exp(sp)` is a **true invariant** of any valid restart file and a failure means the file was
+misread. `s == sn` and `spnO2 == spnnO2` are **start conditions** that regridding imposes so the
+solver can begin from a tiny `timestep_init`; a CrunchTope-written file legitimately violates them,
+because it holds two real time levels.
+
+> **Source archaeology needs `grep -a`.** Most `.F90` files in the CrunchTope source are treated as
+> binary by `grep`, because their copyright headers contain invalid UTF-8. A plain `grep` silently
+> reports `Binary file matches` and nothing else, which is an easy way to conclude a subroutine is
+> dead code when it is not.
 
 ### Keep the Working Directory Path Short
 

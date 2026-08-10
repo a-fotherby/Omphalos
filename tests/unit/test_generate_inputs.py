@@ -1,5 +1,10 @@
 """Unit tests for omphalos/generate_inputs.py."""
 
+import contextlib
+import io
+import os
+from pathlib import Path
+
 import pytest
 import numpy as np
 
@@ -233,3 +238,204 @@ class TestBackwardCompatibility:
         assert callable(pm.constant)
         assert callable(pm.custom_list)
         assert callable(pm.fix_ratio)
+
+
+class TestAuxiliaryFiles:
+    """Tests for finding the data files a CrunchTope deck reads from disk.
+
+    Only the database and the temperature file used to be staged into a run directory, so a deck
+    reading porosity, saturation, tortuosity or permeability from a file ran without it.
+    """
+
+    @staticmethod
+    def _template(tmp_path, poro_line='read_PorosityFile porosity.dat FullForm', extra=''):
+        """A minimal working deck with a POROSITY block, built from the sukinda test input."""
+        from omphalos.template import Template
+
+        source = Path(__file__).resolve().parents[1] / 'omphalos_test' / 'sukinda_column.in'
+        text = source.read_text().replace('POROSITY', f'POROSITY\n{poro_line}{extra}', 1)
+        deck = tmp_path / 'deck.in'
+        deck.write_text(text)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template({'template': str(deck), 'aqueous_database': None,
+                             'catabolic_pathways': None, 'database': None, 'conditions': None,
+                             'later_inputfiles': None})
+
+    def test_filename_is_the_first_token(self, tmp_path):
+        """'read_PorosityFile porosity.dat FullForm' names a file and a format, in that order.
+
+        StartTope.F90 passes the two to readFileName separately. Taking the last token instead —
+        which is what the temperature-file copy used to do — tries to stage a file called FullForm.
+        """
+        template = self._template(tmp_path)
+
+        assert gi.auxiliary_files(template) == ['porosity.dat']
+
+    def test_bare_filename(self, tmp_path):
+        template = self._template(tmp_path, poro_line='read_PorosityFile porosity.dat')
+
+        assert gi.auxiliary_files(template) == ['porosity.dat']
+
+    def test_every_read_file_keyword_is_found(self, tmp_path):
+        """The keyword is matched by shape, so a deck using one we have not seen still works."""
+        template = self._template(
+            tmp_path,
+            extra='\nread_saturationfile sat.dat\nread_TortuosityFile tort.dat\n'
+                  'read_permfile perm.dat',
+        )
+
+        assert gi.auxiliary_files(template) == ['porosity.dat', 'sat.dat', 'tort.dat', 'perm.dat']
+
+    def test_case_is_ignored(self, tmp_path):
+        """The parser keys entries on the verbatim spelling the deck used."""
+        template = self._template(tmp_path, poro_line='READ_POROSITYFILE porosity.dat')
+
+        assert gi.auxiliary_files(template) == ['porosity.dat']
+
+    def test_deck_without_any(self, tmp_path):
+        template = self._template(tmp_path, poro_line='fix_porosity 0.3')
+
+        assert gi.auxiliary_files(template) == []
+
+    def test_object_without_keyword_blocks(self):
+        """A PFLOTRAN template has none, and must not raise on the way past."""
+        assert gi.auxiliary_files(object()) == []
+
+
+class TestConfigAuxiliaryFiles:
+    """Tests for the per-stage files a restart chain names, which appear in no template block."""
+
+    def test_grid_porosity_files(self):
+        config = {'restart_chain': {'stages': 2, 'grid': [
+            {'xzones': [350, 0.1], 'porosity_file': 'porosity.dat'},
+            {'xzones': [3500, 0.01], 'porosity_file': 'porosity_highres.dat'},
+        ]}}
+
+        assert gi.config_auxiliary_files(config) == ['porosity.dat', 'porosity_highres.dat']
+
+    def test_stage_without_a_porosity_file(self):
+        config = {'restart_chain': {'stages': 2, 'grid': [
+            {'xzones': [350, 0.1]},
+            {'xzones': [3500, 0.01], 'porosity_file': 'fine.dat'},
+        ]}}
+
+        assert gi.config_auxiliary_files(config) == ['fine.dat']
+
+    @pytest.mark.parametrize('config', [
+        {},
+        {'restart_chain': None},
+        {'restart_chain': {'stages': 2}},
+        {'restart_chain': {'stages': 2, 'grid': None}},
+    ])
+    def test_no_grid(self, config):
+        assert gi.config_auxiliary_files(config) == []
+
+    @staticmethod
+    def _staged(config, omphalos_test_dir):
+        """Build a template and run the staged configuration, from the data directory.
+
+        The sample config names its template and databases relatively, so it only resolves there.
+        """
+        from omphalos.template import Template
+
+        cwd = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                return gi.configure_staged_input_files(Template(config), '.', rhea=True)
+        finally:
+            os.chdir(cwd)
+
+    def test_grid_is_a_valid_restart_chain_key(self, sample_config, omphalos_test_dir):
+        """The validator rejects unknown keys, so 'grid' has to be allowed through it."""
+        sample_config['restart_chain'] = {'stages': 1, 'grid': [{'xzones': [10, 1.0]}]}
+
+        assert self._staged(sample_config, omphalos_test_dir)
+
+    def test_unknown_key_is_still_rejected(self, sample_config, omphalos_test_dir):
+        sample_config['restart_chain'] = {'stages': 1, 'grids': [{'xzones': [10, 1.0]}]}
+
+        with pytest.raises(ValueError, match='Unknown key'):
+            self._staged(sample_config, omphalos_test_dir)
+
+
+class TestSupportFiles:
+    """Tests for the combined list rhea stages into every run directory."""
+
+    def test_template_and_config_are_combined(self, tmp_path):
+        template = TestAuxiliaryFiles._template(tmp_path)
+        config = {'restart_chain': {'grid': [{'porosity_file': 'fine.dat'}]}}
+
+        assert gi.support_files(template, config) == ['porosity.dat', 'fine.dat']
+
+    def test_duplicates_are_dropped(self, tmp_path):
+        """A config naming the file the template already names should stage it once."""
+        template = TestAuxiliaryFiles._template(tmp_path)
+        config = {'restart_chain': {'grid': [{'porosity_file': 'porosity.dat'}]}}
+
+        assert gi.support_files(template, config) == ['porosity.dat']
+
+    def test_absolute_paths_are_left_alone(self, tmp_path):
+        """CrunchTope resolves an absolute path identically from any run directory."""
+        template = TestAuxiliaryFiles._template(
+            tmp_path, poro_line='read_PorosityFile /shared/porosity.dat')
+
+        assert gi.support_files(template, {}) == []
+
+
+class TestStageSupportFiles:
+    """Tests for the copy itself, on the sequential (non-rhea) path."""
+
+    def test_files_are_copied(self, tmp_path):
+        (tmp_path / 'porosity.dat').write_text('0.3\n')
+        template = TestAuxiliaryFiles._template(tmp_path)
+        template.config['database'] = None
+        run_dir = tmp_path / 'run'
+        run_dir.mkdir()
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            gi.stage_support_files(template, run_dir)
+        finally:
+            os.chdir(cwd)
+
+        assert (run_dir / 'porosity.dat').read_text() == '0.3\n'
+
+    def test_relative_path_is_preserved(self, tmp_path):
+        """CrunchTope opens the name exactly as the deck writes it, subdirectory and all."""
+        (tmp_path / 'data').mkdir()
+        (tmp_path / 'data' / 'porosity.dat').write_text('0.3\n')
+        template = TestAuxiliaryFiles._template(
+            tmp_path, poro_line='read_PorosityFile data/porosity.dat')
+        template.config['database'] = None
+        run_dir = tmp_path / 'run'
+        run_dir.mkdir()
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            gi.stage_support_files(template, run_dir)
+        finally:
+            os.chdir(cwd)
+
+        assert (run_dir / 'data' / 'porosity.dat').read_text() == '0.3\n'
+
+    def test_missing_file_warns_and_continues(self, tmp_path, capsys):
+        """CrunchTope's own failure does not say which file or why; this one does."""
+        template = TestAuxiliaryFiles._template(tmp_path)
+        template.config['database'] = None
+        run_dir = tmp_path / 'run'
+        run_dir.mkdir()
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            gi.stage_support_files(template, run_dir)
+        finally:
+            os.chdir(cwd)
+
+        out = capsys.readouterr().out
+        assert 'porosity.dat' in out
+        assert 'CrunchTope will not find it' in out

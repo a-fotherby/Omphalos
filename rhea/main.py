@@ -201,22 +201,22 @@ if __name__ == '__main__':
     # Start timer for directory preparation and submission
     t_start = time.time()
 
-    # Get list of temperature file names
-    temperature_files = []
-    try:
-        temperature_files = template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']
-        print(f'Temperature file found:{temperature_files}')
-        if template.later_inputs:
-            for file in template.later_inputs:
-                temperature_files.append(template.later_inputs[file].keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'][0])
-    except (KeyError, AttributeError):
-        # Handle case for hard coded temperature file in PFLOTRAN
-        if Path('temperature.h5').exists():
-            temperature_files.append('temperature.h5')
-            print('temperature.h5 found.')
-        else:
-            print('No temperature files found in template.')
-            temperature_files = ""
+    # Every file the runs need beside their input decks and databases: the spatial fields CrunchTope
+    # reads from disk. This used to look for read_temperaturefile alone, so a deck reading porosity,
+    # saturation, tortuosity or permeability from a file ran without it. It also reads the config,
+    # because a restart_chain naming a porosity file per stage names files that appear in no
+    # template block.
+    # Only the CrunchTope backend describes its auxiliary files this way; a PFLOTRAN template has no
+    # keyword blocks to read, and falls through to the hardcoded temperature file below as before.
+    aux_files = gi.support_files(template, config) if hasattr(gi, 'support_files') else []
+    if aux_files:
+        print(f'Auxiliary files found: {aux_files}')
+    elif Path('temperature.h5').exists():
+        # PFLOTRAN hardcodes this one rather than naming it in the deck.
+        aux_files = ['temperature.h5']
+        print('temperature.h5 found.')
+    else:
+        print('No auxiliary files found in template or config.')
 
     # Script paths using pathlib
     prep_script = _rhea_dir / 'prep_directories.sh'
@@ -228,15 +228,13 @@ if __name__ == '__main__':
         for key in config:
             if config[key] is None:
                 config[key] = ''
-        if isinstance(temperature_files, list):
-            temperature_files = ' '.join(temperature_files)
 
         env_dict = {
             "CONFIG_PATH": args.path_to_config,
             "DATABASE_NAME": config["database"],
             "AQUEOUS_DATABASE": config["aqueous_database"],
             "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
-            "TEMPERATURE_FILES": temperature_files,
+            "AUX_FILES": ' '.join(aux_files),
             "RESTART_FILE": config.get("restart_file") or "",
             "PFLOTRAN": ""
         }
@@ -301,15 +299,13 @@ if __name__ == '__main__':
 
         if config['catabolic_pathways'] is None:
             config['catabolic_pathways'] = ""
-        if isinstance(temperature_files, list):
-            temperature_files = ' '.join(temperature_files)
 
         env_dict = {
             "CONFIG_PATH": args.path_to_config,
             "DATABASE_NAME": config["database"],
             "AQUEOUS_DATABASE": config["aqueous_database"],
             "CATABOLIC_PATHWAYS": config["catabolic_pathways"],
-            "TEMPERATURE_FILES": temperature_files,
+            "AUX_FILES": ' '.join(aux_files),
             "RESTART_FILE": config.get("restart_file") or "",
             "PFLOTRAN": ""
         }

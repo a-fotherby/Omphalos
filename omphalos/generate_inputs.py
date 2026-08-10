@@ -1,11 +1,20 @@
 """Module for generating multiple input files iteratively, to make large data sets for testing."""
 
 import copy
-import subprocess
+import re
+import shutil
+from pathlib import Path
 
 import omphalos.parameter_methods as pm
 
 from omphalos.input_file import InputFile
+
+# CrunchTope reads several spatial fields from auxiliary files rather than from the deck:
+# read_PorosityFile, read_saturationfile, read_temperaturefile, read_TortuosityFile, read_permfile,
+# read_flowfile, read_velocityfile, read_burialfile and their relatives. Matching the shape of the
+# keyword rather than listing them means a deck using one Omphalos has not seen before still gets
+# its data staged alongside it.
+AUX_FILE_KEYWORD = re.compile(r'^read_\w*file$', re.IGNORECASE)
 
 # Global var defining the relationship between keyword blocks and YAML file entries.
 # Takes the form {'yaml_entry_name': [CRUNCHTOPE_KEYWORD, var_array_pos]}
@@ -32,6 +41,119 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
 CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'aqueous_kinetics': ['aqueous_database', 'AqueousKinetics'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
+
+
+def auxiliary_files(input_file):
+    """Return the auxiliary data files an input file's keyword blocks name.
+
+    CrunchTope takes the filename as the *first* token of a ``read_*file`` keyword; a trailing token
+    is a format specifier, as in ``read_PorosityFile porosity.dat FullForm`` (``StartTope.F90``
+    passes the two to ``readFileName`` separately). Indexing the last token instead would try to
+    copy a file called ``FullForm``.
+
+    Args:
+        input_file: An InputFile or Template whose keyword blocks have been read.
+
+    Returns:
+        list of filenames, in first-seen order and without duplicates.
+    """
+    found = []
+    for block in (getattr(input_file, 'keyword_blocks', None) or {}).values():
+        for keyword, entry in (getattr(block, 'contents', None) or {}).items():
+            if not AUX_FILE_KEYWORD.match(keyword) or not entry:
+                continue
+            name = entry[0]
+            if name and name not in found:
+                found.append(name)
+
+    return found
+
+
+def config_auxiliary_files(config):
+    """Return the auxiliary files a config names that no keyword block mentions yet.
+
+    A ``restart_chain`` with per-stage grids names a porosity file for each stage. Only one of them
+    can be in the template at a time, so discovery that reads the template alone would stage the
+    wrong one -- or none.
+
+    Args:
+        config: The config yaml file, as a dict.
+
+    Returns:
+        list of filenames, in stage order and without duplicates.
+    """
+    found = []
+    for stage_grid in (config.get('restart_chain') or {}).get('grid') or []:
+        name = (stage_grid or {}).get('porosity_file')
+        if name and name not in found:
+            found.append(name)
+
+    return found
+
+
+def support_files(template, config=None):
+    """Return every file a run needs beside its input deck, other than the databases.
+
+    Collects the template's own auxiliary files, those of any later input files, and those a config
+    names per stage.
+
+    Absolutely-pathed files are left out: CrunchTope resolves those identically from any run
+    directory, so there is nothing to stage.
+
+    Args:
+        template: The Template object the run is generated from.
+        config: The config yaml file, as a dict. Optional; the template's own config is used if it
+            has one and none is given.
+
+    Returns:
+        list of filenames relative to the working directory, without duplicates.
+    """
+    if config is None:
+        config = getattr(template, 'config', None) or {}
+
+    found = auxiliary_files(template)
+    for later in (getattr(template, 'later_inputs', None) or {}).values():
+        found.extend(auxiliary_files(later))
+    found.extend(config_auxiliary_files(config))
+
+    staged = []
+    for name in found:
+        if Path(name).is_absolute() or name in staged:
+            continue
+        staged.append(name)
+
+    return staged
+
+
+def stage_support_files(template, tmp_dir):
+    """Copy the database and every auxiliary data file into the run directory.
+
+    Only the database and the temperature file used to be copied, so a deck reading porosity,
+    saturation, tortuosity or permeability from disk ran without them.
+
+    A missing file is reported rather than raised on: CrunchTope will fail on it soon enough, and
+    the message here says which file and why, where the one from CrunchTope does not.
+
+    Args:
+        template: The Template object the run is generated from.
+        tmp_dir: Directory the input files are being written to.
+    """
+    destination = Path(tmp_dir)
+
+    database = template.config.get('database')
+    if database:
+        shutil.copy(database, destination / Path(database).name)
+
+    for name in support_files(template):
+        # Keep the relative path rather than flattening to the basename: CrunchTope opens the name
+        # exactly as the deck writes it, so 'data/porosity.dat' has to land in a 'data' subdirectory.
+        target = destination / name
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(name, target)
+        except OSError as error:
+            print(f'Warning: could not stage auxiliary file "{name}" named by the input deck '
+                  f'({error.strerror}). CrunchTope will not find it.')
 
 
 def get_block_changes(block, num_files, stage_num=None):
@@ -157,14 +279,7 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                     file_dict[file].keyword_blocks[block_name].modify(entry, change_list[file_num], mod_pos)
 
     if not rhea:
-        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
-        # Check for a temperature file specification and copy it to tmp if there.
-        try:
-            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-                subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
-                                f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
-        except KeyError:
-            pass
+        stage_support_files(template, tmp_dir)
 
     if template.later_inputs:
         for file in file_dict:
@@ -264,7 +379,7 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
     num_stages = config['restart_chain']['stages']
 
     # Validate restart_chain keys
-    valid_restart_chain_keys = {'stages', 'spatial_profile'}
+    valid_restart_chain_keys = {'stages', 'spatial_profile', 'grid'}
     unknown_keys = set(config['restart_chain'].keys()) - valid_restart_chain_keys
     if unknown_keys:
         raise ValueError(
@@ -320,13 +435,7 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             staged_file_dict[run_num][stage_num] = input_file
 
     if not rhea:
-        subprocess.run(['cp', f'{template.config["database"]}', f'{tmp_dir}{template.config["database"]}'])
-        try:
-            if template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile']:
-                subprocess.run(['cp', f'{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}',
-                                f'{tmp_dir}/{template.keyword_blocks["TEMPERATURE"].contents["read_temperaturefile"][-1]}'])
-        except KeyError:
-            pass
+        stage_support_files(template, tmp_dir)
 
     return staged_file_dict
 

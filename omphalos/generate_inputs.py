@@ -5,6 +5,8 @@ import re
 import shutil
 from pathlib import Path
 
+import core.keyword_block as kb
+import core.spatial_constructor as sc
 import omphalos.parameter_methods as pm
 
 from omphalos.input_file import InputFile
@@ -424,6 +426,9 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             # Set up restart directives in RUNTIME block
             _configure_restart_directives(input_file, run_num, stage_num, num_stages)
 
+            # Apply this stage's grid, if the chain changes resolution between stages
+            _configure_grid(input_file, config, stage_num)
+
             # Configure spatial_profile for staged output
             if 'spatial_profile' in config.get('restart_chain', {}):
                 # Use explicitly specified spatial_profile from config
@@ -509,6 +514,162 @@ def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
         # Remove restart for first stage if it exists
         if 'restart' in runtime_block.contents:
             del runtime_block.contents['restart']
+
+
+def stage_grid(config, stage_num):
+    """Return the grid settings a restart chain declares for one stage, or an empty dict.
+
+    Args:
+        config: The config yaml file, as a dict.
+        stage_num: The stage index (0-indexed).
+
+    Returns:
+        dict of grid settings, empty if the chain declares no grid for this stage.
+    """
+    grids = (config.get('restart_chain') or {}).get('grid') or []
+    if stage_num >= len(grids):
+        return {}
+
+    return grids[stage_num] or {}
+
+
+def rescale_region(bounds, nx_old, nx_new):
+    """Map a 1-indexed inclusive cell range from one grid resolution to another.
+
+    Zone edges are mapped through a single monotone boundary function, so abutting zones stay
+    abutting: there is no gap or overlap where one ends and the next begins.
+
+    Args:
+        bounds: ``[first, last]`` cell numbers on the old grid, 1-indexed and inclusive.
+        nx_old: Cell count the bounds are expressed on.
+        nx_new: Cell count to express them on.
+
+    Returns:
+        list: ``[first, last]`` on the new grid.
+    """
+    def edge(cells):
+        return int(cells * nx_new / nx_old + 0.5)
+
+    first, last = edge(bounds[0] - 1) + 1, edge(bounds[1])
+
+    # A zone thinner than one cell of the coarser grid would otherwise invert. Keeping one cell
+    # overlaps the next zone, and the condition declared last wins, as it does everywhere else.
+    return [first, max(first, last)]
+
+
+def _rescale_initial_conditions(input_file, nx_old, nx_new):
+    """Re-express the INITIAL_CONDITIONS regions on a new grid.
+
+    CrunchTope aborts with 'You have specified a corner at JX > NX' if a region runs past the end of
+    the grid, and silently leaves cells uninitialised if the regions stop short, so a stage that
+    changes xzones has to move its regions with it.
+
+    For stages after the first the initial condition is overwritten by the restart anyway, but
+    CrunchTope still validates the regions at startup, and this keeps a stage runnable on its own.
+    """
+    block = input_file.keyword_blocks.get('INITIAL_CONDITIONS')
+    if block is None or nx_old == nx_new:
+        return
+
+    rescaled = {}
+    for coord_string, entry in block.contents.items():
+        # The block title is stored under an empty key, with no coordinates to rescale.
+        if not coord_string:
+            rescaled[coord_string] = entry
+            continue
+
+        pairs = coord_string.split()
+        bounds = [list(map(int, re.findall(r'\d+', pair))) for pair in pairs]
+        if not bounds or len(bounds[0]) != 2:
+            rescaled[coord_string] = entry
+            continue
+
+        bounds[0] = rescale_region(bounds[0], nx_old, nx_new)
+        rescaled[' '.join(f'{lo}-{hi}' for lo, hi in bounds)] = entry
+
+    block.contents = rescaled
+    # region attributes are derived from the block, so they have to be re-read from it.
+    input_file.condition_regions()
+
+
+def _warn_about_fixed_coordinates(input_file, stage_num):
+    """Report deck entries that name a cell index the grid change does not move.
+
+    INITIAL_CONDITIONS regions are rescaled, but a pump in the FLOW block carries its coordinates in
+    the entry key and refers to a specific cell. Silently leaving it pointing somewhere else on the
+    new grid would be the worst kind of wrong, so say so and let the operator decide.
+    """
+    flow = input_file.keyword_blocks.get('FLOW')
+    pumps = [entry for entry in (flow.contents if flow else {}) if 'pump' in entry]
+    if pumps:
+        print(f'Warning: stage {stage_num} changes the grid, but the FLOW block pumps '
+              f'{[entry.split("&")[0] for entry in pumps]} name fixed coordinates that have not '
+              'been rescaled. Check they still point where you intend.')
+
+
+def _configure_grid(input_file, config, stage_num):
+    """Apply a restart chain's per-stage grid settings to one stage's input file.
+
+    Absent a ``grid`` entry this does nothing, so a chain that does not change resolution behaves
+    exactly as it did before.
+
+    The porosity file is written into the deck here, but that alone is not enough: ``CALL restart``
+    runs after ``CALL StartTope``, so a porosity resampled from the previous stage overrides
+    whatever ``read_PorosityFile`` read. ``run.run_staged_input`` therefore also injects it into the
+    regridded restart file.
+
+    Args:
+        input_file: The InputFile object to configure.
+        config: The config yaml file, as a dict.
+        stage_num: The current stage index (0-indexed).
+    """
+    grid = stage_grid(config, stage_num)
+    if not grid:
+        return
+
+    unknown = set(grid) - {'xzones', 'porosity_file'}
+    if unknown:
+        raise ValueError(
+            f"ConfigError: Unknown key(s) in restart_chain grid for stage {stage_num}: {unknown}. "
+            f"Valid keys are: {{'xzones', 'porosity_file'}}"
+        )
+
+    if 'xzones' in grid:
+        discretization = input_file.keyword_blocks.setdefault(
+            'DISCRETIZATION', kb.KeywordBlock('DISCRETIZATION'))
+        discretization.contents.setdefault('DISCRETIZATION', [])
+
+        previous = discretization.contents.get('xzones')
+        nx_old = sc.zone_cell_count(previous) if previous else None
+        discretization.contents['xzones'] = [str(token) for token in grid['xzones']]
+        nx_new = sc.zone_cell_count(discretization.contents['xzones'])
+
+        if nx_old:
+            _rescale_initial_conditions(input_file, nx_old, nx_new)
+            _warn_about_fixed_coordinates(input_file, stage_num)
+
+    if 'porosity_file' in grid:
+        porosity = input_file.keyword_blocks.setdefault('POROSITY', kb.KeywordBlock('POROSITY'))
+        # The block's own name keys an empty entry, which is how print() writes the header line.
+        porosity.contents.setdefault('POROSITY', [])
+        # Written under the manual's spelling, but replacing whatever spelling the template used:
+        # CrunchTope matches the keyword case insensitively, so leaving both in would read the
+        # template's file rather than this stage's.
+        for existing in [k for k in porosity.contents if k.lower() == 'read_porosityfile']:
+            del porosity.contents[existing]
+
+        # fix_porosity is read first and, if positive, jumps straight past read_porosityfile
+        # (StartTope.F90:2938-2950 does GO TO 5011), so leaving it in place would silently discard
+        # the file this stage is meant to read.
+        superseded = [k for k in porosity.contents if k.lower() in ('fix_porosity', 'set_porosity')]
+        for keyword in superseded:
+            del porosity.contents[keyword]
+        if superseded:
+            print(f'Stage {stage_num} reads porosity from {grid["porosity_file"]}, so '
+                  f'{superseded} has been dropped from its POROSITY block: CrunchTope would '
+                  'otherwise ignore the file.')
+
+        porosity.contents['read_PorosityFile'] = [str(grid['porosity_file'])]
 
 
 def _configure_spatial_profile(input_file, spatial_profile_config, stage_num):

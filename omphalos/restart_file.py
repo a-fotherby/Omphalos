@@ -398,6 +398,10 @@ class RecordSpec:
     pad: int = 0
     shape: tuple[int, ...] = ()
     xaxis: int | None = None
+    #: Stored entries before the first physical cell. Taken from the declaration's lower bound
+    #: rather than assumed to be half the padding, which is wrong for (-1:nx+1): that stores two
+    #: entries before cell 1 and one after cell nx, where pad // 2 would say one and two.
+    lead_ghost: int = 0
     ambiguous: bool = False
     source: str = "none"
     notes: list[str] = field(default_factory=list)
@@ -511,6 +515,8 @@ def _from_declaration(spec: RecordSpec, nx: int, symbols: dict[str, int]) -> boo
             continue
 
         declared_xdim = _axis_extent(axes[x_at], nx)
+        # Entries stored before cell 1: '(0:nx+1)' keeps one, '(-1:nx+2)' and '(-1:nx+1)' keep two.
+        lead_ghost = max(0, 1 - axes[x_at].lo)
         for xdim in range(nx, nx + MAX_PAD + 1):
             denominator = xdim * trail * lead_known
             if denominator <= 0 or spec.count % denominator:
@@ -519,15 +525,22 @@ def _from_declaration(spec: RecordSpec, nx: int, symbols: dict[str, int]) -> boo
             if free != 1 and not lead_free:
                 continue
             candidates.append((0 if xdim == declared_xdim else 1, abs(xdim - declared_xdim),
-                               xdim, lead_known * free, trail_dims, declaration, declared_xdim))
+                               xdim, lead_known * free, trail_dims, declaration, declared_xdim,
+                               lead_ghost))
 
     if not candidates:
         return False
 
     candidates.sort()
-    _, _, xdim, lead, trail_dims, declaration, declared_xdim = candidates[0]
+    _, _, xdim, lead, trail_dims, declaration, declared_xdim, lead_ghost = candidates[0]
 
     spec.xdim, spec.pad, spec.source = xdim, xdim - nx, "declaration"
+    # The declared lower bound is only usable if the declared extent was the one found. Where the
+    # extent had to be solved, the declaration is out of date for this array and says nothing about
+    # where its extra entries went, so fall back to assuming they are split evenly. For spold --
+    # declared (ncomp+nspec,nx) and written with nx+2 -- that recovers the same one-ghost-each-side
+    # layout as sp, which is what the binary actually writes and what the consistency pass needs.
+    spec.lead_ghost = lead_ghost if xdim == declared_xdim else (xdim - nx) // 2
     tail = tuple(extent for extent in trail_dims if extent > 1)
     if lead == 1:
         spec.shape, spec.xaxis = (xdim,) + tail, 0
@@ -607,6 +620,8 @@ def _from_factorisation(spec: RecordSpec, nx: int, leads: frozenset[int]) -> boo
         return False
     _, xdim, pad, lead, trail = cands[0]
     spec.xdim, spec.pad, spec.source = xdim, pad, "factorisation"
+    # No declaration to read the lower bound from, so fall back to assuming symmetric padding.
+    spec.lead_ghost = pad // 2
     tail = _factor_trail(trail)
     if lead == 1:
         spec.shape, spec.xaxis = (xdim,) + tail, 0
@@ -663,25 +678,94 @@ def infer_layout(path: Path, nx: int, dims: dict[str, int] | None = None) -> lis
 # Resampling
 # --------------------------------------------------------------------------- #
 
-def _coords(n_interior: int, pad: int) -> np.ndarray:
+def cell_widths(zones, nx: int) -> np.ndarray:
+    """Per-cell widths from an ``xzones`` specification.
+
+    ``xzones`` is a sequence of (cell count, cell width) pairs, so a graded grid such as
+    ``xzones 20 5.0 100 0.5 20 5.0`` -- coarse, fine, coarse -- gives 140 cells of three different
+    widths. A trailing count with no width takes unit width, as CrunchTope's default.
+
+    Args:
+        zones: The tokens following the xzones keyword, or None for a uniform grid.
+        nx: Total cell count, used when *zones* is None or does not account for every cell.
+
+    Returns:
+        Array of nx cell widths.
+    """
+    if not zones:
+        return np.ones(nx)
+
+    widths = []
+    for index in range(0, len(zones), 2):
+        count = int(float(zones[index]))
+        width = float(zones[index + 1]) if index + 1 < len(zones) else 1.0
+        widths.extend([width] * count)
+
+    if len(widths) != nx:
+        raise RstError(
+            f"xzones declares {len(widths)} cells but nx is {nx}; the grid specification and the "
+            "cell count disagree"
+        )
+
+    return np.asarray(widths, dtype=float)
+
+
+def _edges(nx: int, zones=None) -> np.ndarray:
+    """Normalised positions of the nx+1 cell faces, spanning [0, 1].
+
+    Normalising by the column's own length means a grid change is interpreted as a change of
+    resolution over the same column, which is what a refinement chain means by it. Absolute lengths
+    would make a chain that also rescales the domain interpolate into empty space.
+    """
+    edges = np.concatenate(([0.0], np.cumsum(cell_widths(zones, nx))))
+
+    return edges / edges[-1]
+
+
+def _coords(n_interior: int, pad: int, lead_ghost: int | None = None, zones=None) -> np.ndarray:
     """Normalised coordinates of the stored positions along x.
 
-    Cell-centred data with ``pad // 2`` leading ghost cells sits at ``(i + 0.5) * dx``;
-    face-centred data (``pad == 1``) sits at ``i * dx``. Only ratios matter, so the domain is taken
-    as unit length.
+    Face-centred data (``pad == 1``) sits on the cell faces; everything else sits at cell centres,
+    with ghost cells placed one cell width beyond the edge -- the *edge cell's* width, so a graded
+    grid puts them where the array actually reaches.
+
+    Args:
+        n_interior: Number of physical cells.
+        pad: Total number of stored entries beyond the physical cells.
+        lead_ghost: How many of them precede the first physical cell. Defaults to ``pad // 2``,
+            which is right for every symmetric case but not for ``(-1:nx+1)``.
+        zones: The xzones tokens, or None for a uniform grid.
     """
-    dx = 1.0 / n_interior
+    edges = _edges(n_interior, zones)
     if pad == 1:
-        return np.arange(n_interior + 1) * dx
-    lo = pad // 2
-    return (np.arange(-lo, n_interior + pad - lo) + 0.5) * dx
+        return edges
+
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    if pad == 0:
+        return centres
+
+    widths = np.diff(edges)
+    lead = pad // 2 if lead_ghost is None else lead_ghost
+    trail = pad - lead
+
+    before = [centres[0] - widths[0] * (offset + 1) for offset in reversed(range(lead))]
+    after = [centres[-1] + widths[-1] * (offset + 1) for offset in range(trail)]
+
+    return np.concatenate([before, centres, after])
 
 
-def resample(values: np.ndarray, spec: RecordSpec, nx_in: int, nx_out: int) -> np.ndarray:
-    """Resample *values* along the x axis of *spec* from *nx_in* to *nx_out*."""
+def resample(values: np.ndarray, spec: RecordSpec, nx_in: int, nx_out: int,
+             zones_in=None, zones_out=None) -> np.ndarray:
+    """Resample *values* along the x axis of *spec* from *nx_in* to *nx_out*.
+
+    Pass *zones_in* and *zones_out* -- the two grids' ``xzones`` tokens -- when either grid is
+    graded. Without them both grids are taken as uniform, and a graded grid would be resampled by
+    cell index rather than by position, which misplaces every value outside the uniform zone.
+    """
     if spec.xaxis is None:
         return values
-    src, dst = _coords(nx_in, spec.pad), _coords(nx_out, spec.pad)
+    src = _coords(nx_in, spec.pad, spec.lead_ghost, zones_in)
+    dst = _coords(nx_out, spec.pad, spec.lead_ghost, zones_out)
     if len(src) != values.shape[spec.xaxis]:
         raise RstError(
             f"record {spec.index} ({spec.name}): x extent {values.shape[spec.xaxis]} does not "
@@ -725,7 +809,7 @@ def interior_profile(arr: np.ndarray, spec: RecordSpec, nx: int, component: int 
     series = np.asarray(arr[tuple(index)])
     if spec.pad == 1:
         return series
-    lo = spec.pad // 2
+    lo = spec.lead_ghost
     return series[lo:lo + nx]
 
 
@@ -747,7 +831,7 @@ def inject_field(arr: np.ndarray, spec: RecordSpec, nx: int, values: np.ndarray)
     out = np.array(arr, copy=True)
     axis = spec.xaxis
     ndim = out.ndim
-    lo = 0 if spec.pad == 1 else spec.pad // 2
+    lo = 0 if spec.pad == 1 else spec.lead_ghost
     if lo + nx > out.shape[axis]:
         raise RstError(
             f"record {spec.name!r}: {nx} cells with pad={spec.pad} do not fit an x extent of "
@@ -771,7 +855,7 @@ def inject_field(arr: np.ndarray, spec: RecordSpec, nx: int, values: np.ndarray)
 
 def _interior_slice(spec: RecordSpec, nx: int) -> tuple:
     """Index tuple selecting the physical cells, x restricted, others full."""
-    lo = 0 if spec.pad == 1 else spec.pad // 2
+    lo = 0 if spec.pad == 1 else spec.lead_ghost
     return tuple(slice(lo, lo + nx) if axis == spec.xaxis else slice(None)
                  for axis in range(len(spec.shape)))
 
@@ -844,7 +928,7 @@ def enforce_consistency(arrays: dict[str, np.ndarray], specs: dict[str, RecordSp
     # sn is s restricted to the interior of every axis but the components.
     if "sn" in arrays and "s" in arrays:
         s_spec = specs["s"]
-        lo = s_spec.pad // 2
+        lo = s_spec.lead_ghost
         index = [slice(None)]
         for axis, extent in enumerate(s_spec.shape):
             if axis == 0:
@@ -861,7 +945,7 @@ def enforce_consistency(arrays: dict[str, np.ndarray], specs: dict[str, RecordSp
     # Master-variable history: both previous copies equal the current value.
     if "sp" in arrays:
         sp_spec = specs["sp"]
-        lo = sp_spec.pad // 2
+        lo = sp_spec.lead_ghost
         row = min(ikmast, arrays["sp"].shape[0] - 1)
         master = np.asarray(arrays["sp"][row, lo:lo + nx])
         for name in ("spnO2", "spnnO2"):
@@ -875,7 +959,8 @@ def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] 
            set_dtmax: float | None = None, set_dtold: float | None = None,
            set_time: float | None = None, allow_unresolved: bool = False,
            inject: dict[str, np.ndarray] | None = None, consistent: bool = True,
-           deck: Path | None = None) -> tuple[list[RecordSpec], list[str]]:
+           deck: Path | None = None, zones_in=None,
+           zones_out=None) -> tuple[list[RecordSpec], list[str]]:
     """Write *path* resampled from *nx_in* to *nx_out* cells into *out*.
 
     Args:
@@ -894,10 +979,25 @@ def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] 
         consistent: Re-derive the dependent state arrays (see :func:`enforce_consistency`). Leave on
             unless deliberately inspecting the raw resampling.
         deck: Input deck, read only to locate the master variable for the consistency pass.
+        zones_in: The source grid's xzones tokens. Needed only if that grid is graded; without it
+            the grid is taken as uniform.
+        zones_out: The target grid's xzones tokens, likewise.
 
     Returns:
         ``(specs, rewritten)``, where *rewritten* names the records the consistency pass replaced.
     """
+    # Positions are normalised by each grid's own length, so a chain that changes the column length
+    # as well as its resolution stretches the old solution over the new domain rather than failing.
+    # That is occasionally what is wanted and usually a typo in the zone widths, so say so.
+    if zones_in and zones_out:
+        length_in = float(cell_widths(zones_in, nx_in).sum())
+        length_out = float(cell_widths(zones_out, nx_out).sum())
+        if abs(length_out - length_in) > 1e-6 * max(length_in, length_out):
+            logger.warning(
+                "grid length changes from %g to %g: the solution will be stretched over the new "
+                "domain, not placed at the same physical depths. Check the xzones widths.",
+                length_in, length_out)
+
     specs = infer_layout(path, nx_in, dims)
     broken = [s.name for s in specs
               if not s.grid_dependent and s.count > 1 and s.name not in HEADER_RECORDS and s.notes]
@@ -927,7 +1027,8 @@ def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] 
                 payload = struct.pack("<d", set_time)
             verbatim[spec.index] = payload
             continue
-        resampled = resample(load_record(buf, offset, spec), spec, nx_in, nx_out)
+        resampled = resample(load_record(buf, offset, spec), spec, nx_in, nx_out,
+                             zones_in, zones_out)
         if inject and spec.name in inject:
             resampled = inject_field(resampled, spec, nx_out, inject[spec.name])
         arrays[spec.name] = resampled
@@ -998,7 +1099,7 @@ def consistency_report(path: Path, nx: int, dims: dict[str, int] | None = None) 
     if "s" in specs and "sn" in specs:
         s, s_spec = arr("s")
         sn, _ = arr("sn")
-        lo = s_spec.pad // 2
+        lo = s_spec.lead_ghost
         index = [slice(None)]
         for axis, extent in enumerate(s_spec.shape):
             if axis == 0:

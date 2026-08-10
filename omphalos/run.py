@@ -4,9 +4,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pexpect as pexp
 import xarray as xr
 
+from core import spatial_constructor as sc
 from omphalos.settings import crunch_dir
 
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
@@ -148,6 +150,136 @@ def clean_dir(tmp_dir, file_name):
     subprocess.run(['rm', file_name], cwd=str(tmp_path))
 
 
+def stage_zones(stage_file):
+    """The xzones tokens a stage declares, or None if it declares none.
+
+    Returns the tokens rather than just the cell count because a graded grid -- coarse at the top,
+    fine through the interval of interest, coarse again at the bottom -- needs the widths as well:
+    without them the resample maps by cell index instead of by position.
+    """
+    discretization = stage_file.keyword_blocks.get('DISCRETIZATION')
+    if discretization is None:
+        return None
+
+    return discretization.contents.get('xzones')
+
+
+def stage_nx(stage_file):
+    """Number of grid cells a stage's input file discretises the column into.
+
+    Returns None if the stage declares no xzones, in which case a chain cannot know whether the
+    grid changed and will not try to regrid.
+    """
+    zones = stage_zones(stage_file)
+
+    return sc.zone_cell_count(zones) if zones else None
+
+
+def _porosity_profile(stage_file, nx):
+    """The porosity a stage's deck reads from file, or None if it reads none.
+
+    A restart overrides the deck -- ``CALL restart`` runs after ``CALL StartTope`` -- so a porosity
+    resampled from the coarse grid would supersede this stage's read_PorosityFile. Handing the
+    intended values back lets the regrid write them into the restart file instead.
+
+    The file is a column of values, or two columns with the porosity second, as
+    read_PorosityFile accepts.
+    """
+    porosity_block = stage_file.keyword_blocks.get('POROSITY')
+    if porosity_block is None:
+        return None
+
+    for keyword, entry in porosity_block.contents.items():
+        # CrunchTope matches the keyword case insensitively and the parser keeps whatever spelling
+        # the deck used, so neither spelling can be assumed.
+        if keyword.lower() != 'read_porosityfile' or not entry:
+            continue
+
+        name = entry[0]
+        try:
+            table = np.loadtxt(name)
+        except OSError as error:
+            print(f'Warning: could not read porosity file "{name}" ({error.strerror}); the restart '
+                  'file keeps the porosity resampled from the previous stage.')
+            return None
+
+        column = table[:, 1] if table.ndim == 2 else table
+        if len(column) < nx:
+            print(f'Warning: {name} has {len(column)} rows but the stage has {nx} cells; the '
+                  'restart file keeps the porosity resampled from the previous stage.')
+            return None
+
+        return column[:nx]
+
+    return None
+
+
+def regrid_between_stages(stages_dict, stage_num, tmp_dir):
+    """Resample the restart file the previous stage wrote onto this stage's grid.
+
+    Returns early when the two stages agree on nx, so a chain that does not change resolution is
+    untouched. The source file's layout is verified first: a byte-identical nx -> nx round trip is
+    cheap and proves the parse was understood before anything is overwritten.
+
+    Args:
+        stages_dict: Dict mapping stage_num to InputFile for this run.
+        stage_num: The stage about to run, which must be greater than zero.
+        tmp_dir: Directory the stages run in, where the restart file was written.
+
+    Returns:
+        bool: True if a regrid was performed.
+    """
+    from omphalos import restart_file as rf
+
+    previous, current = stages_dict[stage_num - 1], stages_dict[stage_num]
+    zones_in, zones_out = stage_zones(previous), stage_zones(current)
+    nx_in, nx_out = stage_nx(previous), stage_nx(current)
+
+    if zones_in is None or zones_out is None or zones_in == zones_out:
+        # Identical zone specifications mean an identical grid, including a graded one, so there is
+        # nothing to resample. Comparing cell counts alone would miss a chain that keeps nx and
+        # redistributes the cells, which does need a regrid.
+        return False
+
+    restart_name = previous.keyword_blocks['RUNTIME'].contents.get('save_restart')
+    if not restart_name:
+        raise rf.RstError(
+            f'stage {stage_num - 1} changes grid from {nx_in} to {nx_out} cells but writes no '
+            'restart file, so there is nothing for the next stage to start from'
+        )
+
+    path = Path(tmp_dir) / restart_name[0]
+    dims = rf.dims_from_input_file(previous)
+
+    if not rf.verify_identity(path, nx_in, dims):
+        raise rf.RstError(
+            f'{path.name} does not round-trip at nx={nx_in}, so its layout is not understood. '
+            'Refusing to regrid: the result would be a plausible file with its fields misaligned.'
+        )
+
+    inject = {}
+    porosity = _porosity_profile(current, nx_out)
+    if porosity is not None:
+        inject['por'] = porosity
+
+    print(f'Regridding {path.name} from {nx_in} to {nx_out} cells for stage {stage_num}.')
+    regridded = path.with_suffix(path.suffix + '.regrid.tmp')
+    try:
+        _, rewritten = rf.regrid(path, nx_in, nx_out, regridded, dims, inject=inject,
+                                 deck=Path(current.path) if current.path else None,
+                                 zones_in=zones_in, zones_out=zones_out)
+        regridded.replace(path)
+    finally:
+        regridded.unlink(missing_ok=True)
+
+    if rewritten:
+        print(f'  re-derived for consistency: {", ".join(rewritten)}')
+    if inject:
+        print(f'  injected porosity from the stage {stage_num} deck')
+
+    return True
+
+
 def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
     """Run stages sequentially for a single parallel run.
 
@@ -172,6 +304,10 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
 
         if stage_num == 0:
             _print_aux_files(stage_file, tmp_path)
+        else:
+            # A .rst carries no grid metadata, so a stage that changes xzones fails on its first
+            # array read unless the file is resampled first.
+            regrid_between_stages(stages_dict, stage_num, tmp_path)
 
         print(f'Running run {run_num}, stage {stage_num}')
         crunchtope(stage_file, run_num, timeout, tmp_path, file_offset=file_offset)

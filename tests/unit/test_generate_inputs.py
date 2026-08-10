@@ -439,3 +439,101 @@ class TestStageSupportFiles:
         out = capsys.readouterr().out
         assert 'porosity.dat' in out
         assert 'CrunchTope will not find it' in out
+
+
+class TestRescaleRegion:
+    """Tests for moving a 1-indexed inclusive cell range between grid resolutions."""
+
+    def test_whole_column(self):
+        assert gi.rescale_region([1, 10], 10, 25) == [1, 25]
+
+    def test_coarsening(self):
+        assert gi.rescale_region([1, 25], 25, 10) == [1, 10]
+
+    def test_zones_stay_abutting(self):
+        """No gap and no overlap where one zone ends and the next begins."""
+        first = gi.rescale_region([1, 5], 10, 25)
+        second = gi.rescale_region([6, 10], 10, 25)
+
+        assert second[0] == first[1] + 1
+        assert first[0] == 1 and second[1] == 25
+
+    def test_identity(self):
+        assert gi.rescale_region([3, 7], 10, 10) == [3, 7]
+
+    def test_thin_zone_survives_coarsening(self):
+        """A zone thinner than one cell of the coarser grid would otherwise invert."""
+        bounds = gi.rescale_region([5, 5], 100, 4)
+
+        assert bounds[1] >= bounds[0]
+
+
+class TestConfigureGrid:
+    """Tests for applying a restart chain's per-stage grid to a stage's input file."""
+
+    @staticmethod
+    def _stage(sample_config, omphalos_test_dir, grid, stage_num=0, stages=2):
+        from omphalos.template import Template
+
+        sample_config['number_of_files'] = 1
+        sample_config['restart_chain'] = {'stages': stages, 'grid': grid}
+        cwd = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                staged = gi.configure_staged_input_files(Template(sample_config), '.', rhea=True)
+        finally:
+            os.chdir(cwd)
+
+        return staged[0][stage_num]
+
+    def test_xzones_is_written(self, sample_config, omphalos_test_dir):
+        stage = self._stage(sample_config, omphalos_test_dir,
+                            [{'xzones': [10, 10.0]}, {'xzones': [25, 4.0]}], stage_num=1)
+
+        assert stage.keyword_blocks['DISCRETIZATION'].contents['xzones'] == ['25', '4.0']
+
+    def test_porosity_file_is_written(self, sample_config, omphalos_test_dir):
+        stage = self._stage(sample_config, omphalos_test_dir,
+                            [{'porosity_file': 'poro10.dat'}, {'porosity_file': 'poro25.dat'}],
+                            stage_num=1)
+
+        assert stage.keyword_blocks['POROSITY'].contents['read_PorosityFile'] == ['poro25.dat']
+
+    def test_fix_porosity_is_dropped(self, sample_config, omphalos_test_dir):
+        """StartTope reads fix_porosity first and jumps past read_porosityfile if it is set.
+
+        Leaving both in place would silently ignore the file the stage is meant to read.
+        """
+        stage = self._stage(sample_config, omphalos_test_dir, [{'porosity_file': 'poro10.dat'}])
+
+        keywords = {k.lower() for k in stage.keyword_blocks['POROSITY'].contents}
+        assert 'fix_porosity' not in keywords
+        assert 'read_porosityfile' in keywords
+
+    def test_initial_conditions_follow_the_grid(self, sample_config, omphalos_test_dir):
+        """CrunchTope aborts with 'corner at JX > NX' if a region runs past the end of the grid."""
+        stage = self._stage(sample_config, omphalos_test_dir,
+                            [{'xzones': [10, 10.0]}, {'xzones': [25, 4.0]}], stage_num=1)
+
+        assert stage.condition_blocks['initial'].region == [[[1, 25], [1, 1], [1, 1]]]
+        assert '1-25 1-1 1-1' in stage.keyword_blocks['INITIAL_CONDITIONS'].contents
+
+    def test_stage_without_a_grid_entry_is_untouched(self, sample_config, omphalos_test_dir):
+        """A chain declaring a grid for only its first stage leaves the rest on the template's."""
+        stage = self._stage(sample_config, omphalos_test_dir, [{'xzones': [10, 10.0]}], stage_num=1)
+
+        assert stage.keyword_blocks['DISCRETIZATION'].contents['xzones'] == ['10', '10.0']
+        assert stage.condition_blocks['initial'].region == [[[1, 10], [1, 1], [1, 1]]]
+
+    def test_unknown_grid_key_is_rejected(self, sample_config, omphalos_test_dir):
+        with pytest.raises(ValueError, match='Unknown key'):
+            self._stage(sample_config, omphalos_test_dir, [{'xzone': [10, 10.0]}])
+
+    def test_graded_grid(self, sample_config, omphalos_test_dir):
+        """Coarse at the top, fine in the middle, coarse at the bottom: 4 + 12 + 4 = 20 cells."""
+        stage = self._stage(sample_config, omphalos_test_dir,
+                            [{'xzones': [10, 10.0]}, {'xzones': [4, 10.0, 12, 2.5, 4, 7.5]}],
+                            stage_num=1)
+
+        assert stage.condition_blocks['initial'].region == [[[1, 20], [1, 1], [1, 1]]]

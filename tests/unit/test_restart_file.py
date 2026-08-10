@@ -484,3 +484,132 @@ def _tsteps(path):
     """The six timestep scalars: delt, dtold, tstep, deltmin, dtmaxcour, dtmax."""
     buf, records = rf.read_records(path)
     return list(struct.unpack_from('<6d', buf, records[3][0]))
+
+
+class TestGradedGrids:
+    """Tests for grids whose cells are not all the same width.
+
+    A refinement chain often wants to refine part of a column rather than all of it — coarse at the
+    top, fine through the interval of interest, coarse again at the bottom. Resampling that by cell
+    index rather than by position misplaces every value outside the uniform zone.
+    """
+
+    #: Coarse / fine / coarse: 4 + 12 + 4 = 20 cells.
+    GRADED = ['4', '5.0', '12', '1.6667', '4', '5.0']
+    UNIFORM = [str(NX), '10.0']
+
+    def test_cell_widths(self):
+        widths = rf.cell_widths(self.GRADED, 20)
+
+        assert len(widths) == 20
+        assert widths[0] == 5.0
+        assert widths[10] == pytest.approx(1.6667)
+        assert widths[-1] == 5.0
+
+    def test_uniform_when_no_zones_given(self):
+        assert np.array_equal(rf.cell_widths(None, 5), np.ones(5))
+
+    def test_cell_count_disagreement_raises(self):
+        """A zones list that does not add up to nx means one of the two is wrong."""
+        with pytest.raises(rf.RstError, match='disagree'):
+            rf.cell_widths(self.GRADED, 19)
+
+    def test_centres_cluster_where_the_grid_is_fine(self):
+        edges = rf._edges(20, self.GRADED)
+        centres = 0.5 * (edges[:-1] + edges[1:])
+        spacing = np.diff(centres)
+
+        assert edges[0] == 0.0 and edges[-1] == pytest.approx(1.0)
+        assert spacing[len(spacing) // 2] < spacing[0]
+
+    def test_uniform_zones_match_the_default(self):
+        """Stating a uniform grid explicitly must give exactly what assuming one gives."""
+        assert np.allclose(rf._coords(NX, 2, 1, self.UNIFORM), rf._coords(NX, 2, 1, None))
+
+    def test_ghosts_use_the_edge_cell_width(self):
+        """A ghost sits one cell beyond the edge, and on a graded grid those cells differ."""
+        coords = rf._coords(20, 2, 1, self.GRADED)
+        edges = rf._edges(20, self.GRADED)
+        centres = 0.5 * (edges[:-1] + edges[1:])
+
+        assert coords[0] == pytest.approx(centres[0] - (edges[1] - edges[0]))
+        assert coords[-1] == pytest.approx(centres[-1] + (edges[-1] - edges[-2]))
+
+    def test_regrid_maps_by_position(self, rst, dims, tmp_path):
+        """The grid-aware resample must reproduce interpolation at the real cell positions."""
+        out = tmp_path / 'graded.rst'
+        rf.regrid(rst, NX, 20, out, dims, consistent=False,
+                  zones_in=self.UNIFORM, zones_out=self.GRADED)
+
+        source = rf.interior_profile(_record(rst, NX, dims, 'gam'),
+                                     _spec(rst, NX, dims, 'gam'), NX)
+        src_x = _centres(NX, self.UNIFORM)
+        expected = np.interp(_centres(20, self.GRADED), src_x, source)
+
+        got = rf.interior_profile(_record(out, 20, dims, 'gam'),
+                                  _spec(out, 20, dims, 'gam'), 20)
+
+        assert np.allclose(got, expected)
+
+    def test_ignoring_the_grading_gets_it_wrong(self, rst, dims, tmp_path):
+        """Pins that the zones argument is doing work, not just being carried around."""
+        aware, naive = tmp_path / 'aware.rst', tmp_path / 'naive.rst'
+        rf.regrid(rst, NX, 20, aware, dims, consistent=False,
+                  zones_in=self.UNIFORM, zones_out=self.GRADED)
+        rf.regrid(rst, NX, 20, naive, dims, consistent=False)
+
+        a = rf.interior_profile(_record(aware, 20, dims, 'gam'), _spec(aware, 20, dims, 'gam'), 20)
+        n = rf.interior_profile(_record(naive, 20, dims, 'gam'), _spec(naive, 20, dims, 'gam'), 20)
+
+        assert not np.allclose(a, n)
+
+    def test_redistributing_cells_at_constant_nx(self, rst, dims, tmp_path):
+        """Keeping nx and moving the cells is a real regrid, not a no-op."""
+        out = tmp_path / 'same_nx.rst'
+        graded_10 = ['2', '20.0', '6', '6.6667', '2', '20.0']
+        rf.regrid(rst, NX, NX, out, dims, consistent=False,
+                  zones_in=self.UNIFORM, zones_out=graded_10)
+
+        assert out.read_bytes() != rst.read_bytes()
+
+
+class TestGhostLayerCount:
+    """Tests that the number of entries before cell 1 comes from the declaration.
+
+    Assuming it is half the padding is right for every symmetric case, but (-1:nx+1) stores two
+    entries before cell 1 and one after cell nx.
+    """
+
+    def test_symmetric_padding(self, specs):
+        assert specs['sp'].lead_ghost == 1        # (0:nx+1)
+        assert specs['por'].lead_ghost == 2       # (-1:nx+2)
+        assert specs['sn'].lead_ghost == 0        # (nx)
+
+    def test_asymmetric_padding(self, specs):
+        """xgram is (-1:nx+1): three extra entries, two of them leading."""
+        assert specs['xgram'].pad == 3
+        assert specs['xgram'].lead_ghost == 2
+
+    def test_solved_extent_falls_back_to_symmetric(self, specs):
+        """spold is declared (ncomp+nspec,nx) and written with nx+2.
+
+        The declaration is out of date for this array, so it says nothing about where the extra
+        entries went; assuming they are split evenly recovers sp's layout, which is what the binary
+        writes and what the consistency pass compares against.
+        """
+        assert specs['spold'].lead_ghost == specs['sp'].lead_ghost
+
+    def test_interior_slice_uses_it(self, specs):
+        """A wrong count would take the physical cells from one place and the ghosts from another."""
+        assert rf._interior_slice(specs['xgram'], NX)[0] == slice(2, 2 + NX)
+
+
+def _spec(path, nx, dims, name):
+    """The RecordSpec for one named record."""
+    return {s.name: s for s in rf.infer_layout(path, nx, dims)}[name]
+
+
+def _centres(nx, zones):
+    """Normalised cell-centre positions for a grid."""
+    edges = rf._edges(nx, zones)
+    return 0.5 * (edges[:-1] + edges[1:])

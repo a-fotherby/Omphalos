@@ -3211,7 +3211,8 @@ Magnetite_DIRB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : Acetic_acid(aq) 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 Pyrolusite
   label = default
@@ -3319,7 +3320,8 @@ Goethite_DIRB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : Acetic_acid(aq) 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 Mn_Goethite
   label = default
@@ -3341,7 +3343,8 @@ Mn_Goethite_DB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : tot_Acetate 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 Fe(OH)3(2L)_DIRB
   label = DIRB
@@ -3349,7 +3352,8 @@ Fe(OH)3(2L)_DIRB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : tot_Acetate 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 UO2(s)
   label = default
@@ -3357,7 +3361,8 @@ UO2(s)
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : Acetate 1.0E-4  UO2++ 1.0E-4
-  1  0.000 1
+  inhibition :
+!  1  0.000 1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +---------------------------------------------------
 GreenRustSO4
   label = default

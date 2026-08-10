@@ -3216,7 +3216,8 @@ Goethite_DIRB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : self 0.0005 tot_Acetate 1.0E-3  
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 Ferrihydrite_DIRB
   label = DIRB
@@ -3224,7 +3225,8 @@ Ferrihydrite_DIRB
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : tot_Acetate 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 Ferrihydrite_DIRB_old
   label = DIRB
@@ -3232,7 +3234,8 @@ Ferrihydrite_DIRB_old
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : self 0.0005 tot_Acetate 1.0E-5
-  1  0.000 -1
+  inhibition :
+!  1  0.000 -1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +----------------------------------------------------
 UO2(s)
   label = default
@@ -3240,7 +3243,8 @@ UO2(s)
   rate(25C) = -11.25   !cis
   activation = 0.0  (kcal/mole)
   monod_terms : Acetate 1.0E-4  UO2++ 1.0E-4
-  1  0.000 1
+  inhibition :
+!  1  0.000 1   ! legacy chi/bq/direction record; superseded by CatabolicPathways.in
 +---------------------------------------------------
 GreenRustSO4
   label = default

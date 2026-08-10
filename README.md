@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-554%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-558%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -542,6 +542,61 @@ rhea config.yaml local
 compile_results() --> results.nc
 ```
 
+#### Changing grid resolution between stages
+
+Stages may use different grids. The point is to run coarse to steady state, which is cheap, and then refine —
+seeding the fine grid from the coarse solution for *every* species, which a zoned `INITIAL_CONDITIONS` cannot do.
+Add a `grid` entry to `restart_chain`:
+
+```yaml
+restart_chain:
+    stages: 2
+    spatial_profile:
+        - [4500]
+        - [500]
+    grid:
+        - xzones: [100, 1.0]              # stage 0: 100 cells of 1 m
+        - xzones: [80, 0.25, 20, 4.0]     # stage 1: 80 of 0.25 m, then 20 of 4 m
+          porosity_file: fine_porosity.dat
+```
+
+`xzones` takes (cell count, cell width) pairs, so **graded grids work**: the stage above refines the first 20 m of
+the column and coarsens the rest. Resampling maps by physical position, not by cell index, so the grading is
+honoured. A regrid happens only when two stages declare different zones — including the case where the cell count
+is unchanged and the cells are merely redistributed.
+
+`refine: N` is shorthand for splitting every cell of the previous stage's grid into N:
+
+```yaml
+    grid:
+        refine: 4        # stage 0 keeps the template's grid; each stage after it refines 4x
+```
+
+It also regenerates every spatial input file the deck reads — porosity, temperature, tortuosity, permeability —
+at the new resolution, by replicating each value N times rather than interpolating. Without that a refined stage
+stops with `Fortran runtime error: End of file`, because CrunchTope reads exactly `nx` rows from those files. A
+deck that reads no such files needs nothing extra.
+
+Handled for you, because a restart file overrides the deck and because CrunchTope validates the deck against the
+new grid:
+
+- `INITIAL_CONDITIONS` regions are rescaled to the new cell count, without which the stage aborts with
+  `You have specified a corner at JX > NX`
+- a per-stage `porosity_file` is injected into the restart file as well as written into the deck, because
+  `CALL restart` runs after `CALL StartTope` and would otherwise supersede it
+- `fix_porosity` is dropped from a stage that names a porosity file, since CrunchTope reads it first and skips
+  the file read if it is set
+- `pump` coordinates in a `FLOW` block are **not** rescaled — they name fixed cells, so a grid change warns about
+  them and leaves them alone
+
+In the results, each stage is placed on the grid of the stage with the most cells, and the cells a stage did not
+cover are left NaN. Nothing is interpolated: every stored value is one the model produced. Where two grids do not
+nest — so that two cells of one would collide on one cell of the other — the union of all stage positions is kept
+instead, and that is reported.
+
+See [`omphalos/examples/grid_refinement_chain`](omphalos/examples/grid_refinement_chain/) for a worked example,
+including where a chain's answer legitimately departs from a cold start.
+
 #### Starting from a spinup restart file
 
 If you have a pre-run spinup model whose restart file you want all parallel runs to start from, use the `restart_file` frontmatter key alongside `restart_chain`. Omphalos will copy the specified `.rst` file into each run directory and use it as the starting state for stage 0:
@@ -676,7 +731,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **554 tests**:
+The project includes a comprehensive test suite with **558 tests**:
 
 ```bash
 # Run all tests
@@ -900,6 +955,9 @@ sweep from config to figure, and a README:
   sweeping the Darcy flux through a kinetically dissolving quartz column, recovering the linear scaling of
   equilibration length with flow rate. Start here for the end-to-end workflow: config → `rhea` → `results.nc` +
   `conditions.nc` → analysis.
+- [`omphalos/examples/grid_refinement_chain`](omphalos/examples/grid_refinement_chain/) — **CrunchTope + rhea**:
+  a staged restart chain that changes grid resolution between stages, reaching a 400-cell answer for a third of
+  the cold-start cost. Also shows where a chain's answer legitimately departs from a cold start, and why.
 - [`min3p/examples/dissol_sweep`](min3p/examples/dissol_sweep/) — **MIN3P**: a calcite dissolution front driven by
   varying inflow acidity.
 - [`min3p/examples/velocity_sweep`](min3p/examples/velocity_sweep/) — **MIN3P**: an advective pH front and Darcy's

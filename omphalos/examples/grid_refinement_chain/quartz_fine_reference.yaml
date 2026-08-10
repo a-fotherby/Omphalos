@@ -1,0 +1,19 @@
+# Omphalos / CrunchTope example — the cold-start reference for the refinement chain.
+#
+# One run, no chain, straight to 5000 yr on the 400-cell grid that
+# quartz_refine_chain.yaml arrives at by refining. This is the answer the chain
+# has to reproduce, and the cost it has to beat.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea quartz_fine_reference.yaml local
+
+template: 'quartz_column_fine.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+timeout: 600
+conditions:
+number_of_files: 1
+nodes: 1

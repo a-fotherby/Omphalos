@@ -1,0 +1,34 @@
+# Omphalos / CrunchTope example — refining only the part of the column that needs it.
+#
+# The same chain as quartz_refine_chain.yaml, but stage 1 uses a graded grid rather
+# than a uniform one. At 10 m/yr the fluid reaches quartz saturation within the
+# first few metres, so resolution is worth paying for at the inlet and wasted on the
+# 80 m of saturated column downstream.
+#
+# xzones takes (cell count, cell width) pairs, so this is 80 cells of 0.25 m over the
+# first 20 m and 20 cells of 4 m over the remaining 80 m. That is the inlet resolution
+# of the 400-cell run for a quarter of the cells. Resampling maps by position, not by
+# cell index, so the grading is honoured.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea quartz_graded_chain.yaml local
+
+template: 'quartz_column.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+timeout: 600
+conditions:
+number_of_files: 1
+nodes: 1
+
+restart_chain:
+    stages: 2
+    spatial_profile:
+        - [4500]
+        - [500]
+    grid:
+        - xzones: [100, 1.0]
+        - xzones: [80, 0.25, 20, 4.0]

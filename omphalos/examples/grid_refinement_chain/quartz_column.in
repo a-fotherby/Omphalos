@@ -1,0 +1,111 @@
+! Quartz dissolution in a 1-D advective column — grid-refinement chain example.
+!
+! Adapted from the CrunchTope short-course exercise
+! Exercises/Ex2Advection/ShortCourse2react.in, by way of
+! ../quartz_flow_sweep/quartz_column.in.
+!
+! A dilute inflow water dissolves quartz as it advects down a 100 m column. The
+! quartz rate constant and the Darcy flux are both an order of magnitude above the
+! values in ../quartz_flow_sweep/, which leaves the equilibration length near 3.5 m
+! — all the structure is in the first few metres, and the 1 m grid declared here
+! barely resolves it.
+!
+! timestep_max is 0.5 yr rather than 5: at 100 m/yr the column flushes in 0.1 yr, so
+! a 5 yr step steps over the entire transient. That is what makes these runs long
+! enough for the cost of the grid to matter — 15 s at 100 cells against 54 s at 400.
+!
+! DISCRETIZATION and INITIAL_CONDITIONS below are what stage 0 of a chain starts
+! from; the restart_chain grid entries take over from there.
+
+TITLE
+Quartz dissolution in a 1-D advective column.
+END
+
+RUNTIME
+time_units       years
+timestep_max     0.5
+timestep_init    0.000001
+time_tolerance   0.1
+hindmarsh        true
+correction_max   2.0
+debye-huckel     true
+database_sweep   no
+speciate_only    false
+gimrt            true
+graphics         tecplot
+database         datacom.dbs
+screen_output    100
+END
+
+! The chain configs override spatial_profile per stage, so the single time here is
+! what the cold-start reference run uses.
+
+OUTPUT
+time_units           years
+spatial_profile      5000
+END
+
+TRANSPORT
+distance_units meters
+time_units     years
+fix_diffusion  0.0
+dispersivity   0.0
+END
+
+BOUNDARY_CONDITIONS
+x_begin   boundary          flux
+x_end     initial           flux
+END
+
+INITIAL_CONDITIONS
+initial 1-100
+END
+
+CONDITION boundary
+units            mol/kg
+temperature      25.0
+Tracer           0.1
+SiO2(aq)         9.7e-7
+30SiO2(aq)       2.998e-8
+Quartztope       0.60     bulk_surface_area  100
+END
+
+CONDITION initial
+units            mol/kg
+temperature      25.0
+Tracer           0.0001
+set_porosity     0.999
+SiO2(aq)         0.0001
+30SiO2(aq)       0.00001
+Quartztope       0.60    bulk_surface_area  100
+END
+
+! constant_flow is 100 m/yr here, ten times the value in ../quartz_flow_sweep/.
+
+FLOW
+time_units       years
+distance_units   meters
+constant_flow    100.0
+END
+
+POROSITY
+fix_porosity     0.10
+END
+
+ISOTOPES
+primary  30SiO2(aq)  SiO2(aq)  0.0300
+END
+
+PRIMARY_SPECIES
+Tracer
+SiO2(aq)
+30SiO2(aq)
+END
+
+DISCRETIZATION
+xzones 100 1.0
+END
+
+MINERALS
+Quartztope   -label default  -rate -8.5
+END

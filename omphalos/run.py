@@ -373,12 +373,17 @@ def _align_stage_grids(datasets):
         tuple: (datasets to concatenate, index of the stage whose grid was used, or None if the
         union was kept).
     """
-    sizes = [ds.sizes.get('X', 0) for ds in datasets]
-    if len(set(sizes)) == 1:
+    grids = [np.asarray(ds['X'].values, dtype=float) for ds in datasets]
+    first = grids[0]
+    if all(grid.shape == first.shape and np.array_equal(grid, first) for grid in grids):
         return datasets, 0
 
-    finest = int(np.argmax(sizes))
-    target_x = np.asarray(datasets[finest]['X'].values, dtype=float)
+    # Most cells wins, and a tie goes to the later stage: a chain that keeps nx and redistributes
+    # the cells is refining part of the column, and the stage it refined *to* is the one to report
+    # on. Comparing cell counts alone would call those two grids identical and leave the union.
+    sizes = [len(grid) for grid in grids]
+    finest = max(range(len(sizes)), key=lambda index: (sizes[index], index))
+    target_x = grids[finest]
 
     aligned = [snap_to_grid(ds, target_x) for ds in datasets]
     if any(ds is None for ds in aligned):

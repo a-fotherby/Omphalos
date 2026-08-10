@@ -374,11 +374,17 @@ def known_leads(dims: dict[str, int] | None) -> frozenset[int]:
 
 
 def _symbol_values(dims: dict[str, int] | None) -> dict[str, int]:
-    """Translate the block-name dict into the Fortran dimension symbols."""
+    """Translate the block-name dict into the Fortran dimension symbols.
+
+    A block the deck does not declare contributes zero, not nothing. Dropping it instead leaves
+    ``ncomp+nspec`` unresolvable for a model with no secondary species, and an unresolvable leading
+    axis is treated as free -- which lets a spurious decomposition win. Measured on a 3-primary,
+    0-secondary column: ``sp`` came out as ``(nx+2, 3)`` with x on axis 0 rather than
+    ``(3, nx+2)`` with x on axis 1, and the restart it produced diverged to NaN on the first step.
+    """
     if not dims:
         return {}
-    return {symbol: dims[block] for symbol, block in _SYMBOL_BLOCKS.items()
-            if dims.get(block, 0) > 0}
+    return {symbol: dims[block] for symbol, block in _SYMBOL_BLOCKS.items() if block in dims}
 
 
 # --------------------------------------------------------------------------- #

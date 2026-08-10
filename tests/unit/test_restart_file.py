@@ -613,3 +613,48 @@ def _centres(nx, zones):
     """Normalised cell-centre positions for a grid."""
     edges = rf._edges(nx, zones)
     return 0.5 * (edges[:-1] + edges[1:])
+
+
+class TestZeroSizedDimensions:
+    """A block the deck does not declare counts as zero, not as unknown.
+
+    Regression test. Dropping an absent block left 'ncomp+nspec' unresolvable for a model with no
+    secondary species, and an unresolvable leading axis is treated as free — which let a spurious
+    decomposition win. On a 3-primary, 0-secondary column, sp came out as (nx+2, 3) with x on
+    axis 0 instead of (3, nx+2) with x on axis 1, and the restart diverged to NaN on step 1.
+    """
+
+    DIMS = {'PRIMARY_SPECIES': 3, 'SECONDARY_SPECIES': 0, 'GASES': 0, 'MINERALS': 1,
+            'AQUEOUS_KINETICS': 0, 'ION_EXCHANGE': 0, 'SURFACE_COMPLEXATION': 0}
+
+    def test_zero_is_a_value(self):
+        symbols = rf._symbol_values(self.DIMS)
+
+        assert symbols['nspec'] == 0
+        assert symbols['ncomp'] == 3
+
+    def test_composite_symbol_resolves_through_a_zero(self):
+        symbols = rf._symbol_values(self.DIMS)
+
+        assert rf._symbol_product('ncomp+nspec', symbols) == 3
+
+    def test_sp_keeps_x_on_the_component_axis(self):
+        """(ncomp+nspec, 0:nx+1) with ncomp+nspec = 3 must not be read as (nx+2, 3)."""
+        nx = 100
+        spec = rf.RecordSpec(index=10, name='sp', nbytes=306 * 8, dtype=np.dtype(np.float64),
+                             count=306)
+
+        assert rf._from_declaration(spec, nx, rf._symbol_values(self.DIMS))
+        assert spec.shape == (3, nx + 2)
+        assert spec.xaxis == 1
+        assert not spec.ambiguous
+
+    def test_the_spurious_shape_is_what_an_unresolved_symbol_gives(self):
+        """Pins the mechanism: with nspec missing, the wrong decomposition wins."""
+        without_nspec = {k: v for k, v in rf._symbol_values(self.DIMS).items() if k != 'nspec'}
+        spec = rf.RecordSpec(index=10, name='sp', nbytes=306 * 8, dtype=np.dtype(np.float64),
+                             count=306)
+
+        rf._from_declaration(spec, 100, without_nspec)
+
+        assert spec.xaxis == 0, 'the bug this guards against no longer reproduces'

@@ -1,0 +1,49 @@
+# Omphalos / CrunchTope example — a two-stage restart chain that refines the grid.
+#
+# Stage 0 carries the column to near steady state on the template's 100-cell grid,
+# which is cheap. Stage 1 then splits every cell into four, transplants the whole
+# geochemical state onto the finer grid through the restart file, and relaxes the
+# last 500 yr there. The answer is a 400-cell one; most of the compute was spent at
+# 100 cells.
+#
+# Compare against quartz_fine_reference.yaml, which is the same 400-cell answer
+# reached from a cold start.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea quartz_refine_chain.yaml local
+
+### Frontmatter — mandatory keys. Leave blank if not applicable.
+template: 'quartz_column.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+timeout: 600
+conditions:
+number_of_files: 1
+nodes: 1
+
+### The chain
+restart_chain:
+    # Two stages, run back to back, the second restarting from the first.
+    stages: 2
+
+    # Output times per stage, in the template's time units. Stage times are
+    # cumulative: stage 1's 500 yr is appended to stage 0's 4500, so the single
+    # output it writes is at 5000 yr.
+    spatial_profile:
+        - [4500]
+        - [500]
+
+    # 'refine: 4' means: keep the template's grid for stage 0, then split every
+    # cell of it into four for stage 1. It also regenerates any spatial input
+    # file the deck reads (porosity, temperature, tortuosity, ...) at the new
+    # resolution — without which CrunchTope stops on a file of the wrong length.
+    #
+    # Writing it out by hand is equivalent:
+    #     grid:
+    #         - xzones: [100, 1.0]
+    #         - xzones: [400, 0.25]
+    grid:
+        refine: 4

@@ -75,10 +75,10 @@ Examples
 --------
 ::
 
-    python -m omphalos.restart_file inspect run.rst --nx 350 --input LUAH.in
-    python -m omphalos.restart_file verify  run.rst --nx 350 --input LUAH.in \\
+    python -m omphalos.restart_file inspect run.rst --nx 350 --input model.in
+    python -m omphalos.restart_file verify  run.rst --nx 350 --input model.in \\
                                             --identity --reference . --invariants
-    python -m omphalos.restart_file regrid  run.rst --input LUAH.in \\
+    python -m omphalos.restart_file regrid  run.rst --input model.in \\
                                             --nx-in 350 --nx-out 3500 -o fine.rst
 """
 

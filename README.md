@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-391%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-462%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -676,7 +676,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **391 tests**:
+The project includes a comprehensive test suite with **462 tests**:
 
 ```bash
 # Run all tests
@@ -708,6 +708,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_attributes.py` | `core/attributes.py` — attribute tables and their file_num labelling |
 | `tests/unit/test_compile_inputs.py` | `coeus/compile_inputs.py` — the record of what a sweep actually ran |
 | `tests/unit/test_run.py` | `omphalos/run.py` — CrunchTope invocation and the stdout error patterns |
+| `tests/unit/test_restart_file.py` | `omphalos/restart_file.py` — reading, regridding and verifying CrunchTope `.rst` restart files, against a real 10-cell fixture |
 | `tests/unit/test_database.py` | `omphalos/database.py` — thermodynamic database handling |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
 | `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |

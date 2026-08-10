@@ -45,6 +45,12 @@ def pflotran_test_dir(test_data_dir):
     return test_data_dir / "pflotran"
 
 
+@pytest.fixture
+def restart_test_dir(test_data_dir):
+    """Return the directory holding the CrunchTope restart file fixtures."""
+    return test_data_dir / "restart_test"
+
+
 # ============================================================================
 # Configuration Fixtures
 # ============================================================================

@@ -33,6 +33,13 @@ fitting/wandb
 *.rst
 *.out
 
+# ...except the restart-file fixtures, which are committed on purpose: the layouts in
+# omphalos/restart_file.py were established by matching a real .rst against real tecplot
+# output, so a synthetic stand-in would pin whatever the code already does.
+# See tests/restart_test/README.md.
+!tests/restart_test/*.tec
+!tests/restart_test/*.rst
+
 # Pickle module files
 *.pickle
 *.pkl

@@ -182,7 +182,9 @@ class TestPopulateArray:
         with contextlib.redirect_stdout(io.StringIO()):
             array = sc.populate_array(pump_first_template, primary_species=True, mineral_vols=True)
 
-        assert array.shape == (int(float(xzones[0])), len(names))
+        # Summed over the zones rather than read off the leading token, so that this pins the
+        # graded-grid behaviour and not just the uniform case the fixture happens to use.
+        assert array.shape == (sc.zone_cell_count(xzones), len(names))
 
     def test_uncovered_cells_are_reported(self, pump_first_template, capsys):
         """Test that grid cells no condition covers are left at zero and warned about."""
@@ -270,3 +272,55 @@ class TestPh:
         column = array[:, names.index('pH')]
         assert not np.isnan(column[:50]).any()
         assert np.isnan(column[50:]).all()
+
+
+class TestGridSize:
+    """Tests for counting grid cells out of a CrunchTope zones specification.
+
+    A zones keyword is a sequence of (cell count, cell size) pairs. Reading only the leading count
+    under-counts every graded grid, which produces a short array rather than an obviously wrong one:
+    populate_array then either raises IndexError on a condition region that runs past the end, or
+    reports the missing tail as uncovered.
+    """
+
+    def test_uniform_grid(self):
+        assert sc.zone_cell_count(['100', '10.0']) == 100
+
+    def test_graded_grid_sums_the_counts(self):
+        assert sc.zone_cell_count(['100', '0.2', '20', '0.5', '60', '1.0']) == 180
+
+    def test_count_without_a_size(self):
+        """CrunchTope accepts a bare count, so the pairing must not assume an even token count."""
+        assert sc.zone_cell_count(['10']) == 10
+
+    def test_counts_written_as_floats(self):
+        assert sc.zone_cell_count(['100.0', '10.0']) == 100
+
+    def test_array_covers_every_zone(self, pump_first_template):
+        """A graded grid gets one row per cell, not one row per cell of its first zone."""
+        disc = pump_first_template.keyword_blocks['DISCRETIZATION'].contents
+        disc['xzones'] = ['100', '0.2', '20', '0.5', '60', '1.0']
+
+        array = sc.initialise_array(pump_first_template, 3)
+
+        assert array.shape == (180, 3)
+
+    def test_axes_multiply(self, pump_first_template):
+        disc = pump_first_template.keyword_blocks['DISCRETIZATION'].contents
+        disc['xzones'] = ['3', '1.0', '2', '1.0']
+        disc['yzones'] = ['4', '1.0']
+
+        array = sc.initialise_array(pump_first_template, 2)
+
+        assert array.shape == (20, 2)
+
+    def test_unspecified_axes_default_to_one_cell(self, pump_first_template):
+        """An axis with no zones keyword is one cell deep, and must not suppress the axes after it."""
+        disc = pump_first_template.keyword_blocks['DISCRETIZATION'].contents
+        disc['xzones'] = ['7', '1.0']
+        disc.pop('yzones', None)
+        disc['zzones'] = ['3', '1.0']
+
+        array = sc.initialise_array(pump_first_template, 1)
+
+        assert array.shape == (21, 1)

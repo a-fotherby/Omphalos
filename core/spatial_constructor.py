@@ -151,6 +151,22 @@ def populate_array(input_file, primary_species=True, mineral_vols=False, ph=Fals
     return array
 
 
+def zone_cell_count(zone_tokens):
+    """Return the number of grid cells a CrunchTope zones specification declares.
+
+    A zones keyword takes a sequence of (cell count, cell size) pairs, so a graded grid such as
+    'xzones 100 0.2 20 0.5 60 1.0' declares 180 cells in three zones, not 100 in one. Reading only
+    the leading count under-counts every grid that is not uniform.
+
+    Args:
+        zone_tokens: The tokens following an xzones/yzones/zzones keyword, as strings.
+
+    Returns:
+        int: The total number of cells along that axis.
+    """
+    return int(sum(float(count) for count in zone_tokens[0::2]))
+
+
 def initialise_array(input_file, variable_num, verbose=False):
     """Returns the empty numpy array representing the coordinate grid.
 
@@ -169,27 +185,34 @@ def initialise_array(input_file, variable_num, verbose=False):
     Returns:
         numpy array of zeros with appropriate dimensions
     """
-    # Initialise discretization array as CrunchTope defaults. Could probably
-    # move this to be the default when input files are being read in/generated
-    # but will leave here for now.
-    disc = [[1, 1], [1, 1], [1, 1]]
+    # Initialise cell counts as CrunchTope defaults: an axis with no zones keyword is one cell deep.
+    # Could probably move this to be the default when input files are being read in/generated but
+    # will leave here for now.
+    cells = [1, 1, 1]
 
     zone_list = ['xzones', 'yzones', 'zzones']
 
     try:
-        for i, zone in enumerate(zone_list):
-            # We ensure discretization data is read in as floats.
-            disc[i] = [float(j) for j in input_file.keyword_blocks['DISCRETIZATION'].contents[zone]]
-    except KeyError as error:
-        if verbose:
-            print(
-                f"The discretization in {error.args[0]} has not been specified.\n"
-                "If this is in error, check your input file.\n"
-                "Otherwise, update your input file to suppress this error."
-            )
+        discretization = input_file.keyword_blocks['DISCRETIZATION'].contents
+    except KeyError:
+        discretization = {}
+
+    # Each axis is looked up separately so that a missing yzones does not also skip zzones, as one
+    # try around the whole loop did.
+    for i, zone in enumerate(zone_list):
+        if zone not in discretization:
+            if verbose:
+                print(
+                    f"The discretization in {zone} has not been specified.\n"
+                    "If this is in error, check your input file.\n"
+                    "Otherwise, update your input file to suppress this error."
+                )
+            continue
+
+        cells[i] = zone_cell_count(discretization[zone])
 
     # Get the total number of rows required by the tidy data format for this geometry.
-    row_count = int(disc[0][0] * disc[1][0] * disc[2][0])
+    row_count = cells[0] * cells[1] * cells[2]
 
     # Initialise output volume np.array and get the condition volume fractions.
     array = np.zeros((row_count, variable_num))

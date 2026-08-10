@@ -42,7 +42,7 @@ END
 
 OUTPUT
 time_units           years
-spatial_profile      5000
+spatial_profile      4500 5000
 END
 
 TRANSPORT

@@ -29,7 +29,7 @@ Three ways to get a 400-cell answer at 5000 yr:
 | File | What it is |
 |------|-----------|
 | `quartz_column.in` | CrunchTope template, discretised at the 100 cells stage 0 starts from |
-| `quartz_column_fine.in` | The same deck at 400 cells, for the cold-start comparison |
+| `quartz_column_fine.in` | The same deck at 400 cells, writing 4500 and 5000 yr so both stages can be compared at matched time |
 | `datacom.dbs` | Thermodynamic database |
 | `quartz_refine_chain.yaml` | Two-stage chain using the `refine: 4` shorthand |
 | `quartz_graded_chain.yaml` | Two-stage chain refining only the first 20 m |
@@ -98,15 +98,30 @@ honoured.
 
 ![Grid refinement chain](grid_refinement_chain.png)
 
-- **The chain gets the fine answer for a third of the cost.** Against the cold start, the refine
-  chain's fluid profile departs by at most 3.7% and the graded chain by the same, where the coarse
-  stage they started from is 18% out. Panel **A**, panel **C**.
+Every comparison below is between two profiles at the **same simulated time**. That matters more
+than it sounds: the reference writes an output at 4500 yr as well as 5000 precisely so the coarse
+stage can be compared against it without folding 500 yr of quartz dissolution into what would look
+like a resolution error.
+
+| comparison | departure | what it measures |
+|---|---|---|
+| coarse vs cold start, both at 4500 yr | 15.7% | resolution alone |
+| cold start, 4500 vs 5000 yr | 4.4% | elapsed time alone |
+| refine chain vs cold start, both at 5000 yr | 3.7% | what the chain achieves |
+| graded chain vs cold start, both at 5000 yr | 3.7% | as above, quarter the cells |
+
+- **The chain gets the fine answer for a third of the cost.** The coarse grid it starts from is 16%
+  off the fine answer at matched time (panel **A**); after 500 yr on the refined grid it is 3.7%
+  (panel **B**), for 21 s against 56 s (panel **D**).
+- **Watch the second row of that table.** 500 yr of dissolution moves the profile by 4.4% on its
+  own, which is the same size as the chain's residual error. Compare the coarse stage at 4500 yr
+  against the cold start at 5000 and you get 17.9%, all of it wrongly attributed to resolution.
 - **The residual is in the mineral field, not the fluid.** At 100 m/yr the column flushes in 0.1 yr,
   so 500 yr on the fine grid relaxes the fluid completely — and the profiles still differ at the
   inlet. Quartz volume fraction in the first cell is 0.053 in the cold start against 0.026 in the
-  chain (panel **B**). The coarse stage spent 4500 yr dissolving quartz through 1 m cells, which
-  over-dissolves an inlet whose real gradient is much sharper, and the fine stage inherits that
-  history. **Refining does not undo it.**
+  chain (panel **C**), both at 5000 yr and both on 0.25 m cells. The coarse stage spent 4500 yr
+  dissolving quartz through 1 m cells, which over-dissolves an inlet whose real gradient is much
+  sharper, and the fine stage inherits that history. **Refining does not undo it.**
 - **So the rule is: the coarse stage must be genuine spin-up for the slow variables too.** Here it
   is not, which makes this a more useful example than one where the numbers simply agreed. Refine
   earlier, or check the slow fields against a cold start before trusting a long coarse stage.

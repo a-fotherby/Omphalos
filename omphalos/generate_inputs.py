@@ -853,23 +853,11 @@ def refine_data_file(source, destination, factor, zones=None, method='step'):
     ``read_PorosityFile`` usually is. Porosity enters transport as
     ``phi**cementation_exponent``, so a step the coarse grid was too blunt to resolve becomes
     a discontinuity in the diffusion coefficient that the fine grid resolves faithfully --
-    as a staircase in the results. Measured on a 350 -> 3500 cell water column with
-    ``cementation_exponent 5.0``, ramping each step over the ten cells spanning it instead:
-
-    ======================================  =========  ===========
-    quantity                                 step       linear
-    ======================================  =========  ===========
-    max |d phi| between adjacent cells       0.260      0.026
-    max |d phi**5| between adjacent cells    0.508      0.084
-    rate-profile roughness, sulfate red.     1.16e-1    1.53e-2
-    rate-profile roughness, H2S oxidation    1.15e-1    1.37e-2
-    ======================================  =========  ===========
-
-    Peak reaction rates moved by under 1 % and peak depths by at most 0.03 m, and the
-    reactions set by genuine redox structure were untouched -- so the staircase was an
-    artefact of the refinement, not a feature of the model. Which method is right therefore
-    depends on the field, not on the code, and ``step`` stays the default only because it
-    cannot invent structure.
+    as a staircase in the results. Ramping each step across the cells spanning it instead cuts
+    the worst adjacent-cell porosity contrast by roughly the refinement factor, and more again
+    in the ``phi**cementation_exponent`` transport sees, without moving peak rates or depths.
+    Which method is right therefore depends on the field, not on the code, and ``step`` stays
+    the default only because it cannot invent structure.
 
     A two-column file carries position alongside the value. CrunchTope reads that column into
     a dummy and discards it -- values go to cells 1..nx in file order -- but it is rewritten

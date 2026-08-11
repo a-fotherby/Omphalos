@@ -8,6 +8,9 @@ coeus/dev/
 
 # Ignore test outputs
 run*/
+# omphalos.main names its output pickle from argv, so being given `results`
+# rather than `results.pkl` drops one that *.pkl below does not catch.
+results
 
 # Ignore local settings.py
 settings.py

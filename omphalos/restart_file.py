@@ -1083,6 +1083,32 @@ def verify_identity(path: Path, nx: int, dims: dict[str, int] | None = None) -> 
         tmp.unlink(missing_ok=True)
 
 
+def stored_counters(path: Path) -> dict[str, float]:
+    """Return the ``time``, ``nn`` and ``nint`` a restart file opens with.
+
+    ``nint`` is the one that catches people out. CrunchTope uses it both to index ``prtint``
+    and as the number it writes on each tecplot file (``CrunchTope.F90:3029``), and
+    ``restart.F90`` restores it unconditionally. So a run restarted from this file continues
+    its output numbering from ``nint`` rather than starting at 1, and anything looking for
+    ``*1.tec`` afterwards finds nothing.
+
+    Args:
+        path: The restart file to read.
+
+    Returns:
+        dict with keys ``time``, ``nn`` and ``nint``.
+    """
+    buf, records = read_records(path)
+    if len(records) < 3:
+        raise RstError(f'{path} holds {len(records)} records; expected at least 3')
+
+    (time,) = struct.unpack_from('<d', buf, records[0][0])
+    (nn,) = struct.unpack_from('<i', buf, records[1][0])
+    (nint,) = struct.unpack_from('<i', buf, records[2][0])
+
+    return {'time': time, 'nn': nn, 'nint': nint}
+
+
 def consistency_report(path: Path, nx: int, dims: dict[str, int] | None = None) -> dict[str, float]:
     """Measure the state invariants a restart depends on.
 

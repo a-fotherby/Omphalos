@@ -14,9 +14,11 @@ from omphalos.settings import crunch_dir
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
 # first match, so more specific strings should come before generic ones.
 CT_ERROR_PATTERNS = [
-    # Startup failure: CrunchTope truncates the input file path to a fixed-length buffer, so a
-    # deeply nested working directory makes it lose the file and then block on stdin. Without this
-    # pattern the run sits until the configured timeout with no indication of why.
+    # Startup failure: CrunchTope cannot find the input file and then blocks on stdin, so without
+    # this pattern the run sits until the configured timeout with no indication of why. Two causes:
+    # a path with a space in it, since the command string is split on whitespace before CrunchTope
+    # sees it, and a path long enough to overrun CrunchTope's fixed-length buffer. Passing only the
+    # basename (see `crunchtope`) avoids both, but a deck named from elsewhere can still hit them.
     'Cannot find input file',
     'EXCEEDED MAXIMUM ITERATIONS',
     'TRY A',
@@ -114,7 +116,12 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
         tmp_dir: Working directory (Path object)
         file_offset: Offset for TecPlot file numbering (used in staged restarts).
     """
-    command = f'{crunch_dir} {input_file.path}'
+    # Name only, not the path: pexpect splits the command string on whitespace, so an absolute
+    # path containing a space reaches CrunchTope truncated at the first one -- it reports
+    # 'Cannot find input file' and blocks on stdin until the timeout. A long path can also
+    # overrun CrunchTope's own fixed-length buffer. The deck always sits directly in tmp_dir and
+    # pexpect is already given cwd=tmp_dir, so the basename resolves and is the shortest form.
+    command = f'{crunch_dir} {Path(input_file.path).name}'
     process = pexp.spawn(command, timeout=timeout, cwd=str(tmp_dir), encoding='latin-1')
     process.logfile = sys.stdout
 
@@ -221,6 +228,12 @@ def regrid_between_stages(stages_dict, stage_num, tmp_dir):
     untouched. The source file's layout is verified first: a byte-identical nx -> nx round trip is
     cheap and proves the parse was understood before anything is overwritten.
 
+    The result is written to whatever file this stage's deck names in its ``restart`` directive,
+    which ``generate_inputs`` gives a distinct, cell-count-bearing name precisely so the previous
+    stage's output survives at the resolution its own name advertises. A deck naming the same file
+    for both -- a hand-written chain, or one generated before that change -- still gets the old
+    replace-in-place behaviour.
+
     Args:
         stages_dict: Dict mapping stage_num to InputFile for this run.
         stage_num: The stage about to run, which must be greater than zero.
@@ -251,6 +264,12 @@ def regrid_between_stages(stages_dict, stage_num, tmp_dir):
     path = Path(tmp_dir) / restart_name[0]
     dims = rf.dims_from_input_file(previous)
 
+    # Where the regridded file goes: this stage reads it, so the deck's own restart directive is
+    # the authority on its name. Falling back to the source keeps decks that predate the distinct
+    # naming working unchanged.
+    read_name = (current.keyword_blocks['RUNTIME'].contents.get('restart') or [None])[0]
+    destination = Path(tmp_dir) / read_name if read_name else path
+
     if not rf.verify_identity(path, nx_in, dims):
         raise rf.RstError(
             f'{path.name} does not round-trip at nx={nx_in}, so its layout is not understood. '
@@ -262,13 +281,14 @@ def regrid_between_stages(stages_dict, stage_num, tmp_dir):
     if porosity is not None:
         inject['por'] = porosity
 
-    print(f'Regridding {path.name} from {nx_in} to {nx_out} cells for stage {stage_num}.')
-    regridded = path.with_suffix(path.suffix + '.regrid.tmp')
+    into = '' if destination == path else f' into {destination.name}'
+    print(f'Regridding {path.name} from {nx_in} to {nx_out} cells for stage {stage_num}{into}.')
+    regridded = destination.with_suffix(destination.suffix + '.regrid.tmp')
     try:
         _, rewritten = rf.regrid(path, nx_in, nx_out, regridded, dims, inject=inject,
                                  deck=Path(current.path) if current.path else None,
                                  zones_in=zones_in, zones_out=zones_out)
-        regridded.replace(path)
+        regridded.replace(destination)
     finally:
         regridded.unlink(missing_ok=True)
 
@@ -278,6 +298,42 @@ def regrid_between_stages(stages_dict, stage_num, tmp_dir):
         print(f'  injected porosity from the stage {stage_num} deck')
 
     return True
+
+
+def _spinup_file_offset(stage_file, tmp_path):
+    """Return the tecplot file number stage 0's first output will actually carry, minus one.
+
+    A chain whose stage 0 restarts from a spinup does not begin its output at ``*1.tec``:
+    ``restart.F90`` restores ``nint`` and CrunchTope writes that number on the files, so
+    parsing would look for outputs that were never written and find nothing to concatenate.
+
+    Args:
+        stage_file: The stage 0 InputFile or Template, already carrying its restart directive.
+        tmp_path: Directory the run executes in, where the restart file was staged.
+
+    Returns:
+        int: The offset to seed ``file_offset`` with; 0 when stage 0 starts cold.
+    """
+    from omphalos import restart_file as rf
+
+    runtime = stage_file.keyword_blocks.get('RUNTIME')
+    restart = (getattr(runtime, 'contents', None) or {}).get('restart') if runtime else None
+    if not restart:
+        return 0
+
+    path = Path(tmp_path) / restart[0]
+    if not path.is_file():
+        # rhea stages the file, so a miss here means CrunchTope will fail on it anyway.
+        print(f'Warning: stage 0 restarts from "{restart[0]}", which is not in the run '
+              'directory. Output file numbering assumes it starts at 1.')
+        return 0
+
+    try:
+        return max(0, int(rf.stored_counters(path)['nint']) - 1)
+    except (rf.RstError, OSError) as error:
+        print(f'Warning: could not read the output counter from "{restart[0]}" ({error}). '
+              'Output file numbering assumes stage 0 starts at 1.')
+        return 0
 
 
 def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
@@ -297,7 +353,10 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
     """
     tmp_path = Path(tmp_dir)
     num_stages = len(stages_dict)
-    file_offset = 0
+
+    # Stage 0 starts its output at file 1 unless it restarts from a spinup, in which case
+    # CrunchTope continues the numbering from the counter stored in that file.
+    file_offset = _spinup_file_offset(stages_dict[0], tmp_path)
 
     for stage_num in range(num_stages):
         stage_file = stages_dict[stage_num]

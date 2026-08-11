@@ -18,8 +18,9 @@ class TestCrunchTopeErrorPatterns:
     def test_missing_input_file_is_an_error_pattern(self):
         """Test that CrunchTope losing the input file is treated as an error.
 
-        CrunchTope truncates long input file paths and then waits on stdin, which would otherwise
-        burn the whole timeout before the run was recorded as failed.
+        CrunchTope waits on stdin when it cannot open the deck, which would otherwise burn the
+        whole timeout before the run was recorded as failed. It loses the deck either because the
+        path contained a space or because it was long enough to overrun CrunchTope's buffer.
         """
         assert 'Cannot find input file' in run.CT_ERROR_PATTERNS
 
@@ -52,6 +53,65 @@ class TestCrunchTopeErrorPatterns:
         run.crunchtope(input_file, 0, 10, tmp_path)
 
         input_file.get_results.assert_called_once()
+
+    def test_command_passes_the_deck_by_name_not_by_path(self, tmp_path, monkeypatch):
+        """pexpect splits the command on whitespace, so an absolute path with a space in it
+        reaches CrunchTope truncated at the first one. Since the deck sits in tmp_dir and
+        pexpect is given cwd=tmp_dir, only the basename is needed -- and it is also the
+        shortest form, which keeps clear of CrunchTope's fixed-length path buffer."""
+        directory = tmp_path / 'a directory with spaces' / 'a model'
+        directory.mkdir(parents=True)
+        spawn = Mock(return_value=Mock(expect=Mock(return_value=0)))
+        monkeypatch.setattr(run.pexp, 'spawn', spawn)
+
+        input_file = Mock()
+        input_file.path = directory / 'column.in'
+
+        run.crunchtope(input_file, 0, 10, directory)
+
+        command = spawn.call_args.args[0]
+        assert command.endswith(' column.in')
+        assert ' ' not in command.split()[-1], 'the deck argument must survive splitting'
+        assert str(directory) not in command, 'the directory is passed as cwd, not in the command'
+        assert spawn.call_args.kwargs['cwd'] == str(directory)
+
+    def test_spinup_offsets_the_output_file_numbering(self, tmp_path):
+        """A chain restarting stage 0 from a spinup does not begin its output at *1.tec.
+
+        restart.F90 restores nint and CrunchTope writes that number on the tecplot files, so
+        parsing from 1 looks for outputs that were never written and ends up with nothing to
+        concatenate.
+        """
+        from pathlib import Path
+        from types import SimpleNamespace
+
+        from omphalos import restart_file as rf
+
+        fixture = Path(__file__).resolve().parents[1] / 'restart_test' / 'sukinda10.rst'
+        nint = int(rf.stored_counters(fixture)['nint'])
+        staged = tmp_path / 'spinup.rst'
+        staged.write_bytes(fixture.read_bytes())
+
+        stage = SimpleNamespace(keyword_blocks={
+            'RUNTIME': SimpleNamespace(contents={'restart': ['spinup.rst', 'append']})})
+
+        assert run._spinup_file_offset(stage, tmp_path) == nint - 1
+
+    def test_cold_stage_zero_takes_no_offset(self, tmp_path):
+        from types import SimpleNamespace
+
+        stage = SimpleNamespace(keyword_blocks={'RUNTIME': SimpleNamespace(contents={})})
+
+        assert run._spinup_file_offset(stage, tmp_path) == 0
+
+    def test_missing_spinup_warns_and_assumes_no_offset(self, tmp_path, capsys):
+        from types import SimpleNamespace
+
+        stage = SimpleNamespace(keyword_blocks={
+            'RUNTIME': SimpleNamespace(contents={'restart': ['absent.rst', 'append']})})
+
+        assert run._spinup_file_offset(stage, tmp_path) == 0
+        assert 'absent.rst' in capsys.readouterr().out
 
     def test_timeout_sets_error_code(self, tmp_path, monkeypatch):
         """Test that a timeout flags the run and skips output parsing."""
@@ -101,11 +161,13 @@ class TestRegridBetweenStages:
     """Tests for resampling the restart file between two stages of a chain."""
 
     @staticmethod
-    def _stage(zones, save_restart=None, restart_dir=None, porosity=None):
+    def _stage(zones, save_restart=None, restart_dir=None, porosity=None, restart=None):
         stage = Mock()
         discretization, runtime, porosity_block = Mock(), Mock(), Mock()
         discretization.contents = {'xzones': zones}
         runtime.contents = {'save_restart': [save_restart]} if save_restart else {}
+        if restart:
+            runtime.contents['restart'] = [restart, 'append']
         porosity_block.contents = {'read_PorosityFile': [porosity]} if porosity else {}
         stage.keyword_blocks = {'DISCRETIZATION': discretization, 'RUNTIME': runtime,
                                 'POROSITY': porosity_block}
@@ -162,6 +224,51 @@ class TestRegridBetweenStages:
             run.regrid_between_stages(stages, 1, tmp_path)
 
         assert (tmp_path / 'r.rst').read_bytes() == b'original', 'source was modified anyway'
+
+    def test_regrid_writes_the_name_the_next_stage_reads(self, tmp_path, monkeypatch):
+        """The resampled copy goes where the deck points, leaving the coarse file at its own name.
+
+        The hazard this closes: a source left holding the *next* stage's resolution under a name
+        that says otherwise, which a .rst cannot contradict and Fortran will not refuse.
+        """
+        from omphalos import restart_file as rf
+
+        stages = {0: self._stage(['10', '10.0'], 'r.rst'),
+                  1: self._stage(['25', '4.0'], restart='r_nx25.rst')}
+        monkeypatch.setattr(rf, 'verify_identity', lambda *a, **k: True)
+        monkeypatch.setattr(rf, 'dims_from_input_file', lambda f: {})
+        def fake_regrid(path, nx_in, nx_out, out, *args, **kwargs):
+            out.write_bytes(b'fine')
+            return [], []
+
+        monkeypatch.setattr(rf, 'regrid', fake_regrid)
+        (tmp_path / 'r.rst').write_bytes(b'coarse')
+
+        assert run.regrid_between_stages(stages, 1, tmp_path) is True
+        assert (tmp_path / 'r_nx25.rst').read_bytes() == b'fine'
+        assert (tmp_path / 'r.rst').read_bytes() == b'coarse', 'the coarse file was overwritten'
+
+    def test_no_temp_file_is_left_behind(self, tmp_path, monkeypatch):
+        """A failed regrid must not leave its scratch file next to the real ones."""
+        from omphalos import restart_file as rf
+
+        stages = {0: self._stage(['10', '10.0'], 'r.rst'),
+                  1: self._stage(['25', '4.0'], restart='r_nx25.rst')}
+        monkeypatch.setattr(rf, 'verify_identity', lambda *a, **k: True)
+        monkeypatch.setattr(rf, 'dims_from_input_file', lambda f: {})
+
+        def exploding_regrid(path, nx_in, nx_out, out, *args, **kwargs):
+            out.write_bytes(b'partial')
+            raise rf.RstError('boom')
+
+        monkeypatch.setattr(rf, 'regrid', exploding_regrid)
+        (tmp_path / 'r.rst').write_bytes(b'coarse')
+
+        with pytest.raises(rf.RstError, match='boom'):
+            run.regrid_between_stages(stages, 1, tmp_path)
+
+        assert not list(tmp_path.glob('*.regrid.tmp'))
+        assert (tmp_path / 'r.rst').read_bytes() == b'coarse'
 
 
 class TestPorosityProfile:

@@ -387,6 +387,9 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
     config = template.config
     num_files = config['number_of_files']
     num_stages = config['restart_chain']['stages']
+    # A spinup restart starts the clock partway through, so every stage's output times
+    # shift by it and the config's times stay durations.
+    base_time = spinup_time(config)
 
     # Validate restart_chain keys
     valid_restart_chain_keys = {'stages', 'spatial_profile', 'grid'}
@@ -437,18 +440,29 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
             _apply_modifications(input_file, modified_params, run_num)
 
             # Set up restart directives in RUNTIME block
-            _configure_restart_directives(input_file, run_num, stage_num, num_stages)
+            _configure_restart_directives(input_file, run_num, stage_num, num_stages,
+                                          spinup_restart=config.get('restart_file'))
 
             # Apply this stage's grid, if the chain changes resolution between stages
             _configure_grid(input_file, config, stage_num)
 
-            # Configure spatial_profile for staged output
+            # A stage that changes grid reads a resampled copy of the previous stage's restart,
+            # not the file itself. Done after _configure_grid, which is what sets this stage's
+            # xzones and so decides whether a resample happens at all.
+            if stage_num > 0:
+                _name_regridded_restart(input_file, staged_file_dict[run_num][stage_num - 1])
+
+            # Configure spatial_profile for staged output. Stage times stay durations even when
+            # a spinup restart starts the clock partway through, which base_time carries.
             if 'spatial_profile' in config.get('restart_chain', {}):
                 # Use explicitly specified spatial_profile from config
-                _configure_spatial_profile(input_file, config['restart_chain']['spatial_profile'], stage_num)
-            elif stage_num > 0 and 'spatial_profile' in input_file.keyword_blocks['OUTPUT'].contents:
-                # Auto-adjust template's spatial_profile for stages > 0
-                _auto_adjust_spatial_profile(input_file, stage_num)
+                _configure_spatial_profile(input_file, config['restart_chain']['spatial_profile'],
+                                           stage_num, base_time=base_time)
+            elif ((stage_num > 0 or base_time)
+                    and 'spatial_profile' in input_file.keyword_blocks['OUTPUT'].contents):
+                # Stage 0 needs adjusting too when a spinup moves the clock forward, or its
+                # template times would land before the restart and CrunchTope would stop.
+                _auto_adjust_spatial_profile(input_file, stage_num, base_time=base_time)
 
             staged_file_dict[run_num][stage_num] = input_file
 
@@ -499,14 +513,24 @@ def _apply_modifications(input_file, modified_params, run_num):
                 input_file.keyword_blocks[block_name].modify(entry, change_list[run_num], mod_pos)
 
 
-def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
+def _configure_restart_directives(input_file, run_num, stage_num, num_stages,
+                                  spinup_restart=None):
     """Configure restart and save_restart directives in the RUNTIME block.
+
+    Stage 0 starts cold unless the config names a ``restart_file``. That file is copied into
+    every run directory by ``rhea/prep_directories.sh``, but nothing referenced it: stage 0's
+    ``restart`` keyword was deleted unconditionally, so a staged spinup was ignored and the
+    chain silently recomputed it.
 
     Args:
         input_file: The InputFile object to configure.
         run_num: The parallel run number.
         stage_num: The current stage index (0-indexed).
         num_stages: Total number of stages.
+        spinup_restart: The config's ``restart_file``, if any. Used as stage 0's starting
+            state. Its output times are absolute, so the chain's stage 0 times must be later
+            than the time stored in it -- CrunchTope stops with 'You have specified an output
+            time < the restart time' otherwise.
     """
     runtime_block = input_file.keyword_blocks['RUNTIME']
 
@@ -519,14 +543,55 @@ def _configure_restart_directives(input_file, run_num, stage_num, num_stages):
         if 'save_restart' in runtime_block.contents:
             del runtime_block.contents['save_restart']
 
-    # Set restart for all stages except the first
+    # Later stages restart from the one before; stage 0 from the config's spinup, if given.
     if stage_num > 0:
         prev_restart_filename = f'restart_{run_num}_stage{stage_num - 1}.rst'
         runtime_block.contents['restart'] = [prev_restart_filename, 'append']
-    else:
-        # Remove restart for first stage if it exists
-        if 'restart' in runtime_block.contents:
-            del runtime_block.contents['restart']
+    elif spinup_restart:
+        # 'append' is required, not cosmetic: without it prtint is left nstop long while nint
+        # points past its end, so CrunchTope reads out of bounds and stops after one output.
+        runtime_block.contents['restart'] = [spinup_restart, 'append']
+    elif 'restart' in runtime_block.contents:
+        del runtime_block.contents['restart']
+
+
+def _stage_xzones(input_file):
+    """The xzones tokens a stage's deck declares, or None if it declares none."""
+    discretization = input_file.keyword_blocks.get('DISCRETIZATION')
+
+    return discretization.contents.get('xzones') if discretization is not None else None
+
+
+def _name_regridded_restart(input_file, previous_file):
+    """Point a stage that changes grid at a resampled copy, not the previous stage's own restart.
+
+    ``run.regrid_between_stages`` resamples the previous stage's restart onto this stage's grid.
+    Writing that back over the source would leave ``restart_N_stageM.rst`` holding a file at the
+    *next* stage's resolution -- a name that lies about its own grid. A ``.rst`` carries no grid
+    metadata, and a Fortran unformatted read fills a short array from a long record without
+    complaint, so anything later reusing that name by its face value gets a silently wrong initial
+    state rather than an error. Naming the resampled copy after the cell count it actually holds
+    removes the hazard, and leaves the coarse file intact and reusable as a spinup.
+
+    Does nothing when the two stages share a grid: no resample happens, so this stage reads the
+    previous stage's file exactly as it was written.
+
+    Args:
+        input_file: The stage being configured, with its grid already applied.
+        previous_file: The stage before it, whose restart this one reads.
+    """
+    runtime_block = input_file.keyword_blocks.get('RUNTIME')
+    restart = (getattr(runtime_block, 'contents', None) or {}).get('restart')
+    if not restart:
+        return
+
+    zones_in, zones_out = _stage_xzones(previous_file), _stage_xzones(input_file)
+    if zones_in is None or zones_out is None or zones_in == zones_out:
+        return
+
+    source = Path(restart[0])
+    resampled = f'{source.stem}_nx{sc.zone_cell_count(zones_out)}{source.suffix}'
+    runtime_block.contents['restart'] = [resampled, *restart[1:]]
 
 
 #: Keys a user may write in a restart_chain grid entry. 'files' is added by resolve_grid.
@@ -540,8 +605,17 @@ def resolve_grid(config, template):
     regenerate every spatial input file the deck reads to match. Written out by hand that is an
     xzones line and one file per ``read_*file`` keyword, per stage.
 
+    ``refine`` may instead be a mapping, to choose how those files are resampled::
+
+        refine: {factor: 10, method: linear}
+
+    ``method`` is one of :data:`REFINE_METHODS` and defaults to ``step``. See
+    :func:`refine_data_file` for which to pick: ``step`` cannot invent structure, but on a
+    field whose steps are a binning artefact -- a layered ``read_PorosityFile`` is the usual
+    case -- it hands the fine grid a discontinuity in the diffusion coefficient to resolve.
+
     The whole ``grid`` may be given as ``{'refine': 10}`` instead of a list, which applies the same
-    factor at every stage after the first.
+    factor at every stage after the first. That form also takes the mapping.
 
     Everything downstream sees explicit ``xzones`` and filenames, so nothing else needs to know the
     shorthand exists -- including the auxiliary-file staging, which picks up the generated files
@@ -580,7 +654,7 @@ def resolve_grid(config, template):
     resolved = []
     for stage_num, entry in enumerate(grid):
         entry = dict(entry or {})
-        factor = entry.pop('refine', None)
+        factor, method = _refine_spec(entry.pop('refine', None), stage_num)
 
         if factor is not None:
             if not zones:
@@ -590,7 +664,8 @@ def resolve_grid(config, template):
                 )
             zones = refine_zones(zones, factor)
             entry['xzones'] = zones
-            entry['files'] = _refine_stage_files(current_files, zones, factor, stage_num)
+            entry['files'] = _refine_stage_files(current_files, zones, factor, stage_num,
+                                                 method=method)
             current_files = {original: entry['files'].get(current, current)
                              for original, current in current_files.items()}
         elif 'xzones' in entry:
@@ -603,7 +678,41 @@ def resolve_grid(config, template):
     return resolved
 
 
-def _refine_stage_files(current_files, zones, factor, stage_num):
+def _refine_spec(refine, stage_num):
+    """Normalise a ``refine`` entry to ``(factor, method)``.
+
+    Accepts the bare ``refine: 10`` shorthand and the explicit
+    ``refine: {factor: 10, method: linear}`` form. Absent, returns ``(None, 'step')``.
+    """
+    if refine is None:
+        return None, 'step'
+
+    if isinstance(refine, dict):
+        unknown = set(refine) - {'factor', 'method'}
+        if unknown:
+            raise ValueError(
+                f'ConfigError: Unknown key(s) in restart_chain grid refine for stage '
+                f"{stage_num}: {unknown}. Valid keys are: ['factor', 'method']"
+            )
+        if 'factor' not in refine:
+            raise ValueError(
+                f'ConfigError: restart_chain grid stage {stage_num} gives refine as a '
+                "mapping but omits 'factor'."
+            )
+        factor, method = refine['factor'], refine.get('method', 'step')
+    else:
+        factor, method = refine, 'step'
+
+    if method not in REFINE_METHODS:
+        raise ValueError(
+            f'ConfigError: unknown refine method {method!r} for stage {stage_num}. '
+            f'Valid methods are: {sorted(REFINE_METHODS)}'
+        )
+
+    return factor, method
+
+
+def _refine_stage_files(current_files, zones, factor, stage_num, method='step'):
     """Write a refined copy of each spatial input file, returning {old name: new name}.
 
     A file whose row count does not match the grid it is being refined from is left alone and
@@ -630,9 +739,10 @@ def _refine_stage_files(current_files, zones, factor, stage_num):
             continue
 
         refined = path.with_name(f'{path.stem}_stage{stage_num}{path.suffix}')
-        refine_data_file(path, refined, factor, zones)
+        refine_data_file(path, refined, factor, zones, method=method)
         renamed[name] = str(refined)
-        print(f'Refined {name} -> {refined} ({rows} -> {nx_new} rows) for stage {stage_num}.')
+        print(f'Refined {name} -> {refined} ({rows} -> {nx_new} rows, {method}) '
+              f'for stage {stage_num}.')
 
     return renamed
 
@@ -689,31 +799,96 @@ def _cell_centres(zones, nx):
     return 0.5 * (edges[:-1] + edges[1:])
 
 
-def refine_data_file(source, destination, factor, zones=None):
-    """Write a refined copy of a spatial input file by replicating each value *factor* times.
+#: How ``refine`` may resample a spatial input file onto the finer grid.
+REFINE_METHODS = ('step', 'linear', 'smoothstep')
 
-    Step replication, not interpolation. A porosity profile made of discrete layers must not be
-    smoothed: linear interpolation rounds off the steps and so changes the effective diffusivity
-    through ``cementation_exponent``. Replication gives each fine cell the value of the coarse cell
-    containing it, which is the same field sampled more finely and introduces nothing that was not
-    already there. The same argument makes it safe for every other field, at the cost of leaving a
-    genuinely smooth profile looking like a staircase; supply the file per stage if that matters.
 
-    A two-column file carries position alongside the value. CrunchTope reads that column into a
-    dummy and discards it -- values go to cells 1..nx in file order -- but it is rewritten with the
-    refined grid's cell centres so the file still reads correctly to a human.
+def _refine_values(values, factor, zones=None, method='step'):
+    """Resample *factor*-fold refined cell values by *method*.
+
+    ``step`` gives each fine cell the value of the coarse cell containing it. The others
+    interpolate between coarse **cell centres**, so a change between two coarse cells is
+    spread over the ``factor`` fine cells that span them; ``smoothstep`` uses the cubic
+    ``3t^2 - 2t^3`` in place of the linear weight, leaving no slope discontinuity at either
+    end of the ramp.
+
+    Interpolating by position rather than by index matters on a graded grid. Because
+    :func:`refine_zones` splits every coarse cell into *factor* equal parts, each coarse
+    centre is the mean of its fine centres, which recovers the coarse positions exactly
+    whatever the grading.
+    """
+    factor = int(factor)
+    if method not in REFINE_METHODS:
+        raise ValueError(
+            f'ConfigError: unknown refine method {method!r}. '
+            f'Valid methods are: {sorted(REFINE_METHODS)}'
+        )
+    if method == 'step':
+        return np.repeat(values, factor)
+
+    nx_new = len(values) * factor
+    fine = _cell_centres(zones, nx_new) if zones else (np.arange(nx_new) + 0.5) / nx_new
+    coarse = np.asarray(fine).reshape(len(values), factor).mean(axis=1)
+
+    if method == 'linear':
+        return np.interp(fine, coarse, values)
+
+    # smoothstep: locate each fine centre in its bracketing coarse interval, then reweight.
+    idx = np.clip(np.searchsorted(coarse, fine, side='right') - 1, 0, len(coarse) - 2)
+    span = coarse[idx + 1] - coarse[idx]
+    t = np.clip((fine - coarse[idx]) / np.where(span > 0, span, 1.0), 0.0, 1.0)
+
+    return values[idx] + t * t * (3.0 - 2.0 * t) * (values[idx + 1] - values[idx])
+
+
+def refine_data_file(source, destination, factor, zones=None, method='step'):
+    """Write a refined copy of a spatial input file, *factor* fine cells per coarse cell.
+
+    ``method='step'`` (the default) replicates each value, giving each fine cell the value of
+    the coarse cell containing it. That is the same field sampled more finely and introduces
+    nothing that was not already there, which is the right choice when the steps are real --
+    a lithological contact, say.
+
+    It is the wrong choice when the steps are an artefact of how the field was binned, and a
+    ``read_PorosityFile`` usually is. Porosity enters transport as
+    ``phi**cementation_exponent``, so a step the coarse grid was too blunt to resolve becomes
+    a discontinuity in the diffusion coefficient that the fine grid resolves faithfully --
+    as a staircase in the results. Measured on a 350 -> 3500 cell water column with
+    ``cementation_exponent 5.0``, ramping each step over the ten cells spanning it instead:
+
+    ======================================  =========  ===========
+    quantity                                 step       linear
+    ======================================  =========  ===========
+    max |d phi| between adjacent cells       0.260      0.026
+    max |d phi**5| between adjacent cells    0.508      0.084
+    rate-profile roughness, sulfate red.     1.16e-1    1.53e-2
+    rate-profile roughness, H2S oxidation    1.15e-1    1.37e-2
+    ======================================  =========  ===========
+
+    Peak reaction rates moved by under 1 % and peak depths by at most 0.03 m, and the
+    reactions set by genuine redox structure were untouched -- so the staircase was an
+    artefact of the refinement, not a feature of the model. Which method is right therefore
+    depends on the field, not on the code, and ``step`` stays the default only because it
+    cannot invent structure.
+
+    A two-column file carries position alongside the value. CrunchTope reads that column into
+    a dummy and discards it -- values go to cells 1..nx in file order -- but it is rewritten
+    with the refined grid's cell centres so the file still reads correctly to a human.
 
     Args:
         source: File to refine.
         destination: File to write.
         factor: Integer refinement factor.
-        zones: The refined grid's xzones tokens, used to regenerate a position column.
+        zones: The refined grid's xzones tokens, used to place cell centres and to
+            regenerate a position column. Omitting them assumes a uniform grid.
+        method: One of :data:`REFINE_METHODS`.
 
     Returns:
         int: The number of rows written.
     """
     table = np.loadtxt(source)
-    values = np.repeat(table if table.ndim == 1 else table[:, -1], int(factor))
+    column = table if table.ndim == 1 else table[:, -1]
+    values = _refine_values(np.atleast_1d(column), factor, zones, method)
 
     if table.ndim == 1:
         np.savetxt(destination, values)
@@ -880,40 +1055,79 @@ def _configure_grid(input_file, config, stage_num):
         porosity.contents['read_PorosityFile'] = tokens
 
 
-def _configure_spatial_profile(input_file, spatial_profile_config, stage_num):
+def spinup_time(config):
+    """The simulated time a config's ``restart_file`` is stored at, or 0.0 if there is none.
+
+    A chain's stage times are durations, accumulated stage by stage. A spinup restart breaks
+    that: ``restart.F90`` restores the stored clock, so stage 0 begins at that time and an
+    output time earlier than it makes CrunchTope stop with 'You have specified an output time
+    < the restart time'. Adding this to every stage keeps the config's times durations rather
+    than making the first stage's absolute.
+
+    The stored time is in the run's internal time units, so this assumes the ``OUTPUT`` block
+    uses the same units as ``RUNTIME`` -- true unless a deck deliberately mixes them.
+
+    Args:
+        config: The config yaml file, as a dict.
+
+    Returns:
+        float: The time to add to every stage's output times.
+    """
+    name = config.get('restart_file')
+    if not name:
+        return 0.0
+
+    # The entry may carry a trailing 'append', which is not part of the path.
+    path = Path(str(name).split(' ')[0])
+    if not path.is_file():
+        print(f'Warning: restart_file "{path}" was not found while setting stage output times, '
+              'so they are treated as starting from time zero. If the file exists at run time '
+              'and holds a later clock, CrunchTope will stop on the first output time.')
+        return 0.0
+
+    from omphalos.restart_file import RstError, stored_counters
+
+    try:
+        return float(stored_counters(path)['time'])
+    except (RstError, OSError) as error:
+        print(f'Warning: could not read the clock from restart_file "{path}" ({error}), so '
+              'stage output times are treated as starting from time zero.')
+        return 0.0
+
+
+def _configure_spatial_profile(input_file, spatial_profile_config, stage_num, base_time=0.0):
     """Configure spatial_profile times in the OUTPUT block for staged restarts.
 
-    For stages after the first, the times are offset by the cumulative time
-    from all previous stages (using the last value of each stage's spatial_profile).
+    Every stage's times are durations. They are offset by the cumulative duration of all
+    previous stages (the last value of each), and by *base_time* -- the clock a spinup
+    restart starts stage 0 at. Without that second term a chain given a spinup would have to
+    write stage 0's times as absolute and the rest as durations.
 
     Args:
         input_file: The InputFile object to configure.
         spatial_profile_config: List of lists, one per stage, containing the
             spatial_profile times for that stage.
         stage_num: The current stage index (0-indexed).
+        base_time: Simulated time the chain starts from, from :func:`spinup_time`.
     """
     output_block = input_file.keyword_blocks['OUTPUT']
 
     # Get the times for this stage
     stage_times = spatial_profile_config[stage_num]
 
-    # Calculate cumulative offset from previous stages
-    offset = 0.0
+    # Cumulative duration of the stages before this one, plus any spinup clock.
+    offset = float(base_time)
     for prev_stage in range(stage_num):
         prev_times = spatial_profile_config[prev_stage]
         offset += prev_times[-1]  # Add the last time from each previous stage
 
-    # Apply offset to times (no offset for stage 0)
-    if stage_num > 0:
-        adjusted_times = [t + offset for t in stage_times]
-    else:
-        adjusted_times = list(stage_times)
+    adjusted_times = [t + offset for t in stage_times]
 
     # Convert to strings for the keyword block
     output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]
 
 
-def _auto_adjust_spatial_profile(input_file, stage_num):
+def _auto_adjust_spatial_profile(input_file, stage_num, base_time=0.0):
     """Automatically adjust spatial_profile times for stages > 0.
 
     When no explicit spatial_profile is specified in restart_chain, this function
@@ -924,6 +1138,8 @@ def _auto_adjust_spatial_profile(input_file, stage_num):
     Args:
         input_file: The InputFile object to configure.
         stage_num: The current stage index (0-indexed, must be > 0).
+        base_time: Simulated time the chain starts from, from :func:`spinup_time`. Added to
+            every stage so that a spinup does not have to be absorbed into the template.
     """
     output_block = input_file.keyword_blocks['OUTPUT']
 
@@ -933,12 +1149,12 @@ def _auto_adjust_spatial_profile(input_file, stage_num):
     # Use the last time as the stage duration
     stage_duration = original_times[-1]
 
-    # Calculate offset: stage_num * stage_duration
-    offset = stage_num * stage_duration
+    # Calculate offset: stage_num * stage_duration, plus any spinup clock.
+    offset = stage_num * stage_duration + float(base_time)
 
-    # Offset all times (skip the first near-zero time to avoid conflict with restart)
-    # Filter out times that would be at or before the restart time
-    adjusted_times = [t + offset for t in original_times if t + offset > offset]
+    # Drop times that would land at or before the point this stage starts from, which
+    # CrunchTope rejects: 'You have specified an output time < the restart time'.
+    adjusted_times = [t + offset for t in original_times if t > 0]
 
     # Convert to strings for the keyword block
     output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]

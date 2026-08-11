@@ -9,6 +9,7 @@ import pytest
 import numpy as np
 
 # Import from omphalos (which re-exports from core)
+from core import spatial_constructor as sc
 from omphalos import generate_inputs as gi
 from omphalos import parameter_methods as pm
 
@@ -597,6 +598,327 @@ class TestRefineDataFile:
         assert np.allclose(result[:, 0], [2.5, 7.5, 12.5, 17.5])
         assert np.allclose(result[:, 1], [4.0, 4.0, 20.0, 20.0])
 
+    def test_step_is_the_default(self, tmp_path):
+        """Adding the method option must not change what an existing config produces."""
+        source = tmp_path / 'in.dat'
+        np.savetxt(source, [0.2, 0.8])
+
+        gi.refine_data_file(source, tmp_path / 'a.dat', 4)
+        gi.refine_data_file(source, tmp_path / 'b.dat', 4, method='step')
+
+        assert np.allclose(np.loadtxt(tmp_path / 'a.dat'), np.loadtxt(tmp_path / 'b.dat'))
+
+    def test_linear_ramps_each_step_over_factor_cells(self, tmp_path):
+        """The change between two coarse cells is spread over the fine cells spanning them.
+
+        An odd factor is used because only then does a fine cell land on a coarse centre: for
+        an even factor the centre falls between two fine cells, so the coarse value is never
+        reproduced exactly and there is nothing sharper to assert than the bounds.
+        """
+        source, destination = tmp_path / 'in.dat', tmp_path / 'out.dat'
+        np.savetxt(source, [0.2, 0.2, 0.8, 0.8])
+
+        gi.refine_data_file(source, destination, 3, method='linear')
+        result = np.loadtxt(destination)
+
+        assert len(result) == 12
+        # Coarse centres sit on fine cells 1, 4, 7, 10 and keep their values exactly.
+        assert np.allclose(result[[1, 4, 7, 10]], [0.2, 0.2, 0.8, 0.8])
+        # One ramp, spanning the single coarse-cell width between the two plateaux.
+        intermediate = np.flatnonzero((result > 0.2 + 1e-12) & (result < 0.8 - 1e-12))
+        assert len(intermediate) == 2, 'ramp is not factor - 1 interior cells wide'
+        assert np.all(np.diff(result[4:8]) > 0)
+        assert result.min() == pytest.approx(0.2) and result.max() == pytest.approx(0.8)
+
+    def test_linear_holds_the_ends(self, tmp_path):
+        """Fine cells outside the first and last coarse centres clamp rather than extrapolate."""
+        source, destination = tmp_path / 'in.dat', tmp_path / 'out.dat'
+        np.savetxt(source, [0.9, 0.5, 0.4])
+
+        gi.refine_data_file(source, destination, 3, method='linear')
+        result = np.loadtxt(destination)
+
+        assert result[0] == pytest.approx(0.9)
+        assert result[-1] == pytest.approx(0.4)
+        assert result.max() == pytest.approx(0.9) and result.min() == pytest.approx(0.4)
+
+    def test_linear_interpolates_by_position_on_a_graded_grid(self, tmp_path):
+        """Interpolating by index would misplace the ramp where cell widths differ."""
+        source = tmp_path / 'in.dat'
+        np.savetxt(source, [0.0, 1.0])
+        zones = ['2', '1.0', '2', '4.0']          # 2 cells refined from each of 2 coarse cells
+
+        gi.refine_data_file(source, tmp_path / 'graded.dat', 2, zones=zones, method='linear')
+        graded = np.loadtxt(tmp_path / 'graded.dat')
+
+        centres = gi._cell_centres(zones, 4)
+        coarse = centres.reshape(2, 2).mean(axis=1)
+        assert np.allclose(graded, np.interp(centres, coarse, [0.0, 1.0]))
+        # And it is genuinely different from the uniform placement.
+        gi.refine_data_file(source, tmp_path / 'uniform.dat', 2, method='linear')
+        assert not np.allclose(graded, np.loadtxt(tmp_path / 'uniform.dat'))
+
+    def test_smoothstep_matches_linear_at_the_nodes_but_not_between(self, tmp_path):
+        source = tmp_path / 'in.dat'
+        np.savetxt(source, [0.0, 0.0, 1.0, 1.0])
+
+        gi.refine_data_file(source, tmp_path / 'lin.dat', 3, method='linear')
+        gi.refine_data_file(source, tmp_path / 'smooth.dat', 3, method='smoothstep')
+        lin, smooth = np.loadtxt(tmp_path / 'lin.dat'), np.loadtxt(tmp_path / 'smooth.dat')
+
+        nodes = [1, 4, 7, 10]
+        assert np.allclose(lin[nodes], smooth[nodes])
+        assert not np.allclose(lin, smooth)
+        assert smooth.min() == pytest.approx(0.0) and smooth.max() == pytest.approx(1.0)
+
+    def test_unknown_method_raises(self, tmp_path):
+        source = tmp_path / 'in.dat'
+        np.savetxt(source, [0.2, 0.8])
+
+        with pytest.raises(ValueError, match='unknown refine method'):
+            gi.refine_data_file(source, tmp_path / 'out.dat', 2, method='cubic')
+
+
+class TestSpinupTime:
+    """Tests for reading the clock a chain's spinup restart starts from."""
+
+    @staticmethod
+    def _fixture():
+        return Path(__file__).resolve().parents[1] / 'restart_test' / 'sukinda10.rst'
+
+    def test_no_restart_file_starts_from_zero(self):
+        assert gi.spinup_time({}) == 0.0
+        assert gi.spinup_time({'restart_file': None}) == 0.0
+
+    def test_reads_the_stored_clock(self, tmp_path, monkeypatch):
+        from omphalos import restart_file as rf
+
+        expected = float(rf.stored_counters(self._fixture())['time'])
+        (tmp_path / 'spinup.rst').write_bytes(self._fixture().read_bytes())
+        monkeypatch.chdir(tmp_path)
+
+        assert gi.spinup_time({'restart_file': 'spinup.rst'}) == expected
+        assert expected > 0.0, 'fixture should carry a non-zero clock for this to mean anything'
+
+    def test_missing_file_warns_and_starts_from_zero(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.chdir(tmp_path)
+
+        assert gi.spinup_time({'restart_file': 'absent.rst'}) == 0.0
+        assert 'absent.rst' in capsys.readouterr().out
+
+
+class TestConfigureSpatialProfile:
+    """Tests for how a chain's per-stage output times are placed on the clock."""
+
+    @staticmethod
+    def _deck(times=('100',)):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(keyword_blocks={
+            'OUTPUT': SimpleNamespace(contents={'spatial_profile': list(times)})})
+
+    @staticmethod
+    def _times(deck):
+        return [float(t) for t in deck.keyword_blocks['OUTPUT'].contents['spatial_profile']]
+
+    def test_stage_times_are_cumulative_durations(self):
+        config = [[4500], [500]]
+        first, second = self._deck(), self._deck()
+
+        gi._configure_spatial_profile(first, config, 0)
+        gi._configure_spatial_profile(second, config, 1)
+
+        assert self._times(first) == [4500.0]
+        assert self._times(second) == [5000.0], 'stage 1 follows stage 0, not restarts the clock'
+
+    def test_a_spinup_shifts_every_stage(self):
+        """The config's times stay durations: a spinup at t=2000 with [[500], [500]] gives
+        outputs at 2500 and 3000, rather than forcing stage 0 to be written as absolute."""
+        config = [[500], [500]]
+        first, second = self._deck(), self._deck()
+
+        gi._configure_spatial_profile(first, config, 0, base_time=2000.0)
+        gi._configure_spatial_profile(second, config, 1, base_time=2000.0)
+
+        assert self._times(first) == [2500.0]
+        assert self._times(second) == [3000.0]
+
+    def test_no_spinup_is_unchanged(self):
+        """base_time defaults to zero, so an existing config produces what it always did."""
+        config = [[1000, 2000], [500]]
+        with_default, explicit = self._deck(), self._deck()
+
+        gi._configure_spatial_profile(with_default, config, 1)
+        gi._configure_spatial_profile(explicit, config, 1, base_time=0.0)
+
+        assert self._times(with_default) == self._times(explicit) == [2500.0]
+
+    def test_auto_adjust_shifts_stage_zero_for_a_spinup(self):
+        """Without this, stage 0 keeps the template's times, which land before the restart
+        and make CrunchTope stop on 'output time < the restart time'."""
+        deck = self._deck(('250', '500'))
+
+        gi._auto_adjust_spatial_profile(deck, 0, base_time=2000.0)
+
+        assert self._times(deck) == [2250.0, 2500.0]
+
+    def test_auto_adjust_without_a_spinup_is_unchanged(self):
+        deck = self._deck(('250', '500'))
+
+        gi._auto_adjust_spatial_profile(deck, 1)
+
+        assert self._times(deck) == [750.0, 1000.0]
+
+
+class TestConfigureRestartDirectives:
+    """Tests for the restart/save_restart keywords a staged chain writes per stage."""
+
+    @staticmethod
+    def _deck(runtime=None):
+        """A stand-in exposing only what the function touches: RUNTIME contents."""
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            keyword_blocks={'RUNTIME': SimpleNamespace(contents=dict(runtime or {}))})
+
+    @staticmethod
+    def _runtime(deck):
+        return deck.keyword_blocks['RUNTIME'].contents
+
+    def test_first_stage_starts_cold_by_default(self):
+        deck = self._deck()
+
+        gi._configure_restart_directives(deck, 0, 0, 2)
+
+        assert 'restart' not in self._runtime(deck)
+        assert self._runtime(deck)['save_restart'] == ['restart_0_stage0.rst']
+
+    def test_first_stage_restarts_from_the_config_spinup(self):
+        """rhea copies restart_file into every run directory, but nothing used to read it:
+        stage 0's restart keyword was deleted unconditionally, so the chain silently
+        recomputed a spinup that had already been staged for it."""
+        deck = self._deck()
+
+        gi._configure_restart_directives(deck, 0, 0, 2, spinup_restart='spinup.rst')
+
+        assert self._runtime(deck)['restart'] == ['spinup.rst', 'append']
+
+    def test_a_template_restart_line_is_replaced_not_duplicated(self):
+        deck = self._deck({'restart': ['stale.rst', 'append']})
+
+        gi._configure_restart_directives(deck, 0, 0, 2, spinup_restart='spinup.rst')
+
+        assert self._runtime(deck)['restart'] == ['spinup.rst', 'append']
+
+    def test_a_template_restart_line_is_dropped_without_a_spinup(self):
+        deck = self._deck({'restart': ['stale.rst', 'append']})
+
+        gi._configure_restart_directives(deck, 0, 0, 2)
+
+        assert 'restart' not in self._runtime(deck)
+
+    def test_later_stages_ignore_the_spinup(self):
+        """Stage 1 restarts from stage 0's output, not from the config's spinup."""
+        deck = self._deck()
+
+        gi._configure_restart_directives(deck, 3, 1, 3, spinup_restart='spinup.rst')
+
+        assert self._runtime(deck)['restart'] == ['restart_3_stage0.rst', 'append']
+        assert self._runtime(deck)['save_restart'] == ['restart_3_stage1.rst']
+
+    def test_last_stage_writes_no_restart(self):
+        deck = self._deck({'save_restart': ['stale.rst']})
+
+        gi._configure_restart_directives(deck, 0, 1, 2, spinup_restart='spinup.rst')
+
+        assert 'save_restart' not in self._runtime(deck)
+
+
+class TestNameRegriddedRestart:
+    """Tests for the name a stage reads when the chain resamples between grids."""
+
+    @staticmethod
+    def _deck(zones=None, restart=None):
+        from types import SimpleNamespace
+
+        blocks = {'RUNTIME': SimpleNamespace(
+            contents={'restart': [restart, 'append']} if restart else {})}
+        if zones is not None:
+            blocks['DISCRETIZATION'] = SimpleNamespace(contents={'xzones': zones})
+
+        return SimpleNamespace(keyword_blocks=blocks)
+
+    @staticmethod
+    def _restart(deck):
+        return deck.keyword_blocks['RUNTIME'].contents.get('restart')
+
+    def test_a_refining_stage_reads_a_distinct_name(self):
+        """The cell count goes in the name, so the coarse file keeps its own honest one."""
+        current = self._deck(['3500', '0.01'], 'restart_0_stage0.rst')
+
+        gi._name_regridded_restart(current, self._deck(['350', '0.1']))
+
+        assert self._restart(current) == ['restart_0_stage0_nx3500.rst', 'append']
+
+    def test_an_unchanged_grid_reads_the_file_as_written(self):
+        """No resample happens, so renaming would point at a file nothing writes."""
+        current = self._deck(['350', '0.1'], 'restart_0_stage0.rst')
+
+        gi._name_regridded_restart(current, self._deck(['350', '0.1']))
+
+        assert self._restart(current) == ['restart_0_stage0.rst', 'append']
+
+    def test_redistributed_cells_at_constant_nx_still_rename(self):
+        """Same nx, different widths, is a different grid: run.py resamples, so the name changes."""
+        current = self._deck(['2', '20.0', '6', '6.6667', '2', '20.0'], 'restart_0_stage0.rst')
+
+        gi._name_regridded_restart(current, self._deck(['10', '10.0']))
+
+        assert self._restart(current) == ['restart_0_stage0_nx10.rst', 'append']
+
+    def test_an_undeclared_grid_is_left_alone(self):
+        """Without xzones on both sides the chain cannot know the grid changed, and nor can this."""
+        current = self._deck(None, 'restart_0_stage0.rst')
+
+        gi._name_regridded_restart(current, self._deck(['350', '0.1']))
+
+        assert self._restart(current) == ['restart_0_stage0.rst', 'append']
+
+    def test_a_stage_with_no_restart_is_left_alone(self):
+        current = self._deck(['3500', '0.01'])
+
+        gi._name_regridded_restart(current, self._deck(['350', '0.1']))
+
+        assert self._restart(current) is None
+
+
+class TestRefineSpec:
+    """Tests for normalising the two forms a refine entry may take."""
+
+    def test_bare_factor_defaults_to_step(self):
+        assert gi._refine_spec(10, 0) == (10, 'step')
+
+    def test_absent_refine(self):
+        assert gi._refine_spec(None, 0) == (None, 'step')
+
+    def test_mapping_carries_the_method(self):
+        assert gi._refine_spec({'factor': 4, 'method': 'linear'}, 1) == (4, 'linear')
+
+    def test_mapping_without_method_defaults_to_step(self):
+        assert gi._refine_spec({'factor': 4}, 1) == (4, 'step')
+
+    def test_mapping_without_factor_raises(self):
+        with pytest.raises(ValueError, match="omits 'factor'"):
+            gi._refine_spec({'method': 'linear'}, 2)
+
+    def test_unknown_mapping_key_raises(self):
+        with pytest.raises(ValueError, match='Unknown key'):
+            gi._refine_spec({'factor': 2, 'mode': 'linear'}, 0)
+
+    def test_unknown_method_raises(self):
+        with pytest.raises(ValueError, match='unknown refine method'):
+            gi._refine_spec({'factor': 2, 'method': 'spline'}, 0)
+
 
 class TestResolveGrid:
     """Tests for expanding the refine shorthand into explicit per-stage grids."""
@@ -667,6 +989,50 @@ class TestResolveGrid:
 
         assert resolved[1]['files'] == {'temps.dat': 'temps_stage1.dat'}
         assert len(np.loadtxt(tmp_path / 'temps_stage1.dat')) == 20
+
+    def test_refine_method_reaches_the_generated_files(self, tmp_path):
+        """The wiring, not the maths: a method chosen in the config must reach the file writer.
+
+        Step replication can only ever produce values already in the source, so a source of two
+        distinct plateaux distinguishes the two methods without depending on any interpolated
+        value in particular.
+        """
+        (tmp_path / 'poro.dat').write_text('\n'.join(['0.2'] * 5 + ['0.8'] * 5) + '\n')
+        template = self._template(tmp_path, 'read_PorosityFile poro.dat')
+        config = {'restart_chain': {'stages': 2,
+                                    'grid': [{}, {'refine': {'factor': 3,
+                                                             'method': 'linear'}}]}}
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                resolved = gi.resolve_grid(config, template)
+        finally:
+            os.chdir(cwd)
+
+        assert sc.zone_cell_count(resolved[1]['xzones']) == 30
+        refined = np.loadtxt(tmp_path / 'poro_stage1.dat')
+        assert len(refined) == 30
+        intermediate = refined[(refined > 0.2 + 1e-12) & (refined < 0.8 - 1e-12)]
+        assert len(intermediate) == 2, 'the linear method did not reach the file writer'
+
+    def test_refine_mapping_defaults_to_step(self, tmp_path):
+        """The mapping form without a method must behave exactly as the bare factor does."""
+        (tmp_path / 'poro.dat').write_text('\n'.join(['0.2'] * 5 + ['0.8'] * 5) + '\n')
+        template = self._template(tmp_path, 'read_PorosityFile poro.dat')
+        config = {'restart_chain': {'stages': 2, 'grid': [{}, {'refine': {'factor': 3}}]}}
+
+        cwd = os.getcwd()
+        os.chdir(tmp_path)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                gi.resolve_grid(config, template)
+        finally:
+            os.chdir(cwd)
+
+        refined = np.loadtxt(tmp_path / 'poro_stage1.dat')
+        assert set(np.unique(refined)) == {0.2, 0.8}, 'values were invented'
 
     def test_refined_files_are_staged(self, tmp_path):
         """rhea copies what the config names, so the generated file has to appear there."""

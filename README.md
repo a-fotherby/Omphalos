@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-558%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-598%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -584,9 +584,56 @@ is unchanged and the cells are merely redistributed.
 ```
 
 It also regenerates every spatial input file the deck reads — porosity, temperature, tortuosity, permeability —
-at the new resolution, by replicating each value N times rather than interpolating. Without that a refined stage
-stops with `Fortran runtime error: End of file`, because CrunchTope reads exactly `nx` rows from those files. A
-deck that reads no such files needs nothing extra.
+at the new resolution. Without that a refined stage stops with `Fortran runtime error: End of file`, because
+CrunchTope reads exactly `nx` rows from those files. A deck that reads no such files needs nothing extra.
+
+##### How refined files are resampled
+
+By default each fine cell takes the value of the coarse cell containing it. Choose otherwise by giving `refine`
+as a mapping:
+
+```yaml
+    grid:
+        refine:
+            factor: 10
+            method: linear       # step (default) | linear | smoothstep
+```
+
+| method | what it does |
+|---|---|
+| `step` | Replicates each value `factor` times. Cannot produce a value that was not already in the file. |
+| `linear` | Interpolates between coarse **cell centres**, so a change between two coarse cells is spread over the `factor` fine cells spanning them. |
+| `smoothstep` | The same ramp width, but weighted by the cubic `3t² − 2t³`, so there is no slope discontinuity at either end of it. |
+
+**Which one is right depends on your field, not on the code.** `step` is the default because it cannot invent
+structure, and it is the right choice where the steps are real — a lithological contact, say. It is the wrong
+choice where the steps are an artefact of how the field was binned, and a layered `read_PorosityFile` usually
+is: porosity enters transport as `phi**cementation_exponent`, so a step the coarse grid was too blunt to
+resolve becomes a discontinuity in the diffusion coefficient that the fine grid then resolves faithfully — as a
+staircase in your results. Measured on a 350 → 3500 cell water column with `cementation_exponent 5.0`:
+
+| quantity | `step` | `linear` |
+|---|---|---|
+| max \|Δφ\| between adjacent cells | 0.260 | 0.026 |
+| max \|Δφ⁵\| between adjacent cells | 0.508 | 0.084 |
+| roughness of the sulfate-reduction rate profile | 1.16e-1 | 1.53e-2 |
+| roughness of the H₂S-oxidation rate profile | 1.15e-1 | 1.37e-2 |
+
+Peak reaction rates moved by under 1% and peak depths by at most 0.03 m, and the reactions set by genuine redox
+structure were untouched — so in that case the staircase was an artefact of the refinement rather than a feature
+of the model. Your field may be the other way round; the point is that it is a judgement about the data.
+
+Three details of the interpolating methods:
+
+- They interpolate by **position**, not by cell index, so a graded grid is honoured. Because `refine` splits
+  every coarse cell into equal parts, each coarse centre is recovered exactly as the mean of its fine centres.
+- Neither overshoots the source range, and fine cells outside the first and last coarse centres clamp rather
+  than extrapolate — so the boundary values are preserved.
+- Only an **odd** factor puts a fine cell exactly on a coarse centre; with an even factor the centre falls
+  between two fine cells, so no fine cell carries the original value unchanged.
+
+The method applies to every file a stage regenerates. If one field wants step replication and another wants
+smoothing, supply that file per stage by hand instead.
 
 Handled for you, because a restart file overrides the deck and because CrunchTope validates the deck against the
 new grid:
@@ -604,6 +651,24 @@ In the results, each stage is placed on the grid of the stage with the most cell
 cover are left NaN. Nothing is interpolated: every stored value is one the model produced. Where two grids do not
 nest — so that two cells of one would collide on one cell of the other — the union of all stage positions is kept
 instead, and that is reported.
+
+##### The resampled restart is named for the grid it holds
+
+A stage that changes grid reads a resampled copy of the previous stage's restart, not the file itself, so a
+two-stage 350 → 3500 chain leaves both in `run0/`:
+
+```
+restart_0_stage0.rst          # 350 cells, as stage 0 wrote it
+restart_0_stage0_nx3500.rst   # the resampled copy stage 1 read
+```
+
+The suffix matters because a `.rst` carries no grid metadata and a Fortran unformatted read fills a short array
+from a long record without error. Writing the resampled file back over its source would leave
+`restart_0_stage0.rst` holding the *next* stage's resolution, so any later use of that name at face value — a
+`restart_file` for another chain, an `inspect --nx 350` — would get a wrong initial state rather than a failure.
+
+Stages sharing a grid are unaffected. A deck naming the same file for both directives keeps the old
+replace-in-place behaviour.
 
 See [`omphalos/examples/grid_refinement_chain`](omphalos/examples/grid_refinement_chain/) for a worked example,
 including where a chain's answer legitimately departs from a cold start.
@@ -626,6 +691,32 @@ concentrations:
         SO4--:
             - 'linspace'
             - [1, 30]
+```
+
+Two things follow from the restart carrying its own clock and output counter, both handled for you:
+
+- **Stage times stay durations.** A spinup stored at t = 2000 yr with `spatial_profile: [[500], [500]]`
+  gives outputs at 2500 and 3000 yr — the stored clock is added to every stage. CrunchTope stops with
+  `You have specified an output time < the restart time` if a stage asks for an output before the point
+  it restarts from, so writing the first stage's times as absolute and the rest as durations would be
+  the alternative.
+- **Output file numbering continues from the restart.** `restart.F90` restores `nint`, which CrunchTope
+  uses both to index the output times and to number the tecplot files, so a chain started from a spinup
+  written after five outputs begins at `*6.tec`. Results parsing is offset to match; a run whose numbering
+  looked like it began at 1 would find nothing to read.
+
+If the file named by `restart_file` cannot be found or read when the input files are generated, the times
+are set as though the chain starts from zero and a warning says so.
+
+A spinup is used exactly as supplied: unlike a regridded file, it gets no start-condition pass, so its stored
+previous-step arrays stay as CrunchTope wrote them. That is deliberate. Applying the pass — an nx → nx regrid —
+was measured on a 350-cell spinup violating `s_vs_sn` at 1.38e-3 and `spnO2_vs_spnnO2` at 1.11e-3, and produced
+bit-identical results: in `timestep.F90` the stored history reaches the step only through `SQRT(|rnum/rden|)`,
+which is discarded unless it falls below the `MIN(2*delt, dtmax, tstep)` cap, and on a near-steady spinup it does
+not. If you want it anyway, do it by hand and point `restart_file` at the output:
+
+```bash
+python -m omphalos.restart_file regrid spinup.rst --nx-in 350 --nx-out 350 -o clean.rst --input model.in
 ```
 
 #### Single sequential chain (no parallelism)
@@ -743,7 +834,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **558 tests**:
+The project includes a comprehensive test suite with **598 tests**:
 
 ```bash
 # Run all tests

@@ -610,18 +610,10 @@ structure, and it is the right choice where the steps are real — a lithologica
 choice where the steps are an artefact of how the field was binned, and a layered `read_PorosityFile` usually
 is: porosity enters transport as `phi**cementation_exponent`, so a step the coarse grid was too blunt to
 resolve becomes a discontinuity in the diffusion coefficient that the fine grid then resolves faithfully — as a
-staircase in your results. Measured on a 350 → 3500 cell water column with `cementation_exponent 5.0`:
-
-| quantity | `step` | `linear` |
-|---|---|---|
-| max \|Δφ\| between adjacent cells | 0.260 | 0.026 |
-| max \|Δφ⁵\| between adjacent cells | 0.508 | 0.084 |
-| roughness of the sulfate-reduction rate profile | 1.16e-1 | 1.53e-2 |
-| roughness of the H₂S-oxidation rate profile | 1.15e-1 | 1.37e-2 |
-
-Peak reaction rates moved by under 1% and peak depths by at most 0.03 m, and the reactions set by genuine redox
-structure were untouched — so in that case the staircase was an artefact of the refinement rather than a feature
-of the model. Your field may be the other way round; the point is that it is a judgement about the data.
+staircase in your results. Refining a diffusion-dominated column tenfold with a large `cementation_exponent`,
+`step` left about an order of magnitude more cell-to-cell variation in porosity than either ramp, and more again
+in the `phi**cementation_exponent` transport sees; peak rates and depths were unaffected. Your field may be the
+other way round.
 
 Three details of the interpolating methods:
 
@@ -654,18 +646,18 @@ instead, and that is reported.
 
 ##### The resampled restart is named for the grid it holds
 
-A stage that changes grid reads a resampled copy of the previous stage's restart, not the file itself, so a
-two-stage 350 → 3500 chain leaves both in `run0/`:
+A stage that changes grid reads a resampled copy of the previous stage's restart, not the file itself, so the
+two-stage `refine: 4` chain above leaves both in `run0/`:
 
 ```
-restart_0_stage0.rst          # 350 cells, as stage 0 wrote it
-restart_0_stage0_nx3500.rst   # the resampled copy stage 1 read
+restart_0_stage0.rst         # 100 cells, as stage 0 wrote it
+restart_0_stage0_nx400.rst   # the resampled copy stage 1 read
 ```
 
 The suffix matters because a `.rst` carries no grid metadata and a Fortran unformatted read fills a short array
 from a long record without error. Writing the resampled file back over its source would leave
 `restart_0_stage0.rst` holding the *next* stage's resolution, so any later use of that name at face value — a
-`restart_file` for another chain, an `inspect --nx 350` — would get a wrong initial state rather than a failure.
+`restart_file` for another chain, an `inspect --nx 100` — would get a wrong initial state rather than a failure.
 
 Stages sharing a grid are unaffected. A deck naming the same file for both directives keeps the old
 replace-in-place behaviour.
@@ -708,12 +700,12 @@ Two things follow from the restart carrying its own clock and output counter, bo
 If the file named by `restart_file` cannot be found or read when the input files are generated, the times
 are set as though the chain starts from zero and a warning says so.
 
-A spinup is used exactly as supplied: unlike a regridded file, it gets no start-condition pass, so its stored
-previous-step arrays stay as CrunchTope wrote them. That is deliberate. Applying the pass — an nx → nx regrid —
-was measured on a 350-cell spinup violating `s_vs_sn` at 1.38e-3 and `spnO2_vs_spnnO2` at 1.11e-3, and produced
-bit-identical results: in `timestep.F90` the stored history reaches the step only through `SQRT(|rnum/rden|)`,
-which is discarded unless it falls below the `MIN(2*delt, dtmax, tstep)` cap, and on a near-steady spinup it does
-not. If you want it anyway, do it by hand and point `restart_file` at the output:
+A spinup is used exactly as supplied: unlike a regridded file it gets no start-condition pass, so its stored
+previous-step arrays stay as CrunchTope wrote them. That is deliberate — applying the pass to a spinup that
+failed both start conditions gave bit-identical results. In `timestep.F90` the stored history reaches the step
+only through `SQRT(|rnum/rden|)`, which is discarded unless it falls below the `MIN(2*delt, dtmax, tstep)` cap,
+and on a near-steady spinup it does not. To apply it anyway, do it by hand and point `restart_file` at the
+output:
 
 ```bash
 python -m omphalos.restart_file regrid spinup.rst --nx-in 350 --nx-out 350 -o clean.rst --input model.in

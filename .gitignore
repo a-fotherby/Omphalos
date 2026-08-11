@@ -1,6 +1,9 @@
 # OSX file structure
 .DS_Store
 
+# In-development notebooks and scratch work
+coeus/dev/
+
 .idea
 
 # Ignore test outputs

@@ -80,15 +80,46 @@ echo '# Global settings for Omphalos' >> "$SETTINGS"
 echo "crunch_dir = '$CT_PATH'" >> "$SETTINGS"
 echo "omphalos_dir = '$SCRIPT_DIR'" >> "$SETTINGS"
 
-# Optional: MIN3P backend executable. Press Enter to skip (you can set it later
-# via min3p/settings.py or per-run with the config key `min3p_binary`).
-echo "Absolute path to MIN3P executable (optional, Enter to skip):"
+# Optional: MIN3P backend. Press Enter at either prompt to leave that entry as it
+# is; both can also be set by editing min3p/settings.py (see settings_default.py).
+export M3P_SETTINGS="$SCRIPT_DIR/min3p/settings.py"
+
+# The file is rewritten whole below, so anything already in it that this run does
+# not ask about has to be carried across -- otherwise skipping a prompt on a
+# re-install would silently drop the other key.
+M3P_OLD_BINARY=$(sed -n "s/^min3p_binary *= *['\"]\(.*\)['\"].*/\1/p" "$M3P_SETTINGS" 2>/dev/null)
+M3P_OLD_EXAMPLES=$(sed -n "s/^min3p_examples *= *['\"]\(.*\)['\"].*/\1/p" "$M3P_SETTINGS" 2>/dev/null)
+
+if [ -n "$M3P_OLD_BINARY" ]; then
+    echo "Absolute path to MIN3P executable (Enter to keep $M3P_OLD_BINARY):"
+else
+    echo "Absolute path to MIN3P executable (optional, Enter to skip):"
+fi
 read -r M3P_PATH
-if [ -n "$M3P_PATH" ]; then
-    export M3P_SETTINGS="$SCRIPT_DIR/min3p/settings.py"
+[ -z "$M3P_PATH" ] && M3P_PATH="$M3P_OLD_BINARY"
+
+# Only the tests need this: the round-trip tests in tests/unit/test_min3p.py parse
+# the real benchmark decks and skip when they cannot be found. MIN3P_EXAMPLES in
+# the environment takes precedence over whatever is written here.
+if [ -n "$M3P_OLD_EXAMPLES" ]; then
+    echo "Absolute path to MIN3P examples/benchmarks directory (Enter to keep $M3P_OLD_EXAMPLES):"
+else
+    echo "Absolute path to MIN3P examples/benchmarks directory (optional, Enter to skip):"
+fi
+read -r M3P_EXAMPLES
+[ -z "$M3P_EXAMPLES" ] && M3P_EXAMPLES="$M3P_OLD_EXAMPLES"
+
+if [ -n "$M3P_PATH" ] || [ -n "$M3P_EXAMPLES" ]; then
     echo '# Active MIN3P settings for this machine (git-ignored).' > "$M3P_SETTINGS"
-    echo "min3p_binary = '$M3P_PATH'" >> "$M3P_SETTINGS"
-    echo "MIN3P path written to $M3P_SETTINGS"
+    # Each key is written only if it has a value. An absent name raises ImportError
+    # in the importers, which is exactly what their fallbacks catch.
+    if [ -n "$M3P_PATH" ]; then
+        echo "min3p_binary = '$M3P_PATH'" >> "$M3P_SETTINGS"
+    fi
+    if [ -n "$M3P_EXAMPLES" ]; then
+        echo "min3p_examples = '$M3P_EXAMPLES'" >> "$M3P_SETTINGS"
+    fi
+    echo "MIN3P settings written to $M3P_SETTINGS"
 fi
 
 source $CONFIG_FILE

@@ -711,6 +711,16 @@ output:
 python -m omphalos.restart_file regrid spinup.rst --nx-in 350 --nx-out 350 -o clean.rst --input model.in
 ```
 
+##### Sharing one spinup across a sweep
+
+Modifications reach every stage, so `number_of_files: N` computes stage 0 N times — concurrently, each with that
+run's swept values. Where the sweep does not act on the coarse solution, or where a common initial state is what
+you want, compute it once: run the coarse model alone (`number_of_files: 1`, no `grid`), then point every run's
+`restart_file` at the restart it leaves behind.
+
+That is a change of model rather than an optimisation. The N coarse solutions differ whenever a swept parameter
+enters the spinup, and collapsing them to one discards that difference, so it is not done for you.
+
 #### Single sequential chain (no parallelism)
 
 For a simple linear restart chain with no parallel variation, set `number_of_files: 1`:

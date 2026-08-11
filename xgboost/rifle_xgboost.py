@@ -24,7 +24,7 @@ wandb.init(project='xgboost_rifle-sweep', config=config_defaults)
 np.random.seed(0)
 
 ### Import and prep training/test data.
-train_set = fm.unpickle('/Users/angus/Omphalos/fitting/data/old_rifle.pkl')
+train_set = fm.unpickle('path/to/old_rifle.pkl')
 
 attributes_df = attr.boundary_condition(train_set, boundary='x_begin')
 labels_df = lbls.secondary_precip(train_set)

@@ -1,5 +1,6 @@
 """Unit tests for the MIN3P backend (min3p/)."""
 
+import os
 import textwrap
 from pathlib import Path
 
@@ -400,11 +401,28 @@ class TestDatasetToNetcdf:
 
 # ---------------------------------------------------------------------------
 # Round-trip on the real benchmark file, if present.
+#
+# Where the MIN3P examples tree lives is machine-specific, so it is resolved the
+# same way the executable is: the MIN3P_EXAMPLES environment variable first, then
+# the git-ignored min3p/settings.py. With neither, the paths below do not exist
+# and every test guarded on them skips.
 # ---------------------------------------------------------------------------
-APPELO = Path('/Users/hjb62/MIN3P/Examples/Benchmarks/benchmarks_standard/batch/appelo/appelo.dat')
-MCD2 = Path('/Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat')
-ENERGY = Path('/Users/hjb62/MIN3P/Examples/Benchmarks/benchmarking_nwmo_report/'
-              'nwmo_verification_examples_D4/d41_radial_flow_energy/radial-flow.dat')
+def _min3p_examples():
+    root = os.environ.get('MIN3P_EXAMPLES')
+    if root:
+        return Path(root)
+    try:
+        from min3p.settings import min3p_examples
+    except ImportError:
+        return Path('/path/to/MIN3P/Examples')
+    return Path(min3p_examples)
+
+
+EXAMPLES = _min3p_examples()
+APPELO = EXAMPLES / 'Benchmarks/benchmarks_standard/batch/appelo/appelo.dat'
+MCD2 = EXAMPLES / 'benchmarks_standard/reactran/MCD-2/min3p/test.dat'
+ENERGY = EXAMPLES / ('Benchmarks/benchmarking_nwmo_report/'
+                     'nwmo_verification_examples_D4/d41_radial_flow_energy/radial-flow.dat')
 
 
 def _content(text):
@@ -648,8 +666,7 @@ class TestVelocityOutput:
         assert float(ds['vx'].sel(x=0.5, y=0.0, z=0.0)) == pytest.approx(4.32e-4)
 
 
-MCD2_ADV = Path('/Users/hjb62/MIN3P/Examples/benchmarks_standard/'
-                'reactran/MCD-2-advection/min3p/test.dat')
+MCD2_ADV = EXAMPLES / 'benchmarks_standard/reactran/MCD-2-advection/min3p/test.dat'
 
 
 @pytest.mark.skipif(not MCD2_ADV.is_file(), reason='MIN3P advection benchmark not available')

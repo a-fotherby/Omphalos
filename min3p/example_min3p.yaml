@@ -11,10 +11,10 @@ timeout: 120
 # MIN3P reads its thermodynamic database from the 'database directory' entry in
 # the template. The benchmark ships a Windows-style relative path, so repoint it
 # to the real location on this machine (comment out to keep the template value).
-database_directory: /Users/hjb62/MIN3P/Examples/database/default
+database_directory: /path/to/MIN3P/Examples/database/default
 
 # Optional override of the MIN3P executable.
-# min3p_binary: /Users/hjb62/MIN3P/MacOS/MIN3P-HPC-X64-V2.3.7.850-MacOS-x64
+# min3p_binary: /path/to/MIN3P/MacOS/MIN3P-HPC-X64-V2.3.7.850-MacOS-x64
 
 # Positional parameter modifications. Each entry names a coordinate
 # (block / sub-keyword / line / token) and a value-generation method.

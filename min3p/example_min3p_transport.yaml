@@ -8,13 +8,13 @@
 # Run `min3p.main` from a directory where MCD-2's test.dat is reachable, or set
 # `template` to an absolute path as below.
 
-template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
+template: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
 number_of_files: 3
 timeout: 300
 
 # MCD-2 uses a problem-specific database; repoint the template's relative
 # 'database\mcd' path to its absolute location.
-database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
+database_directory: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
 
 # Vary the pH imposed at the inflow boundary (Data Block 16, zone 1). The
 # 'concentration input' sub-keyword lists components in declaration order

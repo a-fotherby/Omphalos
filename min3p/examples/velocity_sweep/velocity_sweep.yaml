@@ -4,10 +4,10 @@
 # gradient drives it through by advection. We sweep the OUTFLOW-boundary head
 # (the driving gradient, hence the Darcy velocity) and watch how far the pH
 # front migrates. Demonstrates flow-parameter sweeps and the .vel velocity field.
-template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/test.dat
+template: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/test.dat
 number_of_files: 4
 timeout: 300
-database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/database/MCD
+database_directory: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2-advection/min3p/database/MCD
 modifications:
   outflow_head:
     block: 'boundary conditions - variably saturated flow'

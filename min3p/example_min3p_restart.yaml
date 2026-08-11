@@ -5,10 +5,10 @@
 # Each run's stages execute sequentially in a per-run subdirectory so their
 # restart.tmp state files do not collide.
 
-template: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
+template: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/test.dat
 number_of_files: 1
 timeout: 300
-database_directory: /Users/hjb62/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
+database_directory: /path/to/MIN3P/Examples/benchmarks_standard/reactran/MCD-2/min3p/database/mcd
 
 restart_chain:
   stages: 2

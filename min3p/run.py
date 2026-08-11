@@ -15,7 +15,7 @@ from pathlib import Path
 #   2. install-configured `min3p/settings.py` (git-ignored, written by install.sh
 #      or copied from settings_default.py),
 #   3. the built-in default below, so imports and out-of-the-box runs still work.
-_DEFAULT_MIN3P_BINARY = '/Users/hjb62/MIN3P/MacOS/MIN3P-HPC-X64-V2.3.7.850-MacOS-x64'
+_DEFAULT_MIN3P_BINARY = '/path/to/MIN3P/MacOS/MIN3P-HPC-X64-V2.3.7.850-MacOS-x64'
 try:
     from min3p.settings import min3p_binary as MIN3P_BINARY
 except ImportError:

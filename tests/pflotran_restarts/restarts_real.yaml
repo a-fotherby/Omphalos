@@ -1,5 +1,5 @@
 # template can either be specified as either the relative or absolute path to the inputs.
-template: '/Users/angus/work/Omphalos/tests/pflotran_restarts/chem_model.in'
+template: 'chem_model.in'
 database: 'hanford.dat'
 
 number_of_restarts: 8

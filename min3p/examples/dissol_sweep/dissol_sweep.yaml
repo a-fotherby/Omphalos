@@ -16,12 +16,12 @@
 #   PYTHONPATH=<repo-root> python -m min3p.main dissol_sweep.yaml records.pkl
 # then open dissol_sweep.ipynb.
 
-template: /Users/hjb62/MIN3P/Examples/Benchmarks/benchmarks_standard/reactran/dissol/dissol.dat
+template: /path/to/MIN3P/Examples/Benchmarks/benchmarks_standard/reactran/dissol/dissol.dat
 number_of_files: 4
 timeout: 120
 
 # The benchmark ships a Windows-style relative database path; repoint it.
-database_directory: /Users/hjb62/MIN3P/Examples/database/default
+database_directory: /path/to/MIN3P/Examples/database/default
 
 modifications:
   inflow_h:

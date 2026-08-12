@@ -766,3 +766,88 @@ class TestTemplateConditionSpeciesTypes:
 
         assert 'Xna- -cec 0.001' in text
         assert '>FeOH_strong 3.8e-6' in text
+
+
+class TestFlowZoneEntryCase:
+    """Tests that FLOW zone entries are recognised whichever way the deck capitalises them.
+
+    CrunchTope reads these keywords case insensitively and the short-course exercises use both
+    spellings. Testing the raw token against a lowercase-only set meant a deck writing
+    'permeability_X' got no coordinate key, so every repeated line overwrote the one before it and
+    only the last survived - silently replacing a heterogeneous permeability field with one value.
+    """
+
+    BODY = """TITLE
+Test
+END
+
+FLOW
+distance_units meters
+calculate_flow true
+permeability_X 1.0E-12 default
+permeability_X 1.0E-13 zone 22-33 1-42 1-1
+permeability_X 0.0 zone 0-0 1-42 1-1
+permeability_Y 1.0E-13 zone 22-33 1-42 1-1
+PRESSURE 30.0 zone 0-0 1-41 1-1 fix
+END
+
+PRIMARY_SPECIES
+H+
+END
+
+INITIAL_CONDITIONS
+initial 1-10
+END
+
+CONDITION initial
+temperature 25.0
+END
+"""
+
+    @staticmethod
+    def _template(tmp_path, body):
+        from omphalos.template import Template
+
+        path = tmp_path / 'flow_case.in'
+        path.write_text(body)
+        return Template({
+            'template': str(path),
+            'database': 'test.dbs',
+            'aqueous_database': None,
+            'catabolic_pathways': None,
+            'conditions': None,
+            'number_of_files': 1,
+        })
+
+    def test_capitalised_zone_entries_are_all_kept(self, tmp_path):
+        """Test that repeated capitalised permeability entries do not overwrite each other."""
+        contents = self._template(tmp_path, self.BODY).keyword_blocks['FLOW'].contents
+
+        assert 'permeability_X 22-33 1-42 1-1' in contents
+        assert 'permeability_X 0-0 1-42 1-1' in contents
+        assert 'permeability_Y 22-33 1-42 1-1' in contents
+        assert contents['permeability_X 22-33 1-42 1-1'][0] == '1.0E-13'
+        assert contents['permeability_X 0-0 1-42 1-1'][0] == '0.0'
+
+    def test_the_default_entry_keeps_the_bare_keyword(self, tmp_path):
+        """Test that an entry without a zone is still keyed on the keyword alone."""
+        contents = self._template(tmp_path, self.BODY).keyword_blocks['FLOW'].contents
+
+        assert contents['permeability_X'] == ['1.0E-12', 'default']
+
+    def test_an_upper_case_keyword_is_keyed_too(self, tmp_path):
+        """Test that the case insensitivity is not specific to permeability."""
+        contents = self._template(tmp_path, self.BODY).keyword_blocks['FLOW'].contents
+
+        assert 'PRESSURE 0-0 1-41 1-1' in contents
+
+    def test_round_trip_writes_every_zone_line(self, tmp_path):
+        """Test that all of the zone entries survive being written back out."""
+        template = self._template(tmp_path, self.BODY)
+        out = tmp_path / 'written.in'
+        template.path = out
+        template.print()
+        text = out.read_text()
+
+        assert text.count('permeability_X') == 3
+        assert '1.0E-13 zone 22-33 1-42 1-1' in text

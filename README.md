@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-597%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-604%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -842,7 +842,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **597 tests**:
+The project includes a comprehensive test suite with **604 tests**:
 
 ```bash
 # Run all tests
@@ -868,7 +868,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_parameter_methods.py` | `core/parameter_methods.py` — the parameter generation methods (`linspace`, `random_uniform`, `constant`, `custom`, `fix_ratio`, `staged`) |
 | `tests/unit/test_keyword_block.py` | `core/keyword_block.py` — the `KeywordBlock` and `ConditionBlock` objects |
 | `tests/unit/test_file_methods.py` | `core/file_methods.py` — input file line searching, TecPlot output parsing, pickling, netCDF writing |
-| `tests/unit/test_template.py` | `omphalos/template.py` — template parsing: keyword and condition blocks, comments, blank lines |
+| `tests/unit/test_template.py` | `omphalos/template.py` — template parsing: keyword and condition blocks, comments, blank lines, FLOW zone entries |
 | `tests/unit/test_generate_inputs.py` | `omphalos/generate_inputs.py` — config evaluation and input file generation |
 | `tests/unit/test_spatial_constructor.py` | `core/spatial_constructor.py` — the spatial initial-condition array and its column ordering |
 | `tests/unit/test_attributes.py` | `core/attributes.py` — attribute tables and their file_num labelling |
@@ -879,6 +879,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
 | `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |
 | `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation and failed-run accounting |
+| `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that a run writes its auxiliary namelists before CrunchTope starts |
 | `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
 | `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |
 
@@ -1117,6 +1118,22 @@ transport:
 
 Naming the bare keyword (`D_25`) works while the template has only one such line; if there are
 several, Omphalos reports the candidates rather than picking one.
+
+The `FLOW` block repeats `permeability_x`, `permeability_y`, `permeability_z` and `pressure` to cover
+non-contiguous regions, so those are keyed by their coordinate set instead — `<keyword> i-i j-j k-k`,
+in the order the line writes them. A `default` entry, having no zone, keeps the bare keyword. Quote the
+key, since it contains spaces:
+
+```yaml
+flow:
+  # Vary the permeability of one zone, leaving the other entries alone
+  'permeability_X 22-33 1-42 1-1':
+    - 'custom'
+    - [1.024e-12, 1.024e-13, 1.024e-14, 1.024e-15]
+```
+
+Case follows the template: the key repeats the keyword as the deck spells it, which CrunchTope reads
+case insensitively either way. `pump` is keyed on its coordinates too, as `pump&i&j&k`.
 
 ### Line Continuation
 

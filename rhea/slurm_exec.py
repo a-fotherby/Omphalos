@@ -97,6 +97,13 @@ def execute(file_num, config, pflo, min3p=False):
         if pflo:
             run.pflotran(input_file, file_num, config['timeout'], str(tmp_dir))
         else:
+            # Write the auxiliary namelists out before running, as the sequential path
+            # (run.input_file) and the staged path (run.run_staged_input) both do. Without
+            # this, a deck needing CatabolicPathways.in never gets one, and -- silently --
+            # a sweep of the 'namelists:' section runs every file against the unmodified
+            # aqueous database, because the only copy in the run directory is the verbatim
+            # one prep_directories.sh placed there.
+            run._print_aux_files(input_file, Path(tmp_dir).resolve())
             run.crunchtope(input_file, file_num, config['timeout'], str(tmp_dir))
 
     return input_file

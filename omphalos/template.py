@@ -415,7 +415,12 @@ class Template(InputFile):
                 if not line_list:
                     continue
 
-                if line_list[0] in zone_entries and 'zone' in self.raw[a]:
+                # Matched case insensitively, as CrunchTope reads these keywords. The exercises use
+                # both spellings -- Ex10Flow2D writes 'permeability_y', Exercise18 writes
+                # 'permeability_X' -- and comparing the raw token against a lowercase set silently
+                # dropped every zone entry but the last for the capitalised form, which quietly
+                # replaces a heterogeneous permeability field with a single value.
+                if line_list[0].lower() in zone_entries and 'zone' in self.raw[a].lower():
                     try:
                         # Regex extracts keys as unique coordinate sets.
                         key = re.findall(r"\d+-\d+", self.raw[a])

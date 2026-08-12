@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-604%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-614%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -69,6 +69,7 @@
   - [Cluster Runs](#cluster-runs)
   - [Inspecting a Restart File](#inspecting-a-restart-file)
   - [Keep the Working Directory Path Short](#keep-the-working-directory-path-short)
+  - [Two-Dimensional Decks](#two-dimensional-decks)
   - [PFLOTRAN Support](#pflotran-support)
   - [MIN3P Support](#min3p-support)
 - [Citation](#citation)
@@ -842,7 +843,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **604 tests**:
+The project includes a comprehensive test suite with **614 tests**:
 
 ```bash
 # Run all tests
@@ -1276,6 +1277,22 @@ Error in file 0: "Cannot find input file".
 name. Run sweeps from a shorter path if you see this. Since CrunchTope waits on stdin after printing that message,
 `'Cannot find input file'` is one of the `CT_ERROR_PATTERNS` in `omphalos/run.py` — otherwise each run would sit
 until its `timeout` expired before being recorded as failed.
+
+### Two-Dimensional Decks
+
+Three things bite a 1-D deck that gains a second dimension. The first two are now `CT_ERROR_PATTERNS`.
+
+- **`hindmarsh true` is 1-D only.** In 2-D CrunchTope prompts `Return to continue` and blocks on it. Set
+  `hindmarsh false`.
+- **`pressure` zone entries need their K range.** `zone 43-43 1-42 fix` stops at startup with
+  `No Z location for pressure`; it wants `zone 43-43 1-42 1-1 fix`. CrunchTope exits rather than hanging, so
+  this was previously recorded as a successful run with no output.
+- **`gimrt true` can transport nothing in 2-D, silently.** No message, so no pattern can catch it: the run
+  completes, solves flow, writes output, and no solute moves. Prefer `gimrt false` (OS3D), and check a tracer
+  actually moves.
+
+Failed and timed-out runs now have their CrunchTope process force-closed, since several patterns are printed
+by a process that then blocks.
 
 ### PFLOTRAN Support
 

@@ -503,3 +503,84 @@ class TestConcatStagedResults:
         stages = {0: self._stage({}), 1: self._stage({})}
 
         assert run.concat_staged_results(stages) == 0
+
+
+class TestTwoDimensionalStartupFailures:
+    """Tests for the two 2-D startup failures the short-course exercises turn up.
+
+    Both are worth catching for opposite reasons. The Hindmarsh solver message ends in a prompt that
+    CrunchTope waits on, and pexpect gives the child a pty, so the read blocks and the run burns its
+    whole timeout. The missing-K-range message is the other way round: CrunchTope prints it and
+    exits, so pexpect sees EOF, the run is recorded as a success, and get_results is then asked to
+    parse a directory with no tecplot output in it.
+    """
+
+    def test_hindmarsh_in_2d_is_an_error_pattern(self):
+        """Test that the solver-switch prompt is caught rather than waited on."""
+        assert 'Return to continue' in run.CT_ERROR_PATTERNS
+
+    def test_missing_k_range_on_a_pressure_zone_is_an_error_pattern(self):
+        """Test that a FLOW zone entry without its K range is caught."""
+        assert 'No Z location for pressure' in run.CT_ERROR_PATTERNS
+
+    @pytest.mark.parametrize('pattern', ['Return to continue', 'No Z location for pressure'])
+    def test_neither_is_recorded_as_a_successful_run(self, pattern, tmp_path, monkeypatch):
+        """Test that matching either one flags the file and does not parse outputs."""
+        error_code = run.CT_ERROR_PATTERNS.index(pattern) + 2
+        process = Mock()
+        process.expect.return_value = error_code
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+        run.crunchtope(input_file, 0, 10, tmp_path)
+
+        assert input_file.error_code == error_code
+        input_file.get_results.assert_not_called()
+
+
+class TestFailedRunsAreCleanedUp:
+    """Tests that a CrunchTope left waiting on stdin is killed rather than left resident.
+
+    Matching the pattern is only half the job: several of these are printed by a CrunchTope that then
+    blocks on a pty read, and without an explicit close it survives for the rest of the sweep, one
+    per failed file.
+    """
+
+    @staticmethod
+    def _run(expect_value, tmp_path, monkeypatch):
+        process = Mock()
+        process.expect.return_value = expect_value
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+        run.crunchtope(input_file, 0, 10, tmp_path)
+        return process
+
+    def test_error_pattern_closes_the_process(self, tmp_path, monkeypatch):
+        """Test that a matched error pattern forces the child closed."""
+        process = self._run(2, tmp_path, monkeypatch)      # first entry of CT_ERROR_PATTERNS
+        process.close.assert_called_once_with(force=True)
+
+    def test_timeout_closes_the_process(self, tmp_path, monkeypatch):
+        """Test that a timed-out run forces the child closed too."""
+        process = self._run(1, tmp_path, monkeypatch)      # pexpect.TIMEOUT
+        process.close.assert_called_once_with(force=True)
+
+    def test_successful_run_is_left_alone(self, tmp_path, monkeypatch):
+        """Test that a clean EOF is not force-closed, so results are parsed as before."""
+        process = self._run(0, tmp_path, monkeypatch)      # pexpect.EOF
+        process.close.assert_not_called()
+
+    def test_a_close_failure_does_not_break_the_run(self, tmp_path, monkeypatch):
+        """Test that cleanup problems are reported rather than raised."""
+        process = Mock()
+        process.expect.return_value = 2
+        process.close.side_effect = OSError('no such process')
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+
+        run.crunchtope(input_file, 0, 10, tmp_path)        # must not raise
+
+        assert input_file.error_code == 2

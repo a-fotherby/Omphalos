@@ -20,6 +20,17 @@ CT_ERROR_PATTERNS = [
     # sees it, and a path long enough to overrun CrunchTope's fixed-length buffer. Passing only the
     # basename (see `crunchtope`) avoids both, but a deck named from elsewhere can still hit them.
     'Cannot find input file',
+    # A 2-D or 3-D problem with 'hindmarsh true'. CrunchTope reports that it cannot use the
+    # Hindmarsh block tridiagonal solver, says it is switching to PETSc, and then waits on stdin
+    # ('Return to continue'). pexpect gives the child a pty, so that read blocks and the run burns
+    # its entire timeout having produced nothing. Matched on the prompt rather than the solver
+    # message because it is the prompt that does the blocking.
+    'Return to continue',
+    # A FLOW zone entry missing its K range, as in 'pressure 0.0 zone 43-43 1-42 fix'. CrunchTope
+    # prints this and exits, which is worse than hanging: pexpect sees EOF, the run is recorded as
+    # a success, and get_results goes on to parse a directory containing no tecplot output at all.
+    # Exercise17, Exercise18 and Exercise19 of the short course all ship decks that hit this.
+    'No Z location for pressure',
     'EXCEEDED MAXIMUM ITERATIONS',
     'TRY A',
     'divide by zero',
@@ -106,6 +117,20 @@ def input_file(input_file, file_num, tmp_dir, timeout):
     return input_file
 
 
+def _terminate(process):
+    """Kill a CrunchTope child that matched an error pattern or timed out.
+
+    Several of the patterns above are printed by a CrunchTope that then waits on stdin, and pexpect
+    gives the child a pty, so the read blocks indefinitely. Matching the pattern is only half the
+    job: without this the process stays resident for the rest of the sweep, and on a run of any size
+    those accumulate one per failed file.
+    """
+    try:
+        process.close(force=True)
+    except Exception as exc:                       # noqa: BLE001 - never fail a run over cleanup
+        print(f'Could not close CrunchTope process: {exc}')
+
+
 def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     """Execute CrunchTope on an input file.
 
@@ -134,10 +159,12 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     elif error_code == 1:
         print(f'File {file_num} timed out.')
         input_file.error_code = error_code
+        _terminate(process)
     else:
         pattern = CT_ERROR_PATTERNS[error_code - 2]
         print(f'Error in file {file_num}: "{pattern}".')
         input_file.error_code = error_code
+        _terminate(process)
 
     print(f'File {file_num} complete.')
 

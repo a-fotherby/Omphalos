@@ -47,11 +47,18 @@ Restarting: what the file overrides
 -----------------------------------
 * ``restart.F90`` reads ``time``, ``nn`` and ``nint`` unconditionally, so neither the clock nor the
   tecplot file numbering restarts from zero.
-* ``READ(iures) DummyReal,dtold,DummyReal,DummyReal,DummyReal,dtmax`` -- ``dtmax`` comes from the
-  file and ``delt``, ``tstep``, ``deltmin`` and ``dtmaxcour`` are discarded. ``timestep_max`` in a
-  restarted deck is therefore **silently overridden** by the previous stage's value; use
-  ``set_dtmax``. ``dtold`` is likewise restored, against a ``delt`` that restarts from
-  ``timestep_init``; ``set_dtold`` rescales it.
+* ``READ(iures) DummyReal,dtold,DummyReal,DummyReal,DummyReal,dtmax`` -- of the six scalars only
+  ``dtold`` survives to be used. ``dtmax`` is read, but ``CrunchTope.F90`` resets ``nn`` to 0
+  *after* ``CALL restart``, so the ``IF (nn > 4)`` branch that holds its only consumer is skipped
+  for four steps and then opens by assigning ``dtmax = tstep``. ``tstep`` is the deck's
+  ``timestep_max * time_scale`` (``StartTope.F90``), is not restored from the file and is never
+  reassigned, so **a restarted deck's** ``timestep_max`` **governs**. Measured: one spinup with
+  ``dtmax`` at 20 and at 1e-6 gives byte-identical output, while changing the deck's
+  ``timestep_max`` changes the run.
+* ``delt`` is discarded, so a restarted stage always begins at the deck's ``timestep_init`` and at
+  most doubles per step (``timestep.F90``: ``deltmax = 2.0*delt``). That, not ``timestep_max``, is
+  what a slow-starting restarted stage costs. ``dtold`` is restored and does reach the first
+  curvature estimate; ``set_dtold`` rescales it.
 * ``CALL restart`` runs *after* ``CALL StartTope``, so anything in the ``.rst`` overrides the deck.
   For porosity that is silent corruption -- a resampled ``por`` supersedes ``read_PorosityFile`` --
   hence ``inject``.
@@ -962,7 +969,7 @@ def enforce_consistency(arrays: dict[str, np.ndarray], specs: dict[str, RecordSp
 
 
 def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] | None = None,
-           set_dtmax: float | None = None, set_dtold: float | None = None,
+           set_dtold: float | None = None,
            set_time: float | None = None, allow_unresolved: bool = False,
            inject: dict[str, np.ndarray] | None = None, consistent: bool = True,
            deck: Path | None = None, zones_in=None,
@@ -975,9 +982,8 @@ def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] 
         nx_out: Cell count to resample onto.
         out: Destination path.
         dims: Block counts, as :func:`model_dimensions` or :func:`dims_from_input_file` returns.
-        set_dtmax: Override the stored ``dtmax``. ``restart.F90`` takes it from the file, so
-            ``timestep_max`` in the new deck is otherwise ignored.
-        set_dtold: Override the stored ``dtold``.
+        set_dtold: Override the stored ``dtold``. There is deliberately no ``set_dtmax``: the
+            stored ``dtmax`` is reassigned from the deck before CrunchTope ever reads it.
         set_time: Override the stored simulated time.
         allow_unresolved: Copy undecomposable records verbatim instead of refusing. Unsafe.
         inject: Maps record names to ``nx_out``-length profiles that replace the resampled values.
@@ -1022,12 +1028,9 @@ def regrid(path: Path, nx_in: int, nx_out: int, out: Path, dims: dict[str, int] 
     for spec, (offset, nbytes) in zip(specs, records):
         if not spec.grid_dependent:
             payload = buf[offset:offset + nbytes]
-            if spec.name == "tsteps" and (set_dtmax is not None or set_dtold is not None):
+            if spec.name == "tsteps" and set_dtold is not None:
                 vals = list(struct.unpack("<6d", payload))
-                if set_dtold is not None:
-                    vals[1] = set_dtold
-                if set_dtmax is not None:
-                    vals[5] = set_dtmax
+                vals[1] = set_dtold
                 payload = struct.pack("<6d", *vals)
             elif spec.name == "time" and set_time is not None:
                 payload = struct.pack("<d", set_time)
@@ -1329,7 +1332,7 @@ def _cmd_regrid(args: argparse.Namespace) -> int:
         inject["por"] = column[:args.nx_out]
     specs, rewritten = regrid(
         args.file, args.nx_in, args.nx_out, args.output, dims,
-        set_dtmax=args.set_dtmax, set_dtold=args.set_dtold, set_time=args.set_time,
+        set_dtold=args.set_dtold, set_time=args.set_time,
         allow_unresolved=args.allow_unresolved, inject=inject,
         consistent=not args.no_consistent, deck=args.input)
     for name in inject:
@@ -1405,9 +1408,6 @@ def build_parser() -> argparse.ArgumentParser:
     reg.add_argument("-o", "--output", type=Path, required=True)
     _add_dim_args(reg)
     reg.add_argument("--layout", type=Path, help="also write layout JSON")
-    reg.add_argument("--set-dtmax", type=float,
-                     help="override stored dtmax (restart.F90 takes it from the file, not the "
-                          "input deck)")
     reg.add_argument("--set-dtold", type=float, help="override stored dtold")
     reg.add_argument("--set-time", type=float, help="override stored time")
     reg.add_argument("--porosity-file", type=Path, metavar="FILE",

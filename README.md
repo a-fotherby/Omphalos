@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-598%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-597%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -721,6 +721,12 @@ you want, compute it once: run the coarse model alone (`number_of_files: 1`, no 
 That is a change of model rather than an optimisation. The N coarse solutions differ whenever a swept parameter
 enters the spinup, and collapsing them to one discards that difference, so it is not done for you.
 
+##### Timestep control in a restarted stage
+
+`timestep_max` is honoured — the restart file does not carry it. `timestep_init` is the one to watch: `delt` *is*
+discarded, so a restarted stage climbs from `timestep_init` by doubling. Raising it for the later stages of a
+chain cut one stage's cost by a third here. Both take per-stage values via the `staged` method under `runtime:`.
+
 #### Single sequential chain (no parallelism)
 
 For a simple linear restart chain with no parallel variation, set `number_of_files: 1`:
@@ -836,7 +842,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **598 tests**:
+The project includes a comprehensive test suite with **597 tests**:
 
 ```bash
 # Run all tests

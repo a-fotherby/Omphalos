@@ -400,13 +400,6 @@ class TestRegrid:
 class TestOverrides:
     """Tests for the scalars a restarted deck cannot set for itself."""
 
-    def test_set_dtmax(self, rst, dims, tmp_path):
-        """restart.F90 takes dtmax from the file, so the deck's timestep_max is ignored."""
-        out = tmp_path / 'out.rst'
-        rf.regrid(rst, NX, NX, out, dims, set_dtmax=0.5, consistent=False)
-
-        assert _tsteps(out)[5] == pytest.approx(0.5)
-
     def test_set_dtold(self, rst, dims, tmp_path):
         out = tmp_path / 'out.rst'
         rf.regrid(rst, NX, NX, out, dims, set_dtold=1e-6, consistent=False)
@@ -414,12 +407,13 @@ class TestOverrides:
         assert _tsteps(out)[1] == pytest.approx(1e-6)
 
     def test_other_timestep_scalars_are_untouched(self, rst, dims, tmp_path):
-        """restart.F90 discards delt, tstep, deltmin and dtmaxcour, so leave them as they were."""
+        """Only dtold is writable. delt, tstep, deltmin and dtmaxcour are discarded on restart, and
+        dtmax is reassigned from the deck before use, so none of them is ours to change."""
         out = tmp_path / 'out.rst'
-        rf.regrid(rst, NX, NX, out, dims, set_dtmax=0.5, consistent=False)
+        rf.regrid(rst, NX, NX, out, dims, set_dtold=1e-6, consistent=False)
 
         before, after = _tsteps(rst), _tsteps(out)
-        assert [before[i] for i in (0, 2, 3, 4)] == [after[i] for i in (0, 2, 3, 4)]
+        assert [before[i] for i in (0, 2, 3, 4, 5)] == [after[i] for i in (0, 2, 3, 4, 5)]
 
     def test_set_time(self, rst, dims, tmp_path):
         out = tmp_path / 'out.rst'

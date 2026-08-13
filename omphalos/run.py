@@ -9,6 +9,7 @@ import pexpect as pexp
 import xarray as xr
 
 from core import spatial_constructor as sc
+from core.keyword_block import SNAPSHOT_TIME_KEYWORDS, snapshot_times
 from omphalos.settings import crunch_dir
 
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
@@ -31,6 +32,11 @@ CT_ERROR_PATTERNS = [
     # a success, and get_results goes on to parse a directory containing no tecplot output at all.
     # Exercise17, Exercise18 and Exercise19 of the short course all ship decks that hit this.
     'No Z location for pressure',
+    # A time_series entry giving only an X node in a 2-D or 3-D problem: 'time_series out.dat 251'
+    # wants a Y index too, as 'time_series_at_node out.dat 30 30' has. CrunchTope exits, so this is
+    # the same false success as the pressure case above. Matched on the substring so that the Y and
+    # Z wordings are both caught.
+    'location for timeseries must be specified',
     'EXCEEDED MAXIMUM ITERATIONS',
     'TRY A',
     'divide by zero',
@@ -398,8 +404,9 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
         print(f'Running run {run_num}, stage {stage_num}')
         crunchtope(stage_file, run_num, timeout, tmp_path, file_offset=file_offset)
 
-        if 'spatial_profile' in stage_file.keyword_blocks['OUTPUT'].contents:
-            file_offset += len(stage_file.keyword_blocks['OUTPUT'].contents['spatial_profile'])
+        output_contents = stage_file.keyword_blocks['OUTPUT'].contents
+        if any(key in output_contents for key in SNAPSHOT_TIME_KEYWORDS):
+            file_offset += len(snapshot_times(output_contents))
 
         if stage_file.error_code != 0:
             print(f'Error in run {run_num}, stage {stage_num}. Stopping staged execution.')

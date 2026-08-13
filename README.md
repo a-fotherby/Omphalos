@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-614%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-623%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -239,6 +239,10 @@ print(volumes.dims)
 `file_num` is labelled with the run numbers that compiled successfully, so a sweep with failed or timed-out runs
 produces fewer slices than `number_of_files` and the labels tell you which runs survived. Select by run number
 with `.sel(file_num=...)`, and join against `conditions.nc` on the same coordinate rather than by position.
+
+> **Variable names come from CrunchTope's tecplot headers, inconsistencies included.** The `velocity` group holds
+> `X Velocity` with a space but `Y-Velocity` and `Z-Velocity` with hyphens. They are passed through as written so
+> that `results.nc` matches the `.tec` files it was built from, so index them by their exact names.
 
 **Sweeps run in the same directory are numbered, not overwritten.** A second sweep writes `results1.nc`, a third
 `results2.nc`, and so on. The parameter record written by `--compile-inputs` takes its name from the results file
@@ -490,7 +494,7 @@ Omphalos supports two-dimensional parameter variation through staged restarts:
 
 This is useful for simulating scenarios where conditions change over time, such as shifts in boundary conditions or perturbation experiments.
 
-> **Template requirements:** Your CrunchTope template must have a `spatial_profile` entry in the OUTPUT block — Omphalos uses this to offset output times across stages. Do not include `save_restart` or `restart` directives in the template; Omphalos sets these automatically.
+> **Template requirements:** Your CrunchTope template must have a `spatial_profile` entry in the OUTPUT block (or its synonym `spatial_profile_at_time`, which CrunchTope and Omphalos both accept) — Omphalos uses this to offset output times across stages. Do not include `save_restart` or `restart` directives in the template; Omphalos sets these automatically.
 
 > **Run chains with `rhea`, not `omphalos`.** Staged restarts are executed by the parallel runner; the sequential `omphalos` entry point does not run them, even with one file. `rhea config.yaml local` is the right command for a single-run chain.
 
@@ -843,7 +847,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **614 tests**:
+The project includes a comprehensive test suite with **623 tests**:
 
 ```bash
 # Run all tests
@@ -1280,10 +1284,12 @@ until its `timeout` expired before being recorded as failed.
 
 ### Two-Dimensional Decks
 
-Three things bite a 1-D deck that gains a second dimension. The first two are now `CT_ERROR_PATTERNS`.
+Four things bite a 1-D deck that gains a second dimension. The first three are now `CT_ERROR_PATTERNS`.
 
 - **`hindmarsh true` is 1-D only.** In 2-D CrunchTope prompts `Return to continue` and blocks on it. Set
   `hindmarsh false`.
+- **`time_series` needs a Y node.** `time_series out.dat 251` is a 1-D form; in 2-D it stops with
+  `Y location for timeseries must be specified`. Use `time_series_at_node out.dat 30 30`.
 - **`pressure` zone entries need their K range.** `zone 43-43 1-42 fix` stops at startup with
   `No Z location for pressure`; it wants `zone 43-43 1-42 1-1 fix`. CrunchTope exits rather than hanging, so
   this was previously recorded as a successful run with no output.

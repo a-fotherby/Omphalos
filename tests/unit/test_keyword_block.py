@@ -8,6 +8,8 @@ from core.keyword_block import (
     KeywordBlockModificationError,
     ConditionBlockModificationError,
     resolve_entry,
+    snapshot_key,
+    snapshot_times,
     surface_area_position,
 )
 
@@ -339,3 +341,38 @@ class TestExceptions:
             raise ConditionBlockModificationError(msg)
         except ConditionBlockModificationError as e:
             assert msg in str(e)
+
+
+class TestSnapshotTimeKeywords:
+    """Tests for the two spellings of the OUTPUT block's snapshot times.
+
+    StartTope.F90 passes 'spatial_profile' and 'spatial_profile_at_time' to the same reader, so they
+    are synonyms to CrunchTope, and short-course decks use each. Reading only the first meant a deck
+    using the second raised KeyError in get_results after the run had already finished.
+    """
+
+    def test_the_canonical_spelling_is_read(self):
+        """Test that a deck using 'spatial_profile' is read."""
+        assert snapshot_times({'spatial_profile': ['10.0', '90.0']}) == ['10.0', '90.0']
+
+    def test_the_at_time_spelling_is_read(self):
+        """Test that a deck using 'spatial_profile_at_time' is read too."""
+        assert snapshot_times({'spatial_profile_at_time': ['90.0']}) == ['90.0']
+
+    def test_a_block_with_neither_names_both_in_the_error(self):
+        """Test that the failure is actionable rather than a bare key name."""
+        with pytest.raises(KeyError) as excinfo:
+            snapshot_times({'time_units': ['days']})
+
+        message = str(excinfo.value)
+        assert 'spatial_profile' in message
+        assert 'spatial_profile_at_time' in message
+
+    def test_the_key_reports_the_spelling_in_use(self):
+        """Test that writers can preserve whichever spelling the deck used."""
+        assert snapshot_key({'spatial_profile_at_time': ['90.0']}) == 'spatial_profile_at_time'
+        assert snapshot_key({'spatial_profile': ['90.0']}) == 'spatial_profile'
+
+    def test_the_key_defaults_to_canonical_when_absent(self):
+        """Test that writing into a block with no times uses the canonical name."""
+        assert snapshot_key({'time_units': ['days']}) == 'spatial_profile'

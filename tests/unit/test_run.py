@@ -584,3 +584,41 @@ class TestFailedRunsAreCleanedUp:
         run.crunchtope(input_file, 0, 10, tmp_path)        # must not raise
 
         assert input_file.error_code == 2
+
+
+class TestTimeSeriesNodeInTwoDimensions:
+    """Tests for a time_series entry that names only an X node in a 2-D problem.
+
+    'time_series out.dat 251' is fine in 1-D and stops a 2-D run at startup with 'Y location for
+    timeseries must be specified'; the 2-D form is 'time_series_at_node out.dat 30 30'. CrunchTope
+    exits rather than waiting, so as with the pressure K range this was recorded as a successful run
+    whose output directory turned out to be empty.
+    """
+
+    def test_it_is_an_error_pattern(self):
+        """Test that the message is caught."""
+        assert 'location for timeseries must be specified' in run.CT_ERROR_PATTERNS
+
+    def test_the_pattern_matches_the_y_and_z_wordings(self):
+        """Test that matching on the substring catches either axis."""
+        import re
+
+        pattern = 'location for timeseries must be specified'
+        for line in ('  Y location for timeseries must be specified',
+                     '  Z location for timeseries must be specified'):
+            assert re.search(pattern, line), f'pattern missed {line!r}'
+
+    def test_it_is_not_recorded_as_a_successful_run(self, tmp_path, monkeypatch):
+        """Test that matching it flags the file and skips output parsing."""
+        error_code = run.CT_ERROR_PATTERNS.index(
+            'location for timeseries must be specified') + 2
+        process = Mock()
+        process.expect.return_value = error_code
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+        run.crunchtope(input_file, 0, 10, tmp_path)
+
+        assert input_file.error_code == error_code
+        input_file.get_results.assert_not_called()

@@ -4,7 +4,7 @@ import re
 import pandas as pd
 import xarray as xr
 
-from core.keyword_block import strip_entry_key
+from core.keyword_block import snapshot_times, strip_entry_key
 from omphalos import file_methods as fm
 
 
@@ -289,12 +289,14 @@ class InputFile:
             file_offset: Offset for file numbering (used in staged restarts where
                 files from previous stages have already been written). Default 0.
         """
-        times = self.keyword_blocks['OUTPUT'].contents['spatial_profile']
+        # Either spelling of the snapshot-times keyword; decks in the wild use both.
+        times = list(snapshot_times(self.keyword_blocks['OUTPUT'].contents))
 
         # Check for later inputs and append times.
         if self.later_inputs:
             for file in self.later_inputs:
-                later_times = self.later_inputs[file].keyword_blocks['OUTPUT'].contents['spatial_profile']
+                later_times = snapshot_times(
+                    self.later_inputs[file].keyword_blocks['OUTPUT'].contents)
                 times.extend(later_times)
 
         # Convert time strings in raw input file to floats and make into pd.Index object.

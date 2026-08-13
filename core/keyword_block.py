@@ -48,6 +48,50 @@ def strip_entry_key(block, entry):
 
     return entry
 
+# The two spellings CrunchTope accepts for the OUTPUT block's snapshot times. StartTope.F90 passes
+# both to read_snapshot, so they are exact synonyms, and short-course decks use each of them.
+SNAPSHOT_TIME_KEYWORDS = ('spatial_profile', 'spatial_profile_at_time')
+
+
+def snapshot_key(output_contents):
+    """Return the snapshot-times keyword an OUTPUT block uses.
+
+    Args:
+        output_contents: The contents dictionary of an OUTPUT keyword block.
+
+    Returns:
+        The spelling the deck used, or 'spatial_profile' if it declares neither, so that callers
+        writing times into a block get the canonical name.
+    """
+    for keyword in SNAPSHOT_TIME_KEYWORDS:
+        if keyword in output_contents:
+            return keyword
+
+    return SNAPSHOT_TIME_KEYWORDS[0]
+
+
+def snapshot_times(output_contents):
+    """Return an OUTPUT block's snapshot times, under whichever spelling the deck used.
+
+    Args:
+        output_contents: The contents dictionary of an OUTPUT keyword block.
+
+    Returns:
+        The list of time tokens.
+
+    Raises:
+        KeyError: If the block declares neither spelling, naming both so the message is actionable.
+    """
+    for keyword in SNAPSHOT_TIME_KEYWORDS:
+        if keyword in output_contents:
+            return output_contents[keyword]
+
+    raise KeyError(
+        'OUTPUT block declares no snapshot times: expected one of '
+        f'{" or ".join(SNAPSHOT_TIME_KEYWORDS)}. Without it CrunchTope does no time stepping.'
+    )
+
+
 # The keywords that introduce a mineral surface area value in a condition block entry, per the
 # CrunchTope Users' Manual (Mineral Surface Area Options). If none is given, a bare trailing value is
 # read by CrunchTope as the bulk surface area.

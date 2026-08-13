@@ -459,7 +459,8 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
                 _configure_spatial_profile(input_file, config['restart_chain']['spatial_profile'],
                                            stage_num, base_time=base_time)
             elif ((stage_num > 0 or base_time)
-                    and 'spatial_profile' in input_file.keyword_blocks['OUTPUT'].contents):
+                    and any(key in input_file.keyword_blocks['OUTPUT'].contents
+                            for key in kb.SNAPSHOT_TIME_KEYWORDS)):
                 # Stage 0 needs adjusting too when a spinup moves the clock forward, or its
                 # template times would land before the restart and CrunchTope would stop.
                 _auto_adjust_spatial_profile(input_file, stage_num, base_time=base_time)
@@ -1112,7 +1113,9 @@ def _configure_spatial_profile(input_file, spatial_profile_config, stage_num, ba
     adjusted_times = [t + offset for t in stage_times]
 
     # Convert to strings for the keyword block
-    output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]
+    # Written back under the spelling the deck already uses, so a template saying
+    # 'spatial_profile_at_time' does not end up with both keywords.
+    output_block.contents[kb.snapshot_key(output_block.contents)] = [str(t) for t in adjusted_times]
 
 
 def _auto_adjust_spatial_profile(input_file, stage_num, base_time=0.0):
@@ -1131,8 +1134,8 @@ def _auto_adjust_spatial_profile(input_file, stage_num, base_time=0.0):
     """
     output_block = input_file.keyword_blocks['OUTPUT']
 
-    # Get the original spatial_profile times from the template
-    original_times = [float(t) for t in output_block.contents['spatial_profile']]
+    # Get the original snapshot times from the template, under either spelling
+    original_times = [float(t) for t in kb.snapshot_times(output_block.contents)]
 
     # Use the last time as the stage duration
     stage_duration = original_times[-1]
@@ -1144,5 +1147,5 @@ def _auto_adjust_spatial_profile(input_file, stage_num, base_time=0.0):
     # CrunchTope rejects: 'You have specified an output time < the restart time'.
     adjusted_times = [t + offset for t in original_times if t > 0]
 
-    # Convert to strings for the keyword block
-    output_block.contents['spatial_profile'] = [str(t) for t in adjusted_times]
+    # Convert to strings for the keyword block, keeping the deck's own spelling.
+    output_block.contents[kb.snapshot_key(output_block.contents)] = [str(t) for t in adjusted_times]

@@ -9,6 +9,8 @@ import pexpect as pexp
 import xarray as xr
 
 from core import spatial_constructor as sc
+import core.keyword_block as kb
+from core.file_methods import data_cats
 from core.keyword_block import SNAPSHOT_TIME_KEYWORDS, snapshot_times
 from omphalos.settings import crunch_dir
 
@@ -46,6 +48,47 @@ CT_ERROR_PATTERNS = [
     'Killed',
     'FATAL',
 ]
+
+# error_code for a run that ended cleanly but wrote no output. Negative so that it can never collide
+# with an index into CT_ERROR_PATTERNS as that list grows.
+NO_OUTPUT_ERROR_CODE = -1
+
+# Values CrunchTope's read_logical accepts as true.
+_TRUE_TOKENS = ('true', 'yes', 'on', 't', 'y')
+
+
+def _expects_tecplot_output(input_file):
+    """Whether this deck asked CrunchTope for tecplot snapshots.
+
+    Most of CrunchTope's several hundred fatal paths print a message and then simply STOP. pexpect
+    sees EOF, which is indistinguishable from a clean finish, so the run used to be recorded as a
+    success and then parsed for output that was never written. Knowing whether output was expected is
+    what makes an empty run directory diagnostic.
+
+    Two kinds of deck legitimately write nothing and must not be failed: one running
+    ``speciate_only``, and one with no snapshot times, which CrunchTope reports as 'Timestepping
+    off--initialization only'.
+
+    Args:
+        input_file: The InputFile whose keyword blocks were read.
+
+    Returns:
+        True only if snapshot output can be positively confirmed as expected. Anything unreadable
+        returns False, since wrongly failing a good run is worse than missing a bad one.
+    """
+    try:
+        blocks = input_file.keyword_blocks
+        runtime = blocks['RUNTIME'].contents if 'RUNTIME' in blocks else {}
+        if str(runtime.get('speciate_only', ['false'])[0]).lower() in _TRUE_TOKENS:
+            return False
+
+        if 'OUTPUT' not in blocks:
+            return False
+        times = kb.snapshot_times(blocks['OUTPUT'].contents)
+        # 'Timestepping turned on, but no time provided' -- CrunchTope only initialises.
+        return any(float(t) > 0 for t in times)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return False
 
 
 def _get_kinetic_db_name(input_file):
@@ -160,8 +203,16 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     error_code = process.expect(expect_list)
 
     if error_code == 0:
-        input_file.get_results(str(tmp_dir), file_offset=file_offset)
-        print(f'File {file_num} outputs recorded.')
+        # EOF alone does not mean success: most of CrunchTope's fatal paths print a message and STOP,
+        # which looks identical from here. If the deck asked for snapshots and none were written, the
+        # run failed however cleanly it exited.
+        if _expects_tecplot_output(input_file) and not data_cats(str(tmp_dir)):
+            print(f'File {file_num} exited without writing any tecplot output; '
+                  'check its .out file for a CrunchTope error message.')
+            input_file.error_code = NO_OUTPUT_ERROR_CODE
+        else:
+            input_file.get_results(str(tmp_dir), file_offset=file_offset)
+            print(f'File {file_num} outputs recorded.')
     elif error_code == 1:
         print(f'File {file_num} timed out.')
         input_file.error_code = error_code

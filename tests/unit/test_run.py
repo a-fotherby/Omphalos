@@ -622,3 +622,102 @@ class TestTimeSeriesNodeInTwoDimensions:
 
         assert input_file.error_code == error_code
         input_file.get_results.assert_not_called()
+
+
+class TestCleanExitWithoutOutput:
+    """Tests that a run which exits cleanly but writes nothing is recorded as failed.
+
+    Most of CrunchTope's fatal paths print a message and then STOP, which from pexpect's side is
+    indistinguishable from finishing: EOF. Those runs used to be recorded as successes and then parsed
+    for tecplot files that were never written. Requiring output when the deck asked for it catches all
+    of them at once, including messages that are not in CT_ERROR_PATTERNS.
+    """
+
+    @staticmethod
+    def _blocks(runtime=None, output=None):
+        """Build the minimal keyword_blocks mapping the check reads."""
+        blocks = {}
+        for name, contents in (('RUNTIME', runtime), ('OUTPUT', output)):
+            if contents is not None:
+                block = Mock()
+                block.contents = contents
+                blocks[name] = block
+        return blocks
+
+    def _run(self, blocks, tmp_path, monkeypatch, tec=()):
+        process = Mock()
+        process.expect.return_value = 0          # pexpect.EOF: a clean exit
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+        for name in tec:
+            (tmp_path / name).write_text('TITLE = "x"\n')
+
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+        input_file.keyword_blocks = blocks
+        input_file.error_code = 0
+        run.crunchtope(input_file, 0, 10, tmp_path)
+        return input_file
+
+    def test_empty_directory_is_a_failure_when_snapshots_were_asked_for(self, tmp_path, monkeypatch):
+        """Test that a deck wanting output and producing none is flagged."""
+        blocks = self._blocks(runtime={'speciate_only': ['false']},
+                              output={'spatial_profile': ['10.0', '90.0']})
+        input_file = self._run(blocks, tmp_path, monkeypatch)
+
+        assert input_file.error_code == run.NO_OUTPUT_ERROR_CODE
+        input_file.get_results.assert_not_called()
+
+    def test_output_present_is_parsed_as_before(self, tmp_path, monkeypatch):
+        """Test that a run which did write tecplot files is unaffected."""
+        blocks = self._blocks(runtime={'speciate_only': ['false']},
+                              output={'spatial_profile': ['10.0']})
+        input_file = self._run(blocks, tmp_path, monkeypatch, tec=('conc1.tec',))
+
+        assert input_file.error_code == 0
+        input_file.get_results.assert_called_once()
+
+    def test_speciate_only_is_not_failed(self, tmp_path, monkeypatch):
+        """Test that a speciate_only deck, which writes no snapshots by design, is left alone."""
+        blocks = self._blocks(runtime={'speciate_only': ['true']},
+                              output={'spatial_profile': ['10.0']})
+        input_file = self._run(blocks, tmp_path, monkeypatch)
+
+        assert input_file.error_code == 0
+        input_file.get_results.assert_called_once()
+
+    def test_a_deck_with_no_snapshot_times_is_not_failed(self, tmp_path, monkeypatch):
+        """Test that a deck CrunchTope only initialises is left alone."""
+        blocks = self._blocks(runtime={'speciate_only': ['false']}, output={'time_units': ['days']})
+        input_file = self._run(blocks, tmp_path, monkeypatch)
+
+        assert input_file.error_code == 0
+
+    def test_snapshot_times_of_zero_are_not_failed(self, tmp_path, monkeypatch):
+        """Test the 'Timestepping turned on, but no time provided' case."""
+        blocks = self._blocks(runtime={'speciate_only': ['false']}, output={'spatial_profile': ['0.0']})
+        input_file = self._run(blocks, tmp_path, monkeypatch)
+
+        assert input_file.error_code == 0
+
+    def test_the_at_time_spelling_is_honoured(self, tmp_path, monkeypatch):
+        """Test that a deck using spatial_profile_at_time is checked too."""
+        blocks = self._blocks(runtime={'speciate_only': ['false']},
+                              output={'spatial_profile_at_time': ['90.0']})
+        input_file = self._run(blocks, tmp_path, monkeypatch)
+
+        assert input_file.error_code == run.NO_OUTPUT_ERROR_CODE
+
+    def test_unreadable_blocks_do_not_fail_a_run(self, tmp_path, monkeypatch):
+        """Test that the check declines to judge rather than guessing.
+
+        A false positive here throws away a good run, so anything it cannot read is treated as not
+        expecting output.
+        """
+        input_file = self._run({}, tmp_path, monkeypatch)
+
+        assert input_file.error_code == 0
+        input_file.get_results.assert_called_once()
+
+    def test_the_code_cannot_collide_with_a_pattern_index(self):
+        """Test that the new code stays distinguishable as CT_ERROR_PATTERNS grows."""
+        assert run.NO_OUTPUT_ERROR_CODE < 0

@@ -22,9 +22,9 @@ def quick_import(path, smalls_cats=None):
 def filter_errors(dataset, verbose=False):
     """Split a dataset into the runs that succeeded and the runs that failed.
 
-    A run fails by carrying a non-zero error_code, set by the simulator wrapper: 1 is a timeout, and
+    A run fails by carrying a non-zero error_code, set by the simulator wrapper: 1 is a timeout,
     higher values are the error patterns matched in the simulator's output (see CT_ERROR_PATTERNS in
-    omphalos/run.py).
+    omphalos/run.py), and -1 means the simulator exited without writing any output.
 
     The input dictionary is left untouched; both returned dictionaries are new, and keyed by run
     number so they stay aligned with results.nc.

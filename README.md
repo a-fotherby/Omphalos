@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-623%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-631%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -291,9 +291,12 @@ Files that failed during the run (1), as run: error_code: {7: 1}
 
 - **Returned no output** — no `run<N>/input_file<N>_complete.pkl` to read, so the worker died before it could
   record anything.
-- **Failed during the run** — the run came back carrying a non-zero `error_code`: `1` is a timeout, and higher
+- **Failed during the run** — the run came back carrying a non-zero `error_code`: `1` is a timeout, higher
   values are the error patterns in `omphalos/run.py` (`CT_ERROR_PATTERNS`) matched in CrunchTope's output, such as
-  a convergence failure or a missing input file.
+  a convergence failure or a missing input file, and `-1` means CrunchTope exited cleanly without writing any
+  tecplot output. That last one catches the many fatal paths that print a message and simply stop: an exit is
+  indistinguishable from a clean finish, so such runs used to be recorded as successes. Decks that legitimately
+  write no snapshots — `speciate_only`, or no `spatial_profile` — are exempt.
 
 Neither kind contributes data, so both are left out of `results.nc`. If no run returns usable output, no results
 file is written at all and `rhea` exits non-zero:
@@ -847,7 +850,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **623 tests**:
+The project includes a comprehensive test suite with **631 tests**:
 
 ```bash
 # Run all tests

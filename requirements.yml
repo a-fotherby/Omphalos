@@ -13,3 +13,9 @@ dependencies:
   # Optional: only needed for `rhea <config> local -b parallel`. The default xargs backend needs
   # nothing beyond a POSIX shell.
   - parallel
+  - pip
+  - pip:
+    # Optional: only needed to recompute a database's log K columns (omphalos/logk.py). Not on
+    # conda-forge, hence pip. The version floor matters: 1.5.3 is the release that stopped
+    # assigning length-1 arrays where scalars are wanted, which is a hard error on NumPy 2.
+    - pygcc>=1.5.3

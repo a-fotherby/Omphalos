@@ -80,6 +80,23 @@ echo '# Global settings for Omphalos' >> "$SETTINGS"
 echo "crunch_dir = '$CT_PATH'" >> "$SETTINGS"
 echo "omphalos_dir = '$SCRIPT_DIR'" >> "$SETTINGS"
 
+# CrunchTope renamed the RUNTIME keywords naming the auxiliary databases, and ignores one it does
+# not recognise rather than complaining -- so a deck spelled for the other generation runs to
+# completion without its aqueous kinetics database. The spellings are compiled into the executable,
+# so report which generation this build is at install time. Omphalos probes the binary itself
+# before each sweep, so this is a report rather than a setting; it only matters here as a warning
+# for a build that contains neither spelling.
+if grep -aq 'aqueousdatabase' "$CT_PATH" 2>/dev/null; then
+    echo "CrunchTope build reads 'aqueousdatabase' / 'catabolicdatabase' (CrunchTope 2+)"
+elif grep -aq 'kinetic_database' "$CT_PATH" 2>/dev/null; then
+    echo "CrunchTope build reads 'kinetic_database' / 'catabolic_database' (CrunchTope 1.x)"
+else
+    echo "WARNING: could not identify the database-keyword generation of $CT_PATH."
+    echo "         Omphalos will assume the CrunchTope 1.x spellings"
+    echo "         ('kinetic_database' / 'catabolic_database'). Override by adding, to $SETTINGS:"
+    echo "         crunch_keywords = {'aqueous': 'aqueousdatabase', 'catabolic': 'catabolicdatabase'}"
+fi
+
 # Optional: MIN3P backend. Press Enter at either prompt to leave that entry as it
 # is; both can also be set by editing min3p/settings.py (see settings_default.py).
 export M3P_SETTINGS="$SCRIPT_DIR/min3p/settings.py"

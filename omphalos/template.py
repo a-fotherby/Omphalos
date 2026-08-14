@@ -8,6 +8,7 @@ from omphalos import file_methods as fm
 from omphalos import keyword_block as kb
 from omphalos.input_file import InputFile
 from omphalos.keyword_block import ConditionBlock
+from omphalos.database import Database
 from omphalos.namelist import CrunchNameList
 
 from core.keyword_block import KEY_SEPARATOR, REPEATABLE_ENTRIES
@@ -80,6 +81,15 @@ class Template(InputFile):
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
         if config['catabolic_pathways'] is not None:
             self.catabolic_pathways = CrunchNameList(config['catabolic_pathways'])
+        # Parse the thermodynamic database only where the config asks for it to be edited, and only
+        # on a Template that will write one. Parsing is not free -- 60 ms and 2 MB a time, and a log
+        # K recomputation is minutes -- and a later input file never writes a database of its own:
+        # _print_aux_files writes the top-level InputFile's.
+        if (config.get('database') is not None
+                and config.get('parse_database', True)
+                and (config.get('database_parameters') or config.get('database_logk'))):
+            self.database = Database(config['database'])
+            self.recompute_log_k()
 
         # Check template is not a restart file to avoid infinite recursion.
         if not self.config['restart']:
@@ -99,6 +109,14 @@ class Template(InputFile):
                         # this path (see configure_staged_input_files in generate_inputs.py).
                         later_config = copy.deepcopy(self.config)
                         later_config['template'] = later_file
+                        # A later input file runs in the same directory against the same
+                        # database, which the top-level InputFile writes. Parsing it again here
+                        # would cost a copy per later file and, with database_logk, a full
+                        # recomputation per later file, for a database nothing ever writes -- and
+                        # re-applying the sweep to it would have nothing to apply the sweep to.
+                        later_config['parse_database'] = False
+                        later_config.pop('database_parameters', None)
+                        later_config.pop('database_logk', None)
                         later_config['restart'] = True
                         self.later_inputs.update({later_file: Template(later_config)})
                         print(f'*** IMPORTED LATER FILE {later_file} ***')
@@ -199,6 +217,47 @@ class Template(InputFile):
         """
         return self.raw.get(line_num, '').split()
 
+    def recompute_log_k(self):
+        """Recompute the database's log K columns with pyGCC, where the config asks for it.
+
+        Done once, on the template, before any sweep: the recomputation depends only on the
+        database and the method choices, so doing it per run would repeat a SUPCRT-style
+        calculation per reaction for no gain. A ``database_parameters`` sweep then edits the
+        recomputed file, which is the intended order -- fitted values such as exchange
+        coefficients and kinetic rates are ones pyGCC cannot compute and does not touch.
+
+        The config section is ``database_logk``; ``reactions`` and ``on_unmatched`` steer coverage
+        and strictness, and every other key is passed to LogKCalculator.
+
+        Returns:
+            The LogKRecalculation, or None where the config asks for nothing.
+        """
+        settings = self.config.get('database_logk')
+
+        if not settings:
+            return None
+
+        if self.config.get('recompute_log_k') is False:
+            # rhea sets this on the per-run Templates it rebuilds from the run directories. Those
+            # databases have already been recomputed, and redoing it would repeat a SUPCRT-style
+            # calculation per reaction for every run -- twenty minutes each for a whole database.
+            return None
+
+        from omphalos.logk import LogKCalculator
+
+        settings = dict(settings)
+        sections = settings.pop('sections', None)
+        reactions = settings.pop('reactions', 'all')
+        on_unmatched = settings.pop('on_unmatched', 'warn')
+
+        print('*** Recomputing database log K columns with pyGCC ***')
+        result = LogKCalculator(**settings).recompute(
+            self.database, sections=sections, reactions=reactions, on_unmatched=on_unmatched
+        )
+        print(result.summary())
+
+        return result
+
     def make_dict(self):
         """Returns a dict of InputFile objects, based on the Template."""
         file_dict = dict.fromkeys(np.arange(self.config['number_of_files']))
@@ -207,7 +266,8 @@ class Template(InputFile):
             # string attributes.
             file_dict[file] = copy.deepcopy(InputFile(self.config['template'], self.keyword_blocks,
                                                       self.condition_blocks, self.aqueous_database,
-                                                      self.catabolic_pathways, self.later_inputs))
+                                                      self.catabolic_pathways, self.later_inputs,
+                                                      self.database))
             file_dict[file].file_num = file
 
         return file_dict

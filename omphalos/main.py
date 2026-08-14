@@ -33,6 +33,12 @@ if __name__ == '__main__':
     print('*** Importing template file ***')
     template = Template(config)
 
+    # Check once, before any run, that the deck spells its auxiliary-database keywords the way this
+    # CrunchTope build reads them. A mismatch is silent at run time: CrunchTope ignores the keyword
+    # and carries on without the database.
+    import omphalos.crunch_keywords as ck
+    ck.check_deck(template.keyword_blocks['RUNTIME'].contents)
+
     # Get a dictionary of input files.
     print('*** Generating input files ***')
     file_dict = gi.configure_input_files(template, str(tmp_dir) + '/')

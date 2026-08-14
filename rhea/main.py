@@ -127,6 +127,36 @@ if __name__ == '__main__':
         from omphalos.template import Template
         from omphalos import generate_inputs as gi
 
+    def write_aux_files(input_file, run_num, stage_num=None):
+        """Write a run's swept auxiliary files into its own directory.
+
+        prep_directories.sh copies the template's thermodynamic database, aqueous database and
+        catabolic pathways into every run directory verbatim. Those copies are what slurm_exec.py
+        re-reads, so a sweep of 'database_parameters' or 'namelists' would reach the deck and
+        nothing else: every run would speciate against identical files and quietly agree with
+        itself. The modified copies live only on the InputFile objects configure_input_files
+        returned, so they have to be written out here, while those objects still exist.
+
+        A chain's stages may hold different ones again, where a 'staged' sweep varies something in
+        them, so each stage's go in a directory of their own; slurm_exec.py points that stage's
+        Template at them, and run.run_staged_input copies them into the run directory under the
+        deck's names before the stage runs.
+
+        MIN3P and PFLOTRAN have none of these files, so this is CrunchTope only.
+        """
+        if args.min3p or args.pflotran:
+            return
+
+        import omphalos.run as omphalos_run
+
+        directory = Path(f'{dir_name}{run_num}')
+
+        if stage_num is not None:
+            directory = directory / f'stage{stage_num}_aux'
+            directory.mkdir(exist_ok=True)
+
+        omphalos_run._print_aux_files(input_file, directory.resolve())
+
     # Define procedural file generation name scheme at top for consistency.
     # Do not change as this is not passed to slurm_exec.py
     dir_name = 'run'
@@ -135,6 +165,13 @@ if __name__ == '__main__':
         config = yaml.full_load(file)
 
     template = Template(config)
+
+    # Check once, before any run, that the deck spells its auxiliary-database keywords the way this
+    # CrunchTope build reads them. A mismatch is silent at run time: CrunchTope ignores the keyword
+    # and carries on without the database, across every run in the sweep.
+    if not args.min3p and not args.pflotran:
+        import omphalos.crunch_keywords as ck
+        ck.check_deck(template.keyword_blocks['RUNTIME'].contents)
 
     # Check for staged restart runs
     is_staged = 'restart_chain' in config and config['restart_chain']
@@ -343,10 +380,12 @@ if __name__ == '__main__':
                 ext = config["template"].rsplit('.', 1)[1] if '.' in config["template"] else 'in'
                 stage_file.path = f'{dir_name}{run_num}/{base_name}_stage{stage_num}.{ext}'
                 stage_file.print()
+                write_aux_files(stage_file, run_num, stage_num)
     else:
         for file in file_dict:
             file_dict[file].path = f'{dir_name}{file}/{config["template"]}'
             file_dict[file].print()
+            write_aux_files(file_dict[file], file)
             if file_dict[file].later_inputs:
                 for later_file in file_dict[file].later_inputs:
                     file_dict[file].later_inputs[later_file].path = f'{dir_name}{file}/{file_dict[file].later_inputs[later_file].path}'

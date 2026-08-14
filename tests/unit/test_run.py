@@ -721,3 +721,65 @@ class TestCleanExitWithoutOutput:
     def test_the_code_cannot_collide_with_a_pattern_index(self):
         """Test that the new code stays distinguishable as CT_ERROR_PATTERNS grows."""
         assert run.NO_OUTPUT_ERROR_CODE < 0
+
+
+class TestStagedAuxiliaryFiles:
+    """Every stage of a chain writes its own auxiliary files.
+
+    A 'staged' sweep of database_parameters or namelists gives each stage a different database or
+    namelist, and CrunchTope reads them from the run directory under the name the deck uses. Writing
+    them for stage 0 alone left every later stage running against stage 0's, silently: the run
+    completed, and the staged values were simply never applied.
+    """
+
+    @staticmethod
+    def _stage(stage_num):
+        stage = Mock()
+        stage.stage_num = stage_num
+        stage.error_code = 0
+        stage.keyword_blocks = {'OUTPUT': Mock(contents={})}
+        return stage
+
+    def _run_stages(self, monkeypatch, tmp_path, num_stages=3):
+        written = []
+        monkeypatch.setattr(run, '_print_aux_files',
+                            lambda input_file, path: written.append(input_file.stage_num))
+        monkeypatch.setattr(run, '_spinup_file_offset', lambda *a, **k: 0)
+        monkeypatch.setattr(run, 'regrid_between_stages', lambda *a, **k: None)
+        monkeypatch.setattr(run, 'crunchtope', lambda *a, **k: None)
+        monkeypatch.setattr(run, 'concat_staged_results', lambda stages: 0)
+
+        stages = {n: self._stage(n) for n in range(num_stages)}
+        run.run_staged_input(stages, 0, str(tmp_path), timeout=1)
+
+        return written
+
+    def test_every_stage_writes_its_own(self, monkeypatch, tmp_path):
+        assert self._run_stages(monkeypatch, tmp_path) == [0, 1, 2]
+
+    def test_they_are_written_before_that_stage_runs(self, monkeypatch, tmp_path):
+        order = []
+        monkeypatch.setattr(run, '_print_aux_files',
+                            lambda f, p: order.append(f'aux{f.stage_num}'))
+        monkeypatch.setattr(run, '_spinup_file_offset', lambda *a, **k: 0)
+        monkeypatch.setattr(run, 'regrid_between_stages', lambda *a, **k: None)
+        monkeypatch.setattr(run, 'crunchtope',
+                            lambda f, *a, **k: order.append(f'run{f.stage_num}'))
+        monkeypatch.setattr(run, 'concat_staged_results', lambda stages: 0)
+
+        run.run_staged_input({n: self._stage(n) for n in range(2)}, 0, str(tmp_path), timeout=1)
+
+        assert order == ['aux0', 'run0', 'aux1', 'run1']
+
+    def test_regridding_still_happens_from_the_second_stage_on(self, monkeypatch, tmp_path):
+        regridded = []
+        monkeypatch.setattr(run, '_print_aux_files', lambda *a, **k: None)
+        monkeypatch.setattr(run, '_spinup_file_offset', lambda *a, **k: 0)
+        monkeypatch.setattr(run, 'regrid_between_stages',
+                            lambda stages, stage_num, path: regridded.append(stage_num))
+        monkeypatch.setattr(run, 'crunchtope', lambda *a, **k: None)
+        monkeypatch.setattr(run, 'concat_staged_results', lambda stages: 0)
+
+        run.run_staged_input({n: self._stage(n) for n in range(3)}, 0, str(tmp_path), timeout=1)
+
+        assert regridded == [1, 2]

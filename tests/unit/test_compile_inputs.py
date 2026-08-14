@@ -2,12 +2,14 @@
 
 import pickle
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
 import xarray as xr
 
 from coeus.compile_inputs import compile_inputs, load_input_files, pairing_warning
+from omphalos.database import Database
 
 
 def _input_file(flow=1.0, condition_ph='7.0'):
@@ -220,3 +222,69 @@ class TestPairingWarning:
             (tmp_path / name).touch()
 
         assert pairing_warning(tmp_path, output='conditions1.nc') is None
+
+
+class TestDatabaseParameters:
+    """The database a run used is part of the record, and cannot be re-derived from the config
+    where the sweep is random_uniform."""
+
+    DB_PATH = Path(__file__).parent.parent / 'omphalos_test' / 'SukindaCr53.dbs'
+
+    def _write_runs(self, directory, log_ks):
+        for run_num, log_k in enumerate(log_ks):
+            database = Database(str(self.DB_PATH))
+            database.modify('exchange', 'CaXRifle', 'log_k', log_k)
+            database.modify('minerals', 'Calcite', 'log_k', log_k)
+            run_dir = directory / f'run{run_num}'
+            run_dir.mkdir()
+            input_file = _input_file()
+            input_file.database = database
+            with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+                pickle.dump(input_file, f)
+
+    CONFIG = {
+        'number_of_files': 3,
+        'database_parameters': {
+            'exchange': {'CaXRifle': {'log_k': ['custom', [-1.2, -0.9, -0.6]]}},
+            'minerals': {'Calcite': {'log_k': ['custom', [-1.2, -0.9, -0.6]]}},
+        },
+    }
+
+    def test_scalar_parameter_is_recorded_per_run(self, tmp_path):
+        self._write_runs(tmp_path, [-1.2, -0.9, -0.6])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc',
+                                   group='database_parameters/exchange/CaXRifle')
+        assert recorded['log_k'].values == pytest.approx([-1.2, -0.9, -0.6])
+
+    def test_a_log_k_vector_gains_a_temperature_dimension(self, tmp_path):
+        self._write_runs(tmp_path, [-1.2, -0.9, -0.6])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc',
+                                   group='database_parameters/minerals/Calcite')
+        assert recorded['log_k'].dims == ('file_num', 'temp_point')
+        assert recorded['log_k'].shape == (3, 8)
+        assert recorded['log_k'].values[0] == pytest.approx([-1.2] * 8)
+
+    def test_values_come_from_the_runs_not_the_config(self, tmp_path):
+        # What a run actually used is the point of the record; a random_uniform sweep cannot be
+        # re-derived from the YAML at all.
+        self._write_runs(tmp_path, [-2.0, -2.0, -2.0])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc',
+                                   group='database_parameters/exchange/CaXRifle')
+        assert recorded['log_k'].values == pytest.approx([-2.0, -2.0, -2.0])
+
+    def test_a_config_without_database_parameters_writes_no_such_group(self, tmp_path):
+        _write_runs(tmp_path, [1.0, 2.0, 4.0])
+
+        compile_inputs(FLOW_CONFIG, directory=tmp_path, verbose=False)
+
+        with pytest.raises(OSError):
+            xr.open_dataset(tmp_path / 'conditions.nc', group='database_parameters')

@@ -12,6 +12,7 @@ from core import spatial_constructor as sc
 import core.keyword_block as kb
 from core.file_methods import data_cats
 from core.keyword_block import SNAPSHOT_TIME_KEYWORDS, snapshot_times
+import omphalos.crunch_keywords as ck
 from omphalos.settings import crunch_dir
 
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
@@ -94,7 +95,9 @@ def _expects_tecplot_output(input_file):
 def _get_kinetic_db_name(input_file):
     """Get the kinetic database filename from RUNTIME block.
 
-    CrunchTope accepts both 'kinetic_database' and 'aqueousdatabase' keywords.
+    CrunchTope 1.x spells this keyword 'kinetic_database' and 2+ spells it 'aqueousdatabase'. Both
+    are read here, because this only needs the filename, and which spelling the configured binary
+    actually understands is checked once per sweep by crunch_keywords.check_deck.
 
     Args:
         input_file: InputFile object with parsed keyword blocks.
@@ -103,21 +106,58 @@ def _get_kinetic_db_name(input_file):
         str: Kinetic database filename, or None if not found.
     """
     runtime_contents = input_file.keyword_blocks['RUNTIME'].contents
-    if 'kinetic_database' in runtime_contents:
-        return runtime_contents['kinetic_database'][0]
-    elif 'aqueousdatabase' in runtime_contents:
-        return runtime_contents['aqueousdatabase'][0]
-    return None
+    keyword = ck.deck_keywords(runtime_contents).get('aqueous')
+
+    return runtime_contents[keyword][0] if keyword else None
+
+
+def _get_catabolic_file_name(input_file):
+    """Get the catabolic pathways filename from the RUNTIME block.
+
+    Args:
+        input_file: InputFile object with parsed keyword blocks.
+
+    Returns:
+        str: The filename the deck names, or CrunchTope's default where it names none.
+    """
+    runtime_contents = input_file.keyword_blocks['RUNTIME'].contents
+    keyword = ck.deck_keywords(runtime_contents).get('catabolic')
+
+    if not keyword:
+        return ck.DEFAULT_CATABOLIC_FILE
+
+    return runtime_contents[keyword][0] or ck.DEFAULT_CATABOLIC_FILE
+
+
+def _get_database_name(input_file):
+    """Get the thermodynamic database filename from the RUNTIME block.
+
+    Args:
+        input_file: InputFile object with parsed keyword blocks.
+
+    Returns:
+        str: Database filename, or None if the deck does not name one.
+    """
+    return input_file.keyword_blocks['RUNTIME'].contents.get('database', [None])[0]
 
 
 def _print_aux_files(input_file, tmp_path):
-    """Write auxiliary database and pathway files to the run directory."""
+    """Write auxiliary database and pathway files to the run directory.
+
+    Every execution path -- sequential, rhea non-staged and staged restart -- comes through here, so
+    a swept database written at this one point reaches all three. rhea/prep_directories.sh has
+    already copied the template's database in; an edited one overwrites it under the same name.
+    """
     if input_file.aqueous_database:
         kinetic_db = _get_kinetic_db_name(input_file)
         if kinetic_db:
             input_file.aqueous_database.print(str(tmp_path / kinetic_db))
     if input_file.catabolic_pathways:
-        input_file.catabolic_pathways.print(str(tmp_path / 'CatabolicPathways.in'))
+        input_file.catabolic_pathways.print(str(tmp_path / _get_catabolic_file_name(input_file)))
+    if input_file.database is not None:
+        database_name = _get_database_name(input_file)
+        if database_name:
+            input_file.database.print(str(tmp_path / database_name))
 
 
 def run_dataset(file_dict, tmp_dir, timeout):
@@ -445,9 +485,13 @@ def run_staged_input(stages_dict, run_num, tmp_dir, timeout):
     for stage_num in range(num_stages):
         stage_file = stages_dict[stage_num]
 
-        if stage_num == 0:
-            _print_aux_files(stage_file, tmp_path)
-        else:
+        # Every stage writes its own auxiliary files. A 'staged' sweep of database_parameters or
+        # namelists gives each stage different ones, and CrunchTope reads them from the run
+        # directory under the name the deck uses, so they have to be refreshed before each stage
+        # runs. Writing them for stage 0 alone left every later stage running against stage 0's.
+        _print_aux_files(stage_file, tmp_path)
+
+        if stage_num > 0:
             # A .rst carries no grid metadata, so a stage that changes xzones fails on its first
             # array read unless the file is resampled first.
             regrid_between_stages(stages_dict, stage_num, tmp_path)

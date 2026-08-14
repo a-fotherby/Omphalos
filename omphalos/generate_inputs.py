@@ -39,7 +39,10 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'transport': ['TRANSPORT', -1],
           'erosion/burial': ['EROSION/BURIAL', -1],
           'boundary_conditions': ['BOUNDARY_CONDITIONS', 0],
-          'namelists': [None]
+          'namelists': [None],
+          # 'database' is already the config key naming the .dbs path, so the sweepable parameters
+          # inside it live under 'database_parameters'.
+          'database_parameters': [None]
           }
 
 CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
@@ -211,6 +214,22 @@ def evaluate_config(config, stage_num=None):
 
             modified_params.update({'namelists': modified_nmls})
 
+        elif block == 'database_parameters' and block in config:
+            # Nested section -> entry -> parameter, so one level deeper than a keyword block.
+            modified_database = {}
+            for section in config[block]:
+                section_block = config[block][section]
+                entry_changes = {}
+                for entry in section_block:
+                    entry_changes.update(
+                        {entry: get_block_changes(section_block[entry], num_files,
+                                                  stage_num=stage_num)}
+                    )
+
+                modified_database.update({section: entry_changes})
+
+            modified_params.update({block: modified_database})
+
         elif block in config:
             # Handle differently depending on whether this is a geochemical condition:
             # Extra layer of nesting to deal with naming for geochemical conditions.
@@ -278,6 +297,11 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                             reaction_namelist = namelist.find_reaction(list_name, reaction_name)
                             reaction_namelist[parameter] = change_list[file_num]
 
+        elif block == 'database_parameters':
+            for file in file_dict:
+                _apply_database_changes(file_dict[file], modified_params[block],
+                                        file_dict[file].file_num)
+
         else:
             keyword_dict = modified_params[block]
             block_name = CT_IDs[block][0]
@@ -299,6 +323,31 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                 file_dict[file].later_inputs.update({key: later_file})
 
     return file_dict
+
+
+def _apply_database_changes(input_file, database_dict, run_num):
+    """Apply thermodynamic database edits to one InputFile.
+
+    Args:
+        input_file: The InputFile whose database is to be edited.
+        database_dict: The 'database_parameters' entry of modified_params, nested
+            section -> entry -> parameter -> list of values, one per run.
+        run_num: The run number to index those lists with.
+
+    Raises:
+        ValueError: If the config sweeps database parameters without naming a database. Silently
+            doing nothing would run every case against the same unedited file.
+    """
+    if input_file.database is None:
+        raise ValueError(
+            "ConfigError: 'database_parameters' needs a 'database' entry naming the .dbs file to "
+            'edit.'
+        )
+
+    for section in database_dict:
+        for entry in database_dict[section]:
+            for parameter, change_list in database_dict[section][entry].items():
+                input_file.database.modify(section, entry, parameter, change_list[run_num])
 
 
 def get_config_array(spec, params, num_files, *, ref_vars=None, stage_num=None):
@@ -355,6 +404,12 @@ def has_staged_params(config):
                         for entry in reaction_block:
                             if reaction_block[entry][0] == 'staged':
                                 return True
+        elif block == 'database_parameters' and block in config:
+            for section in config[block]:
+                for entry in config[block][section]:
+                    for parameter in config[block][section][entry]:
+                        if config[block][section][entry][parameter][0] == 'staged':
+                            return True
         elif block in config:
             if CT_IDs[block][0] == 'geochemical condition':
                 for condition in config[block]:
@@ -423,7 +478,8 @@ def configure_staged_input_files(template, tmp_dir, rhea=False):
                 template.condition_blocks,
                 template.aqueous_database,
                 template.catabolic_pathways,
-                {}  # No later_inputs for staged runs - we handle stages differently
+                {},  # No later_inputs for staged runs - we handle stages differently
+                template.database
             ))
             input_file.file_num = run_num
             input_file.stage_num = stage_num
@@ -505,6 +561,8 @@ def _apply_modifications(input_file, modified_params, run_num):
                         namelist = input_file.__getattribute__(nml_name)
                         reaction_namelist = namelist.find_reaction(list_name, reaction_name)
                         reaction_namelist[parameter] = change_list[run_num]
+        elif block == 'database_parameters':
+            _apply_database_changes(input_file, modified_params[block], run_num)
         else:
             keyword_dict = modified_params[block]
             block_name = CT_IDs[block][0]

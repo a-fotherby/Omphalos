@@ -59,12 +59,16 @@ def _format_entry_line(entry, words, max_line_length=MAX_LINE_LENGTH):
 class InputFile:
     """Highest level object, representing a single CrunchTope input file."""
 
-    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways, restarts):
+    def __init__(self, path, keyword_blocks, condition_blocks, aqueous_database, catabolic_pathways,
+                 restarts, database=None):
         self.path = path
         self.keyword_blocks = keyword_blocks
         self.condition_blocks = condition_blocks
         self.aqueous_database = aqueous_database
         self.catabolic_pathways = catabolic_pathways
+        # The thermodynamic database, carried per run so a sweep can edit it. None where the config
+        # names no database, which leaves the file prep_directories.sh copied in place.
+        self.database = database
         self.results = dict()
         # 0 = successful run
         # 1 = timeout

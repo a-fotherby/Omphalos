@@ -59,6 +59,7 @@ def execute(file_num, config, pflo, min3p=False):
     name = config['template']
     aqueous_database = config['aqueous_database']
     catabolic_pathways = config['catabolic_pathways']
+    database = config.get('database')
     tmp_dir = Path(f'run{file_num}')
 
     # overwrite config['template'] entry to fix file reading
@@ -68,6 +69,16 @@ def execute(file_num, config, pflo, min3p=False):
         config.update({'aqueous_database': str(cwd / tmp_dir / aqueous_database)})
     if catabolic_pathways is not None:
         config.update({'catabolic_pathways': str(cwd / tmp_dir / catabolic_pathways)})
+    # The run directory's database is this run's own, swept copy; the one the config names sits in
+    # the working directory and is the template's. Reading the latter here would hand every run the
+    # unswept file, and _print_aux_files would then write it over the swept one.
+    if database:
+        config.update({'database': str(cwd / tmp_dir / database)})
+
+    # The databases in the run directory already have their log K columns recomputed: rhea/main.py
+    # did it once, on the template, before generating anything. Doing it again here would repeat a
+    # SUPCRT-style calculation per reaction for every run in the sweep.
+    config.update({'recompute_log_k': False})
 
     # Check for staged restart runs
     if not pflo and 'restart_chain' in config and config['restart_chain']:
@@ -83,6 +94,20 @@ def execute(file_num, config, pflo, min3p=False):
             stage_config = config.copy()
             stage_config['template'] = stage_path
             stage_config['restart'] = True  # Prevent Template from importing later_inputfiles
+
+            # A 'staged' sweep gives each stage its own auxiliary files, which rhea/main.py wrote
+            # into a directory per stage. Reading the run directory's copies instead would hand
+            # every stage the same ones -- in practice stage 0's, since that is what runs first --
+            # and the staged values of everything in them would be silently discarded.
+            stage_aux = cwd / tmp_dir / f'stage{stage_num}_aux'
+
+            if stage_aux.is_dir():
+                for key, filename in (('database', database),
+                                      ('aqueous_database', aqueous_database),
+                                      ('catabolic_pathways', catabolic_pathways)):
+                    if filename and (stage_aux / filename).exists():
+                        stage_config[key] = str(stage_aux / filename)
+
             stage_file = Template(stage_config)
             stage_file.file_num = int(file_num)
             stage_file.stage_num = stage_num

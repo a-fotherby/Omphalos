@@ -56,3 +56,31 @@ namelists:
         - 'random_uniform'
         - [0,1]
   catabolic_pathways:
+
+# Parameters in the thermodynamic database named by 'database' above. Nested
+# section -> entry -> parameter. Sections are primary_species, secondary_species, gases, minerals,
+# surface_complexation, mineral_kinetics, exchange and surface_complexation_parameters.
+database_parameters:
+  exchange:
+    exchange_species_name:
+      log_k:
+        - 'linspace'
+        - [-1.2, -0.6, 1]
+  mineral_kinetics:
+    mineral_name:
+      rate(25C):
+        - 'random_uniform'
+        - [-9.0, -8.0]
+
+# Recompute the database's log K columns with pyGCC before any sweep. Needs pygcc >= 1.5.3.
+# Only the log K columns are rewritten; stoichiometry, weights, the kinetics block and the
+# exchange block are left exactly as they are, so fitted values survive.
+database_logk:
+  sourcedb: 'thermo.2021'
+  sourceformat: 'GWB'          # GWB | EQ36 | PHREEQC | Pflotran | ToughReact
+  reactions: 'all'             # or a list of species/mineral names
+  on_unmatched: 'warn'         # warn | error | leave
+  pressure: 500                # bar; omit for the water saturation curve
+  Dielec_method: 'JN91'
+  heatcap_method: 'SUPCRT'
+  densityextrap: false

@@ -17,6 +17,16 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 
+def _netcdf_name(name):
+    """Return a name netCDF can hold.
+
+    Group and variable names may not contain '/', which netCDF reads as a path separator. Database
+    entry names are chemical formulae and rate law labels, so most punctuation is fine and only the
+    slash needs replacing.
+    """
+    return str(name).replace('/', '_')
+
+
 def load_input_files(directory, verbose=True):
     """Load the completed InputFile pickle from every run directory under directory.
 
@@ -141,6 +151,28 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
         arr = np.array([[float(stage_arrays[s][fn]) for s in range(num_stages)] for fn in file_nums])
         return xr.Variable(['file_num', 'stage_num'], arr)
 
+    def database_var(values):
+        """Wrap per-file database values, which may be a vector over the temperature points.
+
+        A mineral or secondary species log K is one value per temperature point, so it gains a
+        temp_point dimension; an exchange coefficient or a rate constant is a single number and does
+        not.
+        """
+        if not any(isinstance(value, list) for value in values):
+            return make_var([float(value) for value in values])
+
+        width = max(len(value) if isinstance(value, list) else 1 for value in values)
+        array = np.array(
+            [value if isinstance(value, list) else [value] * width for value in values],
+            dtype=float,
+        )
+
+        if staged_mode:
+            return xr.Variable(['file_num', 'stage_num', 'temp_point'],
+                               np.tile(array[:, np.newaxis, :], (1, num_stages, 1)))
+
+        return xr.Variable(['file_num', 'temp_point'], array)
+
     def make_coords():
         coords = {'file_num': np.array(file_nums)}
         if staged_mode:
@@ -165,7 +197,8 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
             print(f'Skipping block "{block}": slice-type modification not supported.')
             continue
 
-        if block == 'namelists':
+        # Both are nested a level deeper than a keyword block and are handled after this loop.
+        if block in ('namelists', 'database_parameters'):
             continue
 
         block_config = config[block]
@@ -241,6 +274,32 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
                         data_vars[parameter] = make_var(values)
 
                 write(xr.Dataset(data_vars, coords=make_coords()), f'namelists/{nml_type}/{reaction_name}')
+                groups_written += 1
+
+    if 'database_parameters' in config:
+        for section, section_config in config['database_parameters'].items():
+            for entry, entry_config in section_config.items():
+                data_vars = {}
+                for parameter, param_spec in entry_config.items():
+                    if staged_mode and param_spec[0] == 'staged':
+                        data_vars[_netcdf_name(parameter)] = staged_var(
+                            {s: stage_configs[s]['database_parameters'][section][entry][parameter]
+                             for s in range(num_stages)}
+                        )
+                    else:
+                        values = []
+                        for fn in file_nums:
+                            try:
+                                values.append(input_files[fn].database.value(section, entry,
+                                                                             parameter))
+                            except (AttributeError, KeyError, TypeError) as e:
+                                print(f'Warning: Could not read database_parameters/{section}/'
+                                      f'{entry}/{parameter} for file {fn}: {e}')
+                                values.append(float('nan'))
+                        data_vars[_netcdf_name(parameter)] = database_var(values)
+
+                write(xr.Dataset(data_vars, coords=make_coords()),
+                      f'database_parameters/{section}/{_netcdf_name(entry)}')
                 groups_written += 1
 
     if groups_written == 0:

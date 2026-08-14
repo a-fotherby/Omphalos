@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-631%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-845%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -48,6 +48,9 @@
   - [Frontmatter](#frontmatter)
   - [Parameter Modification](#parameter-modification)
     - [Namelists](#namelists)
+    - [Database Parameters](#database-parameters)
+    - [Recomputing log K with pyGCC](#recomputing-log-k-with-pygcc)
+    - [Changing the temperature points](#changing-the-temperature-points)
   - [Modification Options](#modification-options)
   - [Staged Restarts](#staged-restarts)
 - [Project Structure](#project-structure)
@@ -441,6 +444,105 @@ namelists:
         - 'random_uniform'
         - [1e-10, 1e-8]
 ```
+
+#### Database Parameters
+
+Modify the thermodynamic database (`.dbs`). `database:` names the file, so the parameters inside it
+live under `database_parameters:`, nested section → entry → parameter:
+
+```yaml
+database_parameters:
+  exchange:
+    CaXRifle:
+      log_k:                  # the ion-exchange selectivity coefficient
+        - 'linspace'
+        - [-1.2, -0.6, 1]
+  mineral_kinetics:
+    Calcite:                  # or 'Calcite&default'
+      rate(25C):
+        - 'custom'
+        - [-9.0, -8.5, -8.0]
+  minerals:
+    Calcite:
+      log_k:                  # a scalar fills every temperature point
+        - 'constant'
+        - 1.85
+```
+
+| Section | Editable parameters |
+|---|---|
+| `primary_species` | `dh_size`, `charge`, `weight` |
+| `secondary_species` | `log_k`, `dh_size`, `charge`, `weight` |
+| `gases`, `minerals` | `molar_volume`, `log_k`, `weight` |
+| `mineral_kinetics` | `label`, `type`, `rate(25C)`, `activation`, and any other `key = value` line |
+| `exchange` | `log_k`, `bfit` |
+| `surface_complexation` | `log_k` |
+| `surface_complexation_parameters` | `charge` |
+
+Edits are surgical: the named token is rewritten and the rest of the file is left byte for byte as
+it was. A name the database does not contain raises at generation time. Parsing happens only when a
+config asks for it.
+
+Notes:
+
+- `log_k` is a vector over the temperature points everywhere except `exchange`, where CrunchTope
+  reads a single value.
+- Mineral kinetics entries are keyed `Mineral&label`. A bare `Calcite` works while only one rate law
+  exists; where two parallel laws share a label they become `#1` and `#2` and a bare name raises.
+- Reaction stoichiometry is not editable — changing a coefficient changes the reaction, and its
+  log K would no longer belong to it.
+- The in-database `aqueous_kinetics` block is deprecated and read-only; sweep aqueous kinetics
+  through `namelists:` above.
+
+#### Recomputing log K with pyGCC
+
+`database_logk:` recomputes the log K columns with [pyGCC](https://pypi.org/project/pygcc/), leaving
+every other column untouched — so fitted values pyGCC cannot compute survive. It runs once on the
+template, before any sweep.
+
+```yaml
+database_logk:
+  sourcedb: 'thermo.2021'
+  sourceformat: 'GWB'         # GWB | EQ36 | PHREEQC | Pflotran | ToughReact
+  reactions: 'all'            # or a list of species/mineral names
+  on_unmatched: 'warn'        # warn | error | leave
+  pressure: 500               # bar; omit for the water saturation curve
+  Dielec_method: 'JN91'       # JN91 | FGL97 | DEW
+  heatcap_method: 'SUPCRT'    # SUPCRT | Berman88 | HP11 | HF76
+  aliases:                    # for reactions the two compilations spell differently
+    Ferrihydrite: 'Fe(OH)3'
+```
+
+Expect a partial match. On `SukindaCr53.dbs`, thermo.2021 supplies 824 of 2,969 reactions; 1,985
+are absent from it and 160 are written on an incompatible basis. Those keep their existing values
+and are named in the report — use `on_unmatched: 'error'` where that is unacceptable.
+
+`Dielec_method`, `heatcap_method`, `densityextrap` and `pressure` all move log K, and a `.dbs`
+header has nowhere to record them, so `LogKRecalculation.settings` returns them for you to store
+with the run.
+
+> **Needs `pygcc >= 1.5.3`**, which `requirements.yml` installs with pip.
+
+#### Changing the temperature points
+
+The usual eight points span 0–300 °C, so a low-temperature model wastes most of them.
+`LogKCalculator.regrid` rewrites the database onto a grid chosen for the problem:
+
+```python
+database = Database('SukindaCr53.dbs')
+LogKCalculator().regrid(database, [0.0, 5.0, 10.0, 15.0, 25.0])
+database.print('SukindaCr53_cold.dbs')
+```
+
+Every row in a gridded section is rebuilt, whatever `reactions` says — rows of two widths are not a
+database. Rows pyGCC cannot supply are resampled from the curve they already carry.
+
+> **Use 1 point, or 5 to 8.** CrunchTope dimensions its arrays at compile time (`ntmp = 8`) and
+> stops above that; below 5 its log K fit is underdetermined (`nbasis = 5`). One point is fine —
+> isothermal is branched out and needs no fit.
+
+Generating a database from scratch is not supported: pyGCC's CrunchTope writer is not public, and a
+full regeneration would replace the fitted values this feature exists to preserve.
 
 ### Modification Options
 
@@ -850,7 +952,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **631 tests**:
+The project includes a comprehensive test suite with **845 tests**:
 
 ```bash
 # Run all tests
@@ -883,11 +985,14 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_compile_inputs.py` | `coeus/compile_inputs.py` — the record of what a sweep actually ran |
 | `tests/unit/test_run.py` | `omphalos/run.py` — CrunchTope invocation and the stdout error patterns |
 | `tests/unit/test_restart_file.py` | `omphalos/restart_file.py` — reading, regridding and verifying CrunchTope `.rst` restart files, against a real 10-cell fixture |
-| `tests/unit/test_database.py` | `omphalos/database.py` — thermodynamic database handling |
+| `tests/unit/test_database.py` | `omphalos/database.py` — parsing, round-trip fidelity and surgical editing of a `.dbs` |
+| `tests/unit/test_database_sweep.py` | `database_parameters` end to end: per-run databases, staged chains, config errors |
+| `tests/unit/test_logk.py` | `omphalos/logk.py` — pyGCC log K recomputation, stoichiometry reconciliation, regridding |
+| `tests/unit/test_crunch_keywords.py` | `omphalos/crunch_keywords.py` — which auxiliary-database keywords a build reads |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
 | `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |
 | `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation and failed-run accounting |
-| `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that a run writes its auxiliary namelists before CrunchTope starts |
+| `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that each run, and each stage, reads and writes its own auxiliary files |
 | `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
 | `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |
 

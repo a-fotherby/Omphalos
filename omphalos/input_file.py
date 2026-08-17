@@ -69,6 +69,10 @@ class InputFile:
         # The thermodynamic database, carried per run so a sweep can edit it. None where the config
         # names no database, which leaves the file prep_directories.sh copied in place.
         self.database = database
+        # The settings a per-run log K recomputation was done with, or None where there was none.
+        # A .dbs has no pressure row, so a database recomputed at depth is indistinguishable from
+        # one at saturation: without this, the run would carry no record of the pressure it used.
+        self.logk_settings = None
         self.results = dict()
         # 0 = successful run
         # 1 = timeout

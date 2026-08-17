@@ -15,6 +15,10 @@ from core.keyword_block import SNAPSHOT_TIME_KEYWORDS, snapshot_times
 import omphalos.crunch_keywords as ck
 from omphalos.settings import crunch_dir
 
+# Where a per-run log K recomputation records the settings it used. CrunchTope neither reads nor
+# minds it; it exists because the database cannot say what pressure it was computed at.
+LOGK_RECORD = 'logk_settings.json'
+
 # Error patterns searched in CrunchTope stdout. pexpect returns the index of the
 # first match, so more specific strings should come before generic ones.
 CT_ERROR_PATTERNS = [
@@ -147,7 +151,19 @@ def _print_aux_files(input_file, tmp_path):
     Every execution path -- sequential, rhea non-staged and staged restart -- comes through here, so
     a swept database written at this one point reaches all three. rhea/prep_directories.sh has
     already copied the template's database in; an edited one overwrites it under the same name.
+
+    A per-run log K recomputation is written out beside the database as LOGK_RECORD. It has to be:
+    a CrunchTope database has no pressure row, so the file this writes is byte-comparable between a
+    run at 500 bar and one at saturation, and rhea's worker rebuilds its InputFile from the run
+    directory rather than from the object that carried the settings. Without the sidecar the
+    pressure would be gone by the time anything came to record it.
     """
+    if getattr(input_file, 'logk_settings', None):
+        import json
+
+        with open(tmp_path / LOGK_RECORD, 'w') as record:
+            json.dump(input_file.logk_settings, record, indent=2, sort_keys=True)
+
     if input_file.aqueous_database:
         kinetic_db = _get_kinetic_db_name(input_file)
         if kinetic_db:

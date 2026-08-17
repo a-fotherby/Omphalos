@@ -687,3 +687,304 @@ class TestWaterPropertiesAreShared:
 
         assert len(result.updated) > 500, 'nothing was actually computed'
         assert elapsed < 60, f'a whole-database recompute took {elapsed:.0f} s'
+
+
+class TestSweepSpecRecognition:
+    """Telling a sweep apart from a plain setting, which share one namespace in database_logk."""
+
+    def test_a_method_and_params_is_a_sweep(self):
+        from omphalos.generate_inputs import is_sweep_spec
+
+        assert is_sweep_spec(['custom', [200.0, 500.0]])
+
+    def test_a_list_of_reaction_names_is_not(self):
+        from omphalos.generate_inputs import is_sweep_spec
+
+        assert not is_sweep_spec(['Calcite', 'Quartz'])
+
+    def test_a_pressure_profile_is_not(self):
+        # One pressure per temperature point is a documented plain setting, not a sweep.
+        from omphalos.generate_inputs import is_sweep_spec
+
+        assert not is_sweep_spec([1.0, 500.0])
+
+    def test_a_scalar_is_not(self):
+        from omphalos.generate_inputs import is_sweep_spec
+
+        assert not is_sweep_spec(500)
+
+    def test_an_unknown_method_name_is_not(self):
+        from omphalos.generate_inputs import is_sweep_spec
+
+        assert not is_sweep_spec(['nonsense', [1.0, 2.0]])
+
+    def test_a_coverage_setting_is_never_a_sweep(self):
+        # 'constant' is a parameter method, so a two-name reaction list beginning with it would
+        # otherwise be read as one -- and the recomputation would silently cover nothing.
+        from omphalos.generate_inputs import split_logk_settings
+
+        plain, swept = split_logk_settings({'reactions': ['constant', 'Calcite']})
+
+        assert swept == {}
+        assert plain == {'reactions': ['constant', 'Calcite']}
+
+    def test_the_two_are_separated(self):
+        from omphalos.generate_inputs import split_logk_settings
+
+        plain, swept = split_logk_settings({
+            'reactions': ['Calcite'],
+            'on_unmatched': 'leave',
+            'pressure': ['custom', [200.0, 500.0]],
+        })
+
+        assert plain == {'reactions': ['Calcite'], 'on_unmatched': 'leave'}
+        assert swept == {'pressure': ['custom', [200.0, 500.0]]}
+
+
+class TestSweptRecomputation:
+    """A swept setting -- a pressure series -- recomputes per run instead of once on the template."""
+
+    @pytest.fixture
+    def config(self, omphalos_test_dir):
+        import yaml
+        with open(omphalos_test_dir / 'sukinda_cr.yaml') as file:
+            config = yaml.safe_load(file)
+        config['number_of_files'] = 2
+        config.pop('database_parameters', None)
+        config['database_logk'] = {
+            'reactions': ['Calcite'],
+            'on_unmatched': 'leave',
+            # Both above the saturation pressure at 300 C, so no point is left uncomputable.
+            'pressure': ['custom', [200.0, 500.0]],
+        }
+        return config
+
+    @pytest.fixture
+    def in_test_dir(self, omphalos_test_dir):
+        import os
+        original = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            yield omphalos_test_dir
+        finally:
+            os.chdir(original)
+
+    def _template(self, config):
+        import contextlib
+        import io
+        from omphalos.template import Template
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template(config)
+
+    def _files(self, template, tmp_path):
+        import contextlib
+        import io
+        from omphalos import generate_inputs as gi
+        with contextlib.redirect_stdout(io.StringIO()):
+            return gi.configure_input_files(template, str(tmp_path) + '/', rhea=True)
+
+    def test_registered_as_a_sweepable_block(self):
+        from omphalos.generate_inputs import CT_IDs
+
+        assert 'database_logk' in CT_IDs
+
+    def test_it_precedes_database_parameters(self):
+        # A recomputation rewrites whole log K columns, so it has to run before the surgical edits.
+        from omphalos.generate_inputs import CT_IDs
+
+        blocks = list(CT_IDs)
+
+        assert blocks.index('database_logk') < blocks.index('database_parameters')
+
+    def test_evaluate_config_expands_the_sweep(self, config):
+        from omphalos import generate_inputs as gi
+
+        evaluated = gi.evaluate_config(config)['database_logk']
+
+        assert evaluated['swept']['pressure'] == pytest.approx([200.0, 500.0])
+        assert evaluated['settings'] == {'reactions': ['Calcite'], 'on_unmatched': 'leave'}
+
+    def test_the_template_defers_rather_than_guessing(self, config, in_test_dir):
+        # Without this the specification itself reaches pyGCC as a pressure, which is not caught.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        template = self._template(config)
+
+        assert template.recompute_log_k() is None
+
+    def test_the_template_database_is_left_at_its_tabulated_values(self, config, in_test_dir):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        original = Database(str(DB_PATH)).value('minerals', 'Calcite', 'log_k')
+        template = self._template(config)
+
+        assert template.database.value('minerals', 'Calcite', 'log_k') == original
+
+    def test_each_run_gets_its_own_columns(self, config, in_test_dir, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        file_dict = self._files(self._template(config), tmp_path)
+
+        shallow = [float(v) for v in file_dict[0].database.value('minerals', 'Calcite', 'log_k')]
+        deep = [float(v) for v in file_dict[1].database.value('minerals', 'Calcite', 'log_k')]
+
+        # Calcite dissolution, as the database writes it, is favoured by pressure at every point.
+        assert all(d > s for d, s in zip(deep, shallow))
+
+    def test_only_the_recomputed_rows_differ_between_runs(self, config, in_test_dir, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        file_dict = self._files(self._template(config), tmp_path)
+
+        first, last = file_dict[0].database, file_dict[1].database
+        differing = [i for i, (a, b) in enumerate(zip(first.lines, last.lines)) if a != b]
+
+        assert differing == [first.minerals['Calcite'].line_index]
+
+    def test_the_pressure_used_is_recorded_on_the_run(self, config, in_test_dir, tmp_path):
+        # The database cannot record it, so this is the only trace of which pressure ran.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        file_dict = self._files(self._template(config), tmp_path)
+
+        assert [file_dict[run].logk_settings['pressure'] for run in file_dict] == [200.0, 500.0]
+
+    def test_a_run_without_a_sweep_records_nothing(self, config, in_test_dir, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        config['database_logk']['pressure'] = 500.0
+        file_dict = self._files(self._template(config), tmp_path)
+
+        assert all(file_dict[run].logk_settings is None for run in file_dict)
+
+    def test_a_fixed_setting_is_still_done_once_on_the_template(self, config, in_test_dir,
+                                                               tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        config['database_logk']['pressure'] = 500.0
+        template = self._template(config)
+        recomputed = template.database.value('minerals', 'Calcite', 'log_k')
+        file_dict = self._files(template, tmp_path)
+
+        assert all(file_dict[run].database.value('minerals', 'Calcite', 'log_k') == recomputed
+                   for run in file_dict)
+
+    def test_recompute_log_k_false_suppresses_the_per_run_pass(self, config, in_test_dir, tmp_path):
+        # rhea sets this on the Templates it rebuilds from run directories, whose databases already
+        # carry their own recomputed columns. Redoing it would repeat the whole calculation.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        original = Database(str(DB_PATH)).value('minerals', 'Calcite', 'log_k')
+        config['recompute_log_k'] = False
+        file_dict = self._files(self._template(config), tmp_path)
+
+        assert all(file_dict[run].database.value('minerals', 'Calcite', 'log_k') == original
+                   for run in file_dict)
+        assert all(file_dict[run].logk_settings is None for run in file_dict)
+
+    def test_a_surgical_edit_wins_over_the_recomputation(self, config, in_test_dir, tmp_path):
+        # Both target the same eight tokens. The documented order is recompute, then edit.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        fixed = [1.0] * 8
+        config['database_parameters'] = {
+            'minerals': {'Calcite': {'log_k': ['custom', [fixed, fixed]]}}
+        }
+        file_dict = self._files(self._template(config), tmp_path)
+
+        for run in file_dict:
+            values = file_dict[run].database.value('minerals', 'Calcite', 'log_k')
+            assert [float(v) for v in values] == pytest.approx(fixed)
+
+    def test_sweeping_without_a_database_fails_loudly(self, config, in_test_dir, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        from omphalos import generate_inputs as gi
+
+        template = self._template(config)
+        for_run = template.make_dict()[0]
+        for_run.database = None
+
+        with pytest.raises(ValueError, match="'database_logk' needs a 'database' entry"):
+            gi._apply_logk_recomputation(
+                for_run, gi.evaluate_config(config)['database_logk'], 0
+            )
+
+    def test_a_staged_pressure_is_detected(self, config):
+        from omphalos import generate_inputs as gi
+
+        config['database_logk']['pressure'] = ['staged', [[200.0, 200.0], [500.0, 500.0]]]
+
+        assert gi.has_staged_params(config)
+
+    def test_an_unstaged_pressure_is_not(self, config):
+        from omphalos import generate_inputs as gi
+
+        assert not gi.has_staged_params(config)
+
+
+class TestPressureRecordSurvivesTheRun:
+    """rhea's worker rebuilds its InputFile from the run directory, so the settings need a file.
+
+    Every other swept value survives because it is written into something the worker re-reads. The
+    pressure a database was computed at is in no file, because a CrunchTope database has nowhere to
+    put it -- which is the whole reason this record exists.
+    """
+
+    @pytest.fixture
+    def input_file(self, omphalos_test_dir):
+        import contextlib
+        import io
+        import os
+
+        import yaml
+
+        from omphalos.template import Template
+
+        original = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            with open('sukinda_cr.yaml') as file:
+                config = yaml.safe_load(file)
+            config['number_of_files'] = 1
+            config.pop('database_parameters', None)
+            with contextlib.redirect_stdout(io.StringIO()):
+                yield Template(config).make_dict()[0]
+        finally:
+            os.chdir(original)
+
+    def test_settings_are_written_beside_the_database(self, input_file, tmp_path):
+        import json
+
+        from omphalos import run as run_module
+
+        input_file.logk_settings = {'pressure': 500.0, 'sourcedb': 'thermo.2021'}
+        run_module._print_aux_files(input_file, tmp_path)
+
+        with open(tmp_path / run_module.LOGK_RECORD) as record:
+            assert json.load(record) == {'pressure': 500.0, 'sourcedb': 'thermo.2021'}
+
+    def test_nothing_is_written_without_a_recomputation(self, input_file, tmp_path):
+        from omphalos import run as run_module
+
+        run_module._print_aux_files(input_file, tmp_path)
+
+        assert not (tmp_path / run_module.LOGK_RECORD).exists()
+
+    def test_the_worker_reads_it_back(self, tmp_path):
+        import json
+
+        from omphalos import run as run_module
+        from rhea.slurm_exec import _restore_logk_record
+
+        with open(tmp_path / run_module.LOGK_RECORD, 'w') as record:
+            json.dump({'pressure': 250.0}, record)
+
+        class Rebuilt:
+            logk_settings = None
+
+        rebuilt = Rebuilt()
+        _restore_logk_record(rebuilt, tmp_path)
+
+        assert rebuilt.logk_settings == {'pressure': 250.0}
+
+    def test_a_run_without_a_record_is_left_alone(self, tmp_path):
+        from rhea.slurm_exec import _restore_logk_record
+
+        class Rebuilt:
+            logk_settings = None
+
+        rebuilt = Rebuilt()
+        _restore_logk_record(rebuilt, tmp_path)
+
+        assert rebuilt.logk_settings is None

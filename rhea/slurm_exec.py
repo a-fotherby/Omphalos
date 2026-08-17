@@ -14,6 +14,28 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 
+def _restore_logk_record(input_file, directory):
+    """Carry a per-run log K recomputation's settings onto the InputFile that gets pickled.
+
+    This worker rebuilds its InputFile from the run directory rather than receiving the object
+    configure_input_files decorated, so the settings would otherwise be lost between generating the
+    database and recording what produced it. Every other swept value survives because it is in a
+    file the worker re-reads; the pressure a database was computed at is in no file, because a
+    CrunchTope database has nowhere to put it. Hence the sidecar.
+
+    Absent for every sweep that does not vary a recomputation setting, which is almost all of them.
+    """
+    import json
+
+    import omphalos.run as omphalos_run
+
+    record = Path(directory) / omphalos_run.LOGK_RECORD
+
+    if record.exists():
+        with open(record) as file:
+            input_file.logk_settings = json.load(file)
+
+
 def execute(file_num, config, pflo, min3p=False):
     """Execute a single input file.
 
@@ -76,8 +98,9 @@ def execute(file_num, config, pflo, min3p=False):
         config.update({'database': str(cwd / tmp_dir / database)})
 
     # The databases in the run directory already have their log K columns recomputed: rhea/main.py
-    # did it once, on the template, before generating anything. Doing it again here would repeat a
-    # SUPCRT-style calculation per reaction for every run in the sweep.
+    # did it before generating anything -- once on the template where every setting is fixed, or
+    # once per run where one is swept. Either way the answer is already in the file, and redoing it
+    # here would repeat the whole calculation for every run in the sweep.
     config.update({'recompute_log_k': False, 'add_isotopes': False})
 
     # Check for staged restart runs
@@ -111,6 +134,7 @@ def execute(file_num, config, pflo, min3p=False):
             stage_file = Template(stage_config)
             stage_file.file_num = int(file_num)
             stage_file.stage_num = stage_num
+            _restore_logk_record(stage_file, stage_aux if stage_aux.is_dir() else cwd / tmp_dir)
             stage_file.later_inputs = {}  # Clear any later_inputs, stages are handled separately
             stages_dict[stage_num] = stage_file
 
@@ -118,6 +142,7 @@ def execute(file_num, config, pflo, min3p=False):
     else:
         input_file = Template(config)
         input_file.path = Path(config['template'])
+        _restore_logk_record(input_file, cwd / tmp_dir)
 
         if pflo:
             run.pflotran(input_file, file_num, config['timeout'], str(tmp_dir))

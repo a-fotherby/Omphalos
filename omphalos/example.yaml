@@ -80,7 +80,14 @@ database_logk:
   sourceformat: 'GWB'          # GWB | EQ36 | PHREEQC | Pflotran | ToughReact
   reactions: 'all'             # or a list of species/mineral names
   on_unmatched: 'warn'         # warn | error | leave
-  pressure: 500                # bar; omit for the water saturation curve
+  pressure: 500                # bar; omit for the water saturation curve, or a list of one
+                               # pressure per temperature point. Any setting here may instead be
+                               # given as a sweep, which recomputes per run rather than once:
+                               #   pressure:
+                               #     - 'custom'
+                               #     - [1.0, 250.0, 500.0]
+                               # A .dbs has no pressure row, so the pressure each run used is
+                               # recorded in the 'database_logk' group of conditions.nc.
   Dielec_method: 'JN91'
   heatcap_method: 'SUPCRT'
   densityextrap: false

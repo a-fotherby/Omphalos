@@ -42,12 +42,67 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'namelists': [None],
           # 'database' is already the config key naming the .dbs path, so the sweepable parameters
           # inside it live under 'database_parameters'.
+          #
+          # database_logk comes first deliberately. A recomputation rewrites whole log K columns, so
+          # it has to happen before database_parameters makes its surgical edits -- otherwise a
+          # swept mineral log K would be overwritten by the recomputed value.
+          'database_logk': [None],
           'database_parameters': [None]
           }
 
 CT_NMLs = {'aqueous': ['aqueous_database', 'Aqueous'],
            'aqueous_kinetics': ['aqueous_database', 'AqueousKinetics'],
            'catabolic_pathways': ['catabolic_pathways', 'CatabolicPathway']}
+
+# The parameter methods get_config_array dispatches on. Used to tell a sweep specification apart
+# from a plain setting inside database_logk, where the two share a namespace: 'reactions' takes a
+# list of names, and 'pressure' takes either a number, a list of one pressure per temperature point,
+# or a sweep. Only ['method', params] is a sweep.
+SWEEP_METHODS = frozenset({'linspace', 'random_uniform', 'constant', 'custom', 'fix_ratio',
+                           'staged'})
+
+# database_logk settings that steer coverage rather than name a value, and so are never swept.
+# Listing them removes the one ambiguity the rule above cannot resolve: reactions: ['constant',
+# 'Calcite'] is a list of two names whose first happens to be spelt like a parameter method.
+FIXED_LOGK_SETTINGS = frozenset({'reactions', 'sections', 'on_unmatched'})
+
+
+def is_sweep_spec(value):
+    """Whether a config value is a parameter-method specification rather than a plain setting.
+
+    Args:
+        value: The config value to classify.
+
+    Returns:
+        True for a two-element sequence whose first element names a parameter method.
+    """
+    return (
+        isinstance(value, (list, tuple))
+        and len(value) == 2
+        and isinstance(value[0], str)
+        and value[0] in SWEEP_METHODS
+    )
+
+
+def split_logk_settings(settings):
+    """Separate a database_logk block into its plain settings and its swept ones.
+
+    Args:
+        settings: The 'database_logk' entry of the config, as a dict.
+
+    Returns:
+        (plain, swept): plain maps setting name to value; swept maps setting name to the
+        ['method', params] specification to expand into one value per run.
+    """
+    plain, swept = {}, {}
+
+    for key, value in settings.items():
+        if key not in FIXED_LOGK_SETTINGS and is_sweep_spec(value):
+            swept[key] = value
+        else:
+            plain[key] = value
+
+    return plain, swept
 
 
 def auxiliary_files(input_file):
@@ -214,6 +269,28 @@ def evaluate_config(config, stage_num=None):
 
             modified_params.update({'namelists': modified_nmls})
 
+        elif block == 'database_logk' and block in config:
+            # Flat setting -> value, where a value is either a plain setting passed to
+            # LogKCalculator or a sweep to expand. Kept apart so a run can be given its own
+            # pressure without the method choices being re-derived per run.
+            plain, swept = split_logk_settings(config[block])
+
+            if config.get('recompute_log_k') is False:
+                # rhea sets this on the per-run Templates it rebuilds from run directories, whose
+                # databases already carry their own recomputed columns. Emptied here rather than at
+                # each apply site so the sequential and staged paths cannot disagree about it.
+                swept = {}
+
+            modified_params.update({
+                block: {
+                    'settings': plain,
+                    'swept': {
+                        key: get_config_array(spec[0], spec[1], num_files, stage_num=stage_num)
+                        for key, spec in swept.items()
+                    },
+                }
+            })
+
         elif block == 'database_parameters' and block in config:
             # Nested section -> entry -> parameter, so one level deeper than a keyword block.
             modified_database = {}
@@ -268,9 +345,18 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
             for condition in template.config['conditions']:
                 file_dict[file].sort_condition_block(condition)
 
+    # Done ahead of the loop below rather than inside it, so that a recomputation always precedes
+    # the surgical edits of a database_parameters sweep no matter what order the blocks fall in.
+    if 'database_logk' in modified_params:
+        for file in file_dict:
+            _apply_logk_recomputation(file_dict[file], modified_params['database_logk'],
+                                      file_dict[file].file_num)
+
     # For every entry in the modified_params dict update the input file.
     for block in modified_params:
-        if CT_IDs[block][0] == 'geochemical condition':
+        if block == 'database_logk':
+            continue
+        elif CT_IDs[block][0] == 'geochemical condition':
             condition_dict = modified_params[block]
             mod_pos = CT_IDs[block][1]
             for condition in condition_dict:
@@ -323,6 +409,64 @@ def configure_input_files(template, tmp_dir, rhea=False, override_num=-1):
                 file_dict[file].later_inputs.update({key: later_file})
 
     return file_dict
+
+
+def _apply_logk_recomputation(input_file, logk_dict, run_num, quiet=False):
+    """Recompute one run's log K columns, where the config sweeps a recomputation setting.
+
+    A recomputation whose settings are all fixed is done once on the Template, since it depends only
+    on the database and the method choices. Sweeping one of those settings -- pressure, most usefully
+    -- is the case that cannot be: each run needs its own columns, so the work moves here.
+
+    The settings used are recorded on the InputFile. A CrunchTope database has no pressure row, so a
+    database recomputed at depth looks no different from one at saturation; the record is the only
+    thing that keeps the run interpretable afterwards.
+
+    Args:
+        input_file: The InputFile whose database is to be recomputed.
+        logk_dict: The 'database_logk' entry of modified_params: {'settings': plain settings,
+            'swept': {setting: one value per run}}.
+        run_num: The run number to index the swept lists with.
+        quiet: Whether to suppress the per-run summary, which is one block of text per run.
+
+    Returns:
+        The LogKRecalculation, or None where nothing is swept.
+
+    Raises:
+        ValueError: If the config sweeps a recomputation setting without naming a database.
+    """
+    swept = logk_dict.get('swept') or {}
+
+    if not swept:
+        # Nothing varies between runs, so Template.recompute_log_k has already done the work.
+        return None
+
+    if input_file.database is None:
+        raise ValueError(
+            "ConfigError: 'database_logk' needs a 'database' entry naming the .dbs file to "
+            'recompute.'
+        )
+
+    from omphalos.logk import LogKCalculator
+
+    settings = dict(logk_dict.get('settings') or {})
+    settings.update({key: values[run_num] for key, values in swept.items()})
+
+    sections = settings.pop('sections', None)
+    reactions = settings.pop('reactions', 'all')
+    on_unmatched = settings.pop('on_unmatched', 'warn')
+
+    result = LogKCalculator(**settings).recompute(
+        input_file.database, sections=sections, reactions=reactions, on_unmatched=on_unmatched
+    )
+    input_file.logk_settings = settings
+
+    if not quiet:
+        print(f'*** Recomputed log K for run {run_num}: '
+              f'{ {key: values[run_num] for key, values in swept.items()} } ***')
+        print(result.summary())
+
+    return result
 
 
 def _apply_database_changes(input_file, database_dict, run_num):
@@ -404,6 +548,10 @@ def has_staged_params(config):
                         for entry in reaction_block:
                             if reaction_block[entry][0] == 'staged':
                                 return True
+        elif block == 'database_logk' and block in config:
+            _, swept = split_logk_settings(config[block])
+            if any(spec[0] == 'staged' for spec in swept.values()):
+                return True
         elif block == 'database_parameters' and block in config:
             for section in config[block]:
                 for entry in config[block][section]:
@@ -537,8 +685,15 @@ def _apply_modifications(input_file, modified_params, run_num):
         modified_params: Dictionary of parameter modifications from evaluate_config.
         run_num: The run number (file_num) to use for indexing into change arrays.
     """
+    # Ahead of the loop, so a recomputation precedes any database_parameters edit. See
+    # configure_input_files for the same ordering.
+    if 'database_logk' in modified_params:
+        _apply_logk_recomputation(input_file, modified_params['database_logk'], run_num)
+
     for block in modified_params:
-        if CT_IDs[block][0] == 'geochemical condition':
+        if block == 'database_logk':
+            continue
+        elif CT_IDs[block][0] == 'geochemical condition':
             condition_dict = modified_params[block]
             mod_pos = CT_IDs[block][1]
             for condition in condition_dict:

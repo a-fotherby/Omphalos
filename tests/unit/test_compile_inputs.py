@@ -288,3 +288,62 @@ class TestDatabaseParameters:
 
         with pytest.raises(OSError):
             xr.open_dataset(tmp_path / 'conditions.nc', group='database_parameters')
+
+
+class TestDatabaseLogK:
+    """The pressure a database was recomputed at is the one thing the database itself cannot say."""
+
+    CONFIG = {
+        'number_of_files': 3,
+        'database_logk': {
+            'reactions': ['Calcite'],
+            'pressure': ['custom', [1.0, 250.0, 500.0]],
+        },
+    }
+
+    def _write_runs(self, directory, settings):
+        for run_num, used in enumerate(settings):
+            run_dir = directory / f'run{run_num}'
+            run_dir.mkdir()
+            input_file = _input_file()
+            input_file.logk_settings = used
+            with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+                pickle.dump(input_file, f)
+
+    def test_the_pressure_is_recorded_per_run(self, tmp_path):
+        self._write_runs(tmp_path, [{'pressure': p} for p in (1.0, 250.0, 500.0)])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')
+        assert recorded['pressure'].values == pytest.approx([1.0, 250.0, 500.0])
+
+    def test_values_come_from_the_runs_not_the_config(self, tmp_path):
+        self._write_runs(tmp_path, [{'pressure': p} for p in (10.0, 20.0, 30.0)])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')
+        assert recorded['pressure'].values == pytest.approx([10.0, 20.0, 30.0])
+
+    def test_a_run_recording_nothing_is_reported_not_invented(self, tmp_path):
+        import numpy as np
+
+        self._write_runs(tmp_path, [{'pressure': 1.0}, None, {'pressure': 500.0}])
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')
+        assert np.isnan(recorded['pressure'].values[1])
+
+    def test_a_fixed_pressure_writes_no_group(self, tmp_path):
+        # Nothing varies between runs, so there is nothing per-run to record. Paired with a flow
+        # sweep so the file is written either way and its absence means absence, not an empty run.
+        _write_runs(tmp_path, [1.0, 2.0, 4.0])
+        config = dict(FLOW_CONFIG, database_logk={'pressure': 500.0})
+
+        compile_inputs(config, directory=tmp_path, verbose=False)
+
+        assert xr.open_dataset(tmp_path / 'conditions.nc', group='flow') is not None
+        with pytest.raises(OSError):
+            xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')

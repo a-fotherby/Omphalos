@@ -287,17 +287,20 @@ class Template(InputFile):
     def recompute_log_k(self):
         """Recompute the database's log K columns with pyGCC, where the config asks for it.
 
-        Done once, on the template, before any sweep: the recomputation depends only on the
-        database and the method choices, so doing it per run would repeat a SUPCRT-style
-        calculation per reaction for no gain. A ``database_parameters`` sweep then edits the
-        recomputed file, which is the intended order -- fitted values such as exchange
-        coefficients and kinetic rates are ones pyGCC cannot compute and does not touch.
+        Done once, on the template, before any sweep, where every setting is fixed: the
+        recomputation then depends only on the database and the method choices, so doing it per run
+        would repeat a SUPCRT-style calculation per reaction for no gain. A ``database_parameters``
+        sweep then edits the recomputed file, which is the intended order -- fitted values such as
+        exchange coefficients and kinetic rates are ones pyGCC cannot compute and does not touch.
+
+        Where a setting is *swept* -- a pressure series, most usefully -- there is no single answer
+        to compute here, so the work is deferred to ``_apply_logk_recomputation``, once per run.
 
         The config section is ``database_logk``; ``reactions`` and ``on_unmatched`` steer coverage
         and strictness, and every other key is passed to LogKCalculator.
 
         Returns:
-            The LogKRecalculation, or None where the config asks for nothing.
+            The LogKRecalculation, or None where the config asks for nothing or defers it per run.
         """
         settings = self.config.get('database_logk')
 
@@ -306,13 +309,22 @@ class Template(InputFile):
 
         if self.config.get('recompute_log_k') is False:
             # rhea sets this on the per-run Templates it rebuilds from the run directories. Those
-            # databases have already been recomputed, and redoing it would repeat a SUPCRT-style
-            # calculation per reaction for every run -- twenty minutes each for a whole database.
+            # databases have already been recomputed, and redoing it would repeat the whole
+            # calculation for every run in the sweep.
+            return None
+
+        from omphalos.generate_inputs import split_logk_settings
+
+        settings, swept = split_logk_settings(settings)
+
+        if swept:
+            # Handing LogKCalculator the specification itself -- ['custom', [1.0, 500.0]] as a
+            # pressure -- is what would otherwise happen here, and it would not be caught.
+            print(f'*** log K recomputation deferred per run: {sorted(swept)} swept ***')
             return None
 
         from omphalos.logk import LogKCalculator
 
-        settings = dict(settings)
         sections = settings.pop('sections', None)
         reactions = settings.pop('reactions', 'all')
         on_unmatched = settings.pop('on_unmatched', 'warn')

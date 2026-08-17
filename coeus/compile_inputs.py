@@ -197,8 +197,8 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
             print(f'Skipping block "{block}": slice-type modification not supported.')
             continue
 
-        # Both are nested a level deeper than a keyword block and are handled after this loop.
-        if block in ('namelists', 'database_parameters'):
+        # All three are shaped differently from a keyword block and are handled after this loop.
+        if block in ('namelists', 'database_parameters', 'database_logk'):
             continue
 
         block_config = config[block]
@@ -301,6 +301,33 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
                 write(xr.Dataset(data_vars, coords=make_coords()),
                       f'database_parameters/{section}/{_netcdf_name(entry)}')
                 groups_written += 1
+
+    if 'database_logk' in config:
+        from omphalos.generate_inputs import split_logk_settings
+
+        _, swept = split_logk_settings(config['database_logk'])
+
+        if swept:
+            # Every other block here is read back from what ran. This one cannot be: a CrunchTope
+            # database has no pressure row, so a database recomputed at 500 bar is byte-comparable
+            # to one at saturation and says nothing about which it is. The settings each run was
+            # recomputed with are therefore recorded on the InputFile at generation time, and read
+            # from the pickle here -- which is still what ran, not what the config asked for.
+            data_vars = {}
+            for setting in swept:
+                values = []
+                for fn in file_nums:
+                    used = getattr(input_files[fn], 'logk_settings', None) or {}
+                    if setting not in used:
+                        print(f'Warning: Could not read database_logk/{setting} for file {fn}: '
+                              f'the run records no recomputation settings.')
+                        values.append(float('nan'))
+                    else:
+                        values.append(used[setting])
+                data_vars[_netcdf_name(setting)] = database_var(values)
+
+            write(xr.Dataset(data_vars, coords=make_coords()), 'database_logk')
+            groups_written += 1
 
     if groups_written == 0:
         print('No varied parameters found in the config.')

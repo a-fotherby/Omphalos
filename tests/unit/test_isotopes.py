@@ -661,3 +661,113 @@ class TestNamelistReactions:
 
         names = [e['name'] for e in CrunchNameList(str(out)).namelist['aqueous']]
         assert 'Cr53_Fe_redox' in names
+
+
+class TestSingleOccurrenceGroups:
+    """f90nml returns a group's entry directly when it appears once, not a list of one.
+
+    ex9's aqueous database has a single &AqueousKinetics block until an isotope adds a second, and
+    iterating that entry yields its keys rather than the entry.
+    """
+
+    def _namelist(self, tmp_path, text):
+        from omphalos.namelist import CrunchNameList
+
+        path = tmp_path / 'one.dbs'
+        path.write_text(text)
+        return CrunchNameList(str(path))
+
+    ONE_OF_EACH = """\
+&Aqueous
+  name          = 'Sulfate_reduction'
+  stoichiometry = -0.125 'SO4--'  0.125 'H2S(aq)'
+  keq           = 5.577425
+/
+
+&AqueousKinetics
+  name          = 'Sulfate_reduction'
+  type          = 'MonodBiomass'
+  rate25C       = 25000
+  monod_terms   = 'tot_SO4--' 5.0E-03
+  biomass       = 'C5H7O2NSO4(s)'
+/
+"""
+
+    def test_a_single_occurrence_group_is_read_as_one_entry(self, tmp_path):
+        from omphalos.isotopes import group_entries
+
+        namelist = self._namelist(tmp_path, self.ONE_OF_EACH)
+        entries = group_entries(namelist, 'aqueouskinetics')
+
+        assert len(entries) == 1
+        assert entries[0]['name'] == 'Sulfate_reduction'
+
+    def test_an_absent_group_is_empty(self, tmp_path):
+        from omphalos.isotopes import group_entries
+
+        namelist = self._namelist(tmp_path, self.ONE_OF_EACH)
+
+        assert group_entries(namelist, 'catabolicpathway') == []
+
+    def test_an_isotope_can_be_added_to_a_single_occurrence_group(self, tmp_path):
+        from omphalos.isotopes import add_isotope_reactions, group_entries
+
+        namelist = self._namelist(tmp_path, self.ONE_OF_EACH)
+        added, _ = add_isotope_reactions(
+            namelist, 'S', '34', {'SO4--': 'S34O4--', 'H2S(aq)': 'H2S34(aq)'},
+            names={'Sulfate_reduction': 'Sulfate34_reduction'})
+
+        assert len(added) == 2
+        names = [e['name'] for e in group_entries(namelist, 'aqueouskinetics')]
+        assert names == ['Sulfate_reduction', 'Sulfate34_reduction']
+
+    def test_the_biomass_is_left_alone_when_it_is_not_labelled(self, tmp_path):
+        from omphalos.isotopes import add_isotope_reactions, group_entries
+
+        namelist = self._namelist(tmp_path, self.ONE_OF_EACH)
+        add_isotope_reactions(namelist, 'S', '34', {'SO4--': 'S34O4--'},
+                              names={'Sulfate_reduction': 'Sulfate34_reduction'})
+        copy = group_entries(namelist, 'aqueouskinetics')[-1]
+
+        # ex9 labels the sulfate but not the biomass, and that is what its hand-built copy does.
+        assert copy['biomass'] == 'C5H7O2NSO4(s)'
+
+    def test_the_biomass_is_relabelled_when_it_is(self, tmp_path):
+        from omphalos.isotopes import add_isotope_reactions, group_entries
+
+        namelist = self._namelist(tmp_path, self.ONE_OF_EACH)
+        add_isotope_reactions(
+            namelist, 'S', '34',
+            {'SO4--': 'S34O4--', 'C5H7O2NSO4(s)': 'C5H7O2NS34O4(s)'},
+            names={'Sulfate_reduction': 'Sulfate34_reduction'})
+        copy = group_entries(namelist, 'aqueouskinetics')[-1]
+
+        assert copy['biomass'] == 'C5H7O2NS34O4(s)'
+
+
+class TestBiomassInsideAKineticsBlock:
+    """A mineral kinetics block can point at another species, which a copy has to follow.
+
+    A BiomassDecay stanza names the biomass it consumes as `biomass = 'C5H7O2NSO4(s)'`. Only quoted
+    tokens are relabelled, since the unquoted text in these blocks includes `rate(25C)`.
+    """
+
+    def test_a_quoted_species_is_relabelled(self):
+        from omphalos.isotopes import relabel_quoted
+
+        line = "  biomass = 'C5H7O2NSO4(s)' /\n"
+        assert relabel_quoted(line, {'C5H7O2NSO4(s)': 'C5H7O2NS34O4(s)'}) == (
+            "  biomass = 'C5H7O2NS34O4(s)' /\n")
+
+    def test_unquoted_text_is_untouched(self):
+        from omphalos.isotopes import relabel_quoted
+
+        # A carbon isotope must not turn this into 'rate(25C13)'.
+        line = '  rate(25C) = -6.00   !cis\n'
+        assert relabel_quoted(line, {'C': 'C13'}) == line
+
+    def test_an_unlabelled_species_is_left_alone(self):
+        from omphalos.isotopes import relabel_quoted
+
+        line = "  biomass = 'C5H7O2NSO4(s)' /\n"
+        assert relabel_quoted(line, {'SO4--': 'S34O4--'}) == line

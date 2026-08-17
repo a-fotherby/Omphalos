@@ -472,7 +472,7 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
             )
 
     kinetics = kinetics_copies(database, new_rows.get('minerals', []), names, element, label,
-                               dict(kinetics_from or {}))
+                               dict(kinetics_from or {}), labelled)
     report.kinetics = [name for name, _ in kinetics]
 
     # A mineral CrunchTope has no rate law for stops the run, and the message it gives points at the
@@ -503,7 +503,7 @@ def requote(database, line_index, token_index, new):
     return f"'{new}'" if line[start:end].startswith("'") else new
 
 
-def kinetics_copies(database, minerals, names, element, label, kinetics_from):
+def kinetics_copies(database, minerals, names, element, label, kinetics_from, labelled):
     """Return (name, lines) for the mineral kinetics block of every mineral being added.
 
     A mineral with no kinetics entry has no rate, and CrunchTope stops with 'Kinetic mineral
@@ -528,10 +528,26 @@ def kinetics_copies(database, minerals, names, element, label, kinetics_from):
             renamed = [database.rewrite_tokens(
                 entry.line_index,
                 {0: requote(database, entry.line_index, 0, new_name)},
-            )] + block[1:]
+            )] + [relabel_quoted(line, labelled) for line in block[1:]]
             copies.append((key.replace(source, new_name, 1), renamed))
 
     return copies
+
+
+def relabel_quoted(line, labelled):
+    """Relabel any quoted species name in a line, leaving everything else alone.
+
+    A mineral kinetics block can point at another species -- a BiomassDecay stanza names the biomass
+    it consumes as `biomass = 'C5H7O2NSO4(s)'` -- and a labelled mineral's copy should point at the
+    labelled biomass. Only quoted tokens are considered, because the unquoted text in these blocks
+    includes `rate(25C)` and `(kcal/mole)`, which a carbon isotope would otherwise mangle.
+    """
+    def relabel(match):
+        species = match.group(1)
+
+        return f"'{labelled[species]}'" if species in labelled else match.group(0)
+
+    return re.sub(r"'([^']*)'", relabel, line)
 
 
 def unlabel(new_name, element, label, names):
@@ -641,6 +657,21 @@ def references_labelled(entry, labelled):
     return False
 
 
+def group_entries(namelist, group):
+    """Return a namelist group's entries as a list.
+
+    f90nml gives a list only where a group appears more than once; a single occurrence comes back as
+    the entry itself, and iterating that yields its keys rather than the entry. ex9's aqueous
+    database has one &AqueousKinetics block until an isotope adds a second.
+    """
+    try:
+        entries = namelist.namelist[group]
+    except KeyError:
+        return []
+
+    return list(entries) if isinstance(entries, list) else [entries]
+
+
 def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_offset=None):
     """Duplicate a namelist's reactions for an isotope, in place.
 
@@ -681,14 +712,10 @@ def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_of
     names = dict(names or {})
 
     for group in REACTION_GROUPS:
-        try:
-            entries = namelist.namelist[group]
-        except KeyError:
-            continue
-
+        entries = group_entries(namelist, group)
         existing = {entry['name'] for entry in entries if 'name' in entry}
 
-        for entry in list(entries):
+        for entry in entries:
             name = entry.get('name')
 
             if name is None or not references_labelled(entry, labelled):

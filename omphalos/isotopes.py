@@ -46,6 +46,32 @@ ISOTOPE_SECTIONS = (
     'exchange',
 )
 
+# Standard atomic weights, used only to work out how much heavier an isotope is than the element it
+# replaces: the default mass shift is the label minus the rounded weight below. Rounding a
+# natural-abundance average is not always the most abundant isotope's mass number -- copper averages
+# 63.55 while 63-Cu is the common one, and nickel, zinc and tellurium are the same -- so for those,
+# set `mass_shift` explicitly rather than trusting the default.
+ATOMIC_WEIGHTS = {
+    'H': 1.008, 'He': 4.003, 'Li': 6.94, 'Be': 9.012, 'B': 10.81, 'C': 12.011, 'N': 14.007,
+    'O': 15.999, 'F': 18.998, 'Ne': 20.180, 'Na': 22.990, 'Mg': 24.305, 'Al': 26.982,
+    'Si': 28.085, 'P': 30.974, 'S': 32.06, 'Cl': 35.45, 'Ar': 39.95, 'K': 39.098, 'Ca': 40.078,
+    'Sc': 44.956, 'Ti': 47.867, 'V': 50.942, 'Cr': 51.996, 'Mn': 54.938, 'Fe': 55.845,
+    'Co': 58.933, 'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.38, 'Ga': 69.723, 'Ge': 72.630,
+    'As': 74.922, 'Se': 78.971, 'Br': 79.904, 'Kr': 83.798, 'Rb': 85.468, 'Sr': 87.62,
+    'Y': 88.906, 'Zr': 91.224, 'Nb': 92.906, 'Mo': 95.95, 'Tc': 98.0, 'Ru': 101.07,
+    'Rh': 102.906, 'Pd': 106.42, 'Ag': 107.868, 'Cd': 112.414, 'In': 114.818, 'Sn': 118.710,
+    'Sb': 121.760, 'Te': 127.60, 'I': 126.904, 'Xe': 131.293, 'Cs': 132.905, 'Ba': 137.327,
+    'La': 138.905, 'Ce': 140.116, 'Pr': 140.908, 'Nd': 144.242, 'Sm': 150.36, 'Eu': 151.964,
+    'Gd': 157.25, 'Tb': 158.925, 'Dy': 162.500, 'Ho': 164.930, 'Er': 167.259, 'Tm': 168.934,
+    'Yb': 173.045, 'Lu': 174.967, 'Hf': 178.486, 'Ta': 180.948, 'W': 183.84, 'Re': 186.207,
+    'Os': 190.23, 'Ir': 192.217, 'Pt': 195.084, 'Au': 196.967, 'Hg': 200.592, 'Tl': 204.38,
+    'Pb': 207.2, 'Bi': 208.980, 'Ra': 226.025, 'Th': 232.038, 'Pa': 231.036, 'U': 238.029,
+    'Np': 237.048, 'Pu': 244.064,
+}
+
+# Passed as `mass_shift` to have it derived from the element and the label.
+AUTOMATIC = 'auto'
+
 
 def isotope_name(name, element, label):
     """Return `name` with the element labelled everywhere it appears as a formula symbol.
@@ -91,6 +117,8 @@ class IsotopeReport:
         self.atoms = {}
         self.inferred_parents = False
         self.no_kinetics = []
+        self.mass_shift = None
+        self.unknown_element = None
 
     @property
     def isotope(self):
@@ -115,6 +143,18 @@ class IsotopeReport:
             )
         else:
             lines.append(f'  labelled primary species: {self.parents}')
+
+        if self.unknown_element:
+            lines.append(
+                f"  '{self.unknown_element}' is not in ATOMIC_WEIGHTS, so no mass shift could be "
+                f'derived and every copy keeps its parent weight. Set mass_shift to correct that.'
+            )
+        elif self.mass_shift:
+            lines.append(
+                f'  molecular weights shifted by {self.mass_shift:+g} per atom of {self.element}'
+            )
+        else:
+            lines.append('  molecular weights copied from the parents, unshifted')
 
         for section, names in self.added.items():
             lines.append(f'  {section}: {len(names)} added, e.g. {names[:4]}')
@@ -298,8 +338,29 @@ def copy_weight(entry, new_name, weights, mass_shift, atoms):
     return None
 
 
+def derived_mass_shift(element, label, report=None):
+    """Return how much heavier the isotope is than the element, per atom.
+
+    The label is a mass number, so the shift is the label minus the element's rounded standard atomic
+    weight: 53 - 52 for Cr53, which is the +1 the hand-built Cr53 system uses throughout. For Ca44
+    this gives +4, so `Ca44++` comes out at 44.078 where the hand-built database has a flat 44.0000 --
+    both are defensible, and `weights` overrides it.
+
+    Returns:
+        The shift, or None for an element not in ATOMIC_WEIGHTS, in which case the parent's weight is
+        kept and the report says so.
+    """
+    if element not in ATOMIC_WEIGHTS:
+        if report is not None:
+            report.unknown_element = element
+
+        return None
+
+    return int(label) - round(ATOMIC_WEIGHTS[element])
+
+
 def add_isotope(database, element, label, parents=None, species=None, names=None, weights=None,
-                mass_shift=None, kinetics_from=None):
+                mass_shift=AUTOMATIC, kinetics_from=None):
     """Add an isotope of an element to a database, in place.
 
     Args:
@@ -320,11 +381,12 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
             ex9 sulfur model has hand-built `S32` and `S34` minerals with their own rates and none on
             the plain `S` they came from, so `{'S34': 'S32'}` is what gets S34 a rate law.
         mass_shift: Added to a copy's molecular weight for each atom of the element it contains, the
-            atom count taken from its stoichiometry. `mass_shift=1` reproduces the Cr53 system in
-            SukindaCr53.dbs exactly, where every weight is one unit above its parent's. Left unset,
-            a copy keeps its parent's weight -- which is what that database does for S34, while Ca44
-            was given the isotope's mass outright. Which is right is a modelling decision, so
-            nothing is assumed.
+            atom count taken from its stoichiometry. Defaults to 'auto', which derives it as the
+            label minus the element's rounded standard atomic weight -- +1 for Cr53, +2 for S34, +4
+            for Ca44 -- so an isotopologue weighs what it should without being told. Give a number to
+            set it, or None to keep the parent's weight unshifted. Note that the shipped databases do
+            not agree with each other here: the hand-built Cr53 system uses +1 throughout, S34 left
+            the weights alone, and Ca44 was given a flat 44.0000. `weights` overrides per species.
 
     Returns:
         An IsotopeReport.
@@ -337,6 +399,11 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
     labelled = labelled_primaries(database, element, label, parents)
     report.parents = sorted(labelled)
     report.inferred_parents = parents is None
+
+    if mass_shift == AUTOMATIC:
+        mass_shift = derived_mass_shift(element, label, report)
+
+    report.mass_shift = mass_shift
 
     # A primary species holds one atom of its own element, by construction.
     atoms = {name: 1.0 for name in labelled}

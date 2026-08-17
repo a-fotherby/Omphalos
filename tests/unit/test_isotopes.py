@@ -139,8 +139,9 @@ class TestRebuildingAHandBuiltSystem:
 
     @pytest.fixture
     def rebuilt_cr53(self, stripped, db):
+        # No mass_shift given: the default derives +1, which is what this system uses.
         database = stripped('Cr53')
-        report = add_isotope(database, 'Cr', '53', mass_shift=1)
+        report = add_isotope(database, 'Cr', '53')
         return database, report
 
     def test_the_primary_species_is_labelled(self, rebuilt_cr53):
@@ -224,9 +225,33 @@ class TestAtomCountsAndWeights:
         assert report.atoms['Cr2O7--'] == pytest.approx(2.0)
         assert report.atoms['Cr3(OH)4(5+)'] == pytest.approx(3.0)
 
-    def test_no_mass_shift_keeps_the_parents_weight(self, stripped, db):
+    def test_the_shift_is_derived_by_default(self, stripped, db):
+        # 53 minus Cr's rounded standard atomic weight of 52, which is the +1 the hand-built Cr53
+        # system uses throughout.
         database = stripped('Cr53')
-        add_isotope(database, 'Cr', '53')
+        report = add_isotope(database, 'Cr', '53')
+
+        assert report.mass_shift == 1
+        assert database.secondary_species['Cr53+++'].weight == pytest.approx(
+            db.secondary_species['Cr+++'].weight + 1)
+
+    @pytest.mark.parametrize('element,label,expected', [
+        ('Cr', '53', 1), ('Ca', '44', 4), ('S', '34', 2), ('C', '13', 1),
+        ('Fe', '56', 0),   # 56-Fe is the common one, so no shift
+    ])
+    def test_derived_shifts(self, element, label, expected):
+        from omphalos.isotopes import derived_mass_shift
+
+        assert derived_mass_shift(element, label) == expected
+
+    def test_an_unknown_element_keeps_the_parents_weight_and_says_so(self, stripped, db):
+        from omphalos.isotopes import derived_mass_shift
+
+        assert derived_mass_shift('Zz', '99') is None
+
+    def test_mass_shift_none_keeps_the_parents_weight(self, stripped, db):
+        database = stripped('Cr53')
+        add_isotope(database, 'Cr', '53', mass_shift=None)
 
         assert database.secondary_species['Cr53+++'].weight == pytest.approx(
             db.secondary_species['Cr+++'].weight)
@@ -239,6 +264,12 @@ class TestAtomCountsAndWeights:
             db.secondary_species['Cr+++'].weight + 1)
         assert database.secondary_species['Cr53_2O7--'].weight == pytest.approx(
             db.secondary_species['Cr2O7--'].weight + 2)
+
+    def test_the_summary_states_the_shift(self, stripped):
+        database = stripped('Cr53')
+        report = add_isotope(database, 'Cr', '53', species=[])
+
+        assert 'shifted by +1 per atom of Cr' in report.summary()
 
     def test_an_explicit_weight_wins(self, stripped):
         database = stripped('Ca44')

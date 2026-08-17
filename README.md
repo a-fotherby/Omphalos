@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-906%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-914%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -508,7 +508,7 @@ database_isotopes:
     species: ['CaCO3(aq)']    # restrict the copies; their dependencies come too
     names:                    # required where no formula name can be derived
       Calcite: 'Calcite44'
-    mass_shift: 4             # added per atom of the element; omit to keep the parent's weight
+    mass_shift: 4             # per atom; omitted, it is derived as label - atomic weight
     kinetics_from:            # where a copy's rate law comes from, if not its parent's
       Calcite44: 'Calcite'
 ```
@@ -521,6 +521,10 @@ Names are formula-aware: a symbol counts only where the next character is neithe
 digit, so `Cl-` reads as chlorine, not carbon. Anything it cannot name unambiguously is reported
 rather than guessed; supply it in `names`. A copied mineral needs a rate law or CrunchTope stops, so
 the parent's kinetics block is copied where it has one and reported where it does not.
+
+Molecular weights are shifted by default, per atom of the element, by the label minus the element's
+rounded standard atomic weight — +1 for Cr53, +4 for Ca44. Set `mass_shift` to a number to override,
+or `null` to keep the parents' weights.
 
 Nothing here imposes a fractionation — the log Ks are copied. That belongs in the aqueous kinetics
 database.
@@ -983,7 +987,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **906 tests**:
+The project includes a comprehensive test suite with **914 tests**:
 
 ```bash
 # Run all tests

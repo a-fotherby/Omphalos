@@ -543,8 +543,8 @@ sweeps those through `aqueous_kinetics:`, `fix_ratio` included.
 #### Recomputing log K with pyGCC
 
 `database_logk:` recomputes the log K columns with [pyGCC](https://pypi.org/project/pygcc/), leaving
-every other column untouched — so fitted values pyGCC cannot compute survive. It runs once on the
-template, before any sweep.
+every other column untouched — so fitted values pyGCC cannot compute survive. With every setting
+fixed it runs once, on the template, before any sweep; sweeping one moves it to once per run.
 
 ```yaml
 database_logk:
@@ -566,6 +566,21 @@ and are named in the report — use `on_unmatched: 'error'` where that is unacce
 `Dielec_method`, `heatcap_method`, `densityextrap` and `pressure` all move log K, and a `.dbs`
 header has nowhere to record them, so `LogKRecalculation.settings` returns them for you to store
 with the run.
+
+Any of these settings may be given as a sweep instead of a value, which recomputes per run rather
+than once. A pressure series is the usual reason:
+
+```yaml
+database_logk:
+  reactions: ['Quartz']
+  pressure:
+    - 'custom'
+    - [100.0, 250.0, 400.0, 550.0, 700.0, 850.0, 1000.0]   # bar
+```
+
+The settings each run used are written to `run*/logk_settings.json` and to the `database_logk` group
+of `conditions.nc` — the only record there can be, since the database cannot carry one. Worked
+example: [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_pressure_series/).
 
 > **Needs `pygcc >= 1.5.3`**, which `requirements.yml` installs with pip.
 
@@ -961,7 +976,8 @@ omphalos/
 │   ├── run.py               # Simulation execution
 │   ├── restart_file.py      # Read/regrid CrunchTope .rst restart files (also a CLI)
 │   ├── example.yaml         # Annotated reference config
-│   └── examples/            # Worked examples (quartz_flow_sweep, grid_refinement_chain)
+│   └── examples/            # Worked examples (quartz_flow_sweep, grid_refinement_chain,
+│                            #   cesium_exchange, quartz_pressure_series)
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
 ├── min3p/                   # MIN3P-specific code
@@ -1230,6 +1246,12 @@ sweep from config to figure, and a README:
 - [`omphalos/examples/grid_refinement_chain`](omphalos/examples/grid_refinement_chain/) — **CrunchTope + rhea**:
   a staged restart chain that changes grid resolution between stages, reaching a 400-cell answer for a third of
   the cold-start cost. Also shows where a chain's answer legitimately departs from a cold start, and why.
+- [`omphalos/examples/cesium_exchange`](omphalos/examples/cesium_exchange/) — **CrunchTope + rhea**: an
+  ion-exchange selectivity coefficient swept in the *thermodynamic database*, where no keyword block can reach
+  it. Each run's `.dbs` differs from the template on exactly one line.
+- [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_pressure_series/) — **CrunchTope +
+  rhea**: a database whose log K columns are recomputed with pyGCC at a different pressure for each run, taking
+  a quartz column from 1 km to 4 km depth. Shows how to record a parameter the database itself cannot carry.
 - [`min3p/examples/dissol_sweep`](min3p/examples/dissol_sweep/) — **MIN3P**: a calcite dissolution front driven by
   varying inflow acidity.
 - [`min3p/examples/velocity_sweep`](min3p/examples/velocity_sweep/) — **MIN3P**: an advective pH front and Darcy's

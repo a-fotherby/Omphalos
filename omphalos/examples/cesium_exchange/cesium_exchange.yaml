@@ -1,0 +1,51 @@
+# Omphalos / CrunchTope example — sweeping a selectivity coefficient in the
+# thermodynamic database.
+#
+# The CrunchFlow short-course exercise fits caesium sorption on Hanford sediments
+# with a three-site ion-exchange model. Those selectivity coefficients live in the
+# .dbs and in no keyword block, which is what PEST is pointed at in this community
+# and what 'database_parameters' exists to reach.
+#
+# NaXhan1 is the Na-site-1 coefficient. The database writes log K for the
+# *breakdown* of NaXhan1, so a larger value means Na holds site 1 less strongly
+# and Cs competes better for it.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea cesium_exchange.yaml local --compile-inputs
+
+### Frontmatter — mandatory keys. Leave blank if not applicable.
+# Paths may be relative to this directory or absolute.
+template: 'ShortCourse12a.in'
+database: 'HanfordTanksColumnFit3Site-GT.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+# Max wall-clock seconds per input file. Each run here takes about a minute, and
+# runs all three decks of the chain.
+timeout: 600
+
+# No geochemical condition is swept: the fluid is the same in every run, and only
+# the database differs.
+conditions:
+
+# One run per selectivity coefficient below.
+number_of_files: 3
+
+# Parallel workers used by rhea in local mode.
+nodes: 3
+
+### Sweep specification
+# Nested section -> entry -> parameter. 'exchange' is the .dbs section, 'NaXhan1'
+# the row, 'log_k' the editable parameter on it. The edit is surgical: each run's
+# database differs from this one on that line and nothing else.
+#
+# The values each run used are written to conditions.nc, read back out of the
+# database it ran against rather than re-derived from this file — which is what
+# makes a 'random_uniform' sweep of a database parameter recoverable afterwards.
+database_parameters:
+  exchange:
+    NaXhan1:
+      log_k:
+        - 'custom'
+        - [6.25224, 7.25224, 8.25224]   # the fitted value, +/- 1 log unit

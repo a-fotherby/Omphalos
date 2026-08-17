@@ -1,0 +1,105 @@
+! Quartz dissolution in a buried sandstone — Omphalos/rhea worked example.
+!
+! The same 1-D column as the quartz_flow_sweep example beside this one, moved to
+! 150 C and to depth. Water advects through quartz sand and dissolves it towards
+! equilibrium, so the silica the fluid carries out is set by quartz solubility.
+!
+! quartz_pressure_series.yaml sweeps the pressure the database's log K columns
+! are computed at, from 100 bar to 1000 bar — hydrostatic at about 1 km to
+! lithostatic at about 4 km. Quartz solubility rises with pressure, which is why
+! quartz dissolves at stressed grain contacts and cements the pore space next to
+! them: pressure solution.
+!
+! The pressure appears nowhere in this deck. A CrunchTope database has no
+! pressure row, so pressure is a property of datacom.dbs, and reaching it is what
+! the config's 'database_logk' block is for.
+
+TITLE
+Quartz dissolution in a 1-D column at 150 C.
+END
+
+RUNTIME
+time_units       years
+timestep_max     0.5
+timestep_init    0.000001
+time_tolerance   0.1
+hindmarsh        true
+correction_max   2.0
+debye-huckel     true
+database_sweep   no
+speciate_only    false
+gimrt            true
+graphics         tecplot
+database         datacom.dbs
+screen_output    100
+END
+
+! Omphalos reads one output time slice per spatial_profile entry. The pore
+! velocity is q/phi = 100 m/yr, so the column flushes in about a year and the
+! fluid is steady well before the first slice. The slices are kept short because
+! quartz at 150 C dissolves fast enough to strip the inlet cells within a century:
+! the 5 yr slice is the one the analysis uses, and the 20 yr slice is there to
+! show how little the mineral has moved by then.
+
+OUTPUT
+time_units           years
+spatial_profile      2 5 20
+END
+
+TRANSPORT
+distance_units meters
+time_units     years
+fix_diffusion  0.0
+dispersivity   0.0
+END
+
+BOUNDARY_CONDITIONS
+x_begin   boundary          flux
+x_end     initial           flux
+END
+
+INITIAL_CONDITIONS
+initial 1-100
+END
+
+! A dilute inflow water, undersaturated in silica, entering quartz sand.
+
+CONDITION boundary
+units            mol/kg
+temperature      150.0
+Tracer           0.1
+SiO2(aq)         9.7e-7
+Quartz           0.60     bulk_surface_area  100
+END
+
+CONDITION initial
+units            mol/kg
+temperature      150.0
+Tracer           0.0001
+set_porosity     0.999
+SiO2(aq)         0.0001
+Quartz           0.60     bulk_surface_area  100
+END
+
+FLOW
+time_units       years
+distance_units   meters
+constant_flow    10.0
+END
+
+POROSITY
+fix_porosity     0.10
+END
+
+PRIMARY_SPECIES
+Tracer
+SiO2(aq)
+END
+
+DISCRETIZATION
+xzones 100 1.0
+END
+
+MINERALS
+Quartz   -label default   -rate -9.5
+END

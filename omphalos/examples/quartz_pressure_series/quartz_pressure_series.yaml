@@ -1,0 +1,64 @@
+# Omphalos / CrunchTope example — a thermodynamic database recomputed at a
+# series of pressures.
+#
+# The same 1-D quartz column as the quartz_flow_sweep example, at 150 C, taken
+# from about 1 km down to about 4 km. Quartz solubility rises with pressure, so
+# the deeper the column, the more silica the outflowing water carries. That
+# pressure dependence is what drives pressure solution, the process that
+# dissolves quartz at stressed grain contacts and cements sandstone pore space.
+#
+# The pressure appears nowhere in the deck. A CrunchTope database has no pressure
+# row, so pressure is a property of the .dbs file, and reaching it is what
+# 'database_logk' is for.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea quartz_pressure_series.yaml local
+
+### Frontmatter — mandatory keys. Leave blank if not applicable.
+# Paths may be relative to this directory or absolute.
+template: 'quartz_column_deep.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+# Max wall-clock seconds per input file. Each run takes a few seconds; the
+# per-run log K recomputation adds a few more.
+timeout: 300
+
+# No geochemical condition is swept: the fluid is the same in every run, and only
+# the database differs.
+conditions:
+
+# One run per pressure in the series below.
+number_of_files: 7
+
+# Parallel workers used by rhea in local mode.
+nodes: 4
+
+### Sweep specification
+# Recompute the log K columns with pyGCC at each of these pressures, in bar.
+# 100 bar is roughly hydrostatic at 1 km; 1000 bar is roughly lithostatic at 4 km.
+# Every point stays above the water saturation pressure at 300 C (85.9 bar), the
+# top of this database's temperature grid, so the water is liquid throughout and
+# pyGCC is never asked for a log K in steam.
+#
+# 'reactions' names what to recompute. Quartz is the whole of this deck's
+# chemistry, so recomputing it alone is both sufficient and exact: each run's
+# database then differs from the template on precisely one line.
+#
+# 'all' is the alternative, and is what a deck with real aqueous speciation wants.
+# On this database it recomputes 824 reactions, costs about 1.5 s a run, and
+# introduces no no-data values: pyGCC returns a number everywhere it is asked, and
+# fills in 58 rows the shipped file had left blank. What it does do is leave the
+# file part pyGCC and part whatever compiled the original, since reactions pyGCC
+# does not have keep their tabulated values. See the README.
+#
+# The pressure each run used is written to the 'database_logk' group of
+# conditions.nc, since the database itself cannot record it.
+database_logk:
+  reactions: ['Quartz']
+  on_unmatched: 'leave'
+  pressure:
+    - 'custom'
+    - [100.0, 250.0, 400.0, 550.0, 700.0, 850.0, 1000.0]

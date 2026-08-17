@@ -118,7 +118,10 @@ class IsotopeReport:
         self.inferred_parents = False
         self.no_kinetics = []
         self.mass_shift = None
+        self.reactions = []
+        self.reactions_needing_name = []
         self.unknown_element = None
+        self.labelled = {}
 
     @property
     def isotope(self):
@@ -173,6 +176,15 @@ class IsotopeReport:
             lines.append(
                 f'  NOT added, no formula name can be derived -- give one in `names`: '
                 f'{sorted(self.needs_name)}'
+            )
+
+        if self.reactions:
+            lines.append(f'  namelist reactions added: {self.reactions}')
+
+        if self.reactions_needing_name:
+            lines.append(
+                f'  namelist reactions NOT added, no name can be derived -- give one in '
+                f'`reaction_names`: {self.reactions_needing_name}'
             )
 
         if self.already_present:
@@ -474,6 +486,7 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
     database.reparse()
 
     report.added = {section: [name for name, _ in rows] for section, rows in new_rows.items()}
+    report.labelled = labelled
 
     return report
 
@@ -576,3 +589,133 @@ def kinetics_separator(database):
             return database.lines[line_index]
 
     return '+----------------------------------------------------\n'
+
+
+# Species appear in these namelists both bare and prefixed, as 'CrO4--' in a stoichiometry and
+# 'tot_CrO4--' in a rate dependence, so a prefix is stripped before matching and put back after.
+SPECIES_PREFIXES = ('tot_',)
+
+# The namelist groups a labelled reaction may live in. f90nml lowercases group names on read.
+REACTION_GROUPS = ('aqueous', 'aqueouskinetics', 'catabolicpathway')
+
+
+def split_prefix(text):
+    """Return (prefix, species) for a possibly prefixed species name."""
+    for prefix in SPECIES_PREFIXES:
+        if text.startswith(prefix):
+            return prefix, text[len(prefix):]
+
+    return '', text
+
+
+def relabel_value(value, labelled):
+    """Return a namelist value with any labelled species in it relabelled.
+
+    Only exact species names are substituted, prefix aside. Matching by pattern instead would reach
+    things that merely look like formulae -- a `type = 'MonodBiomass'`, a filename -- and a namelist
+    holds plenty of those.
+    """
+    if isinstance(value, str):
+        prefix, species = split_prefix(value)
+
+        return f'{prefix}{labelled[species]}' if species in labelled else value
+
+    if isinstance(value, list):
+        return [relabel_value(item, labelled) for item in value]
+
+    return value
+
+
+def references_labelled(entry, labelled):
+    """Whether a namelist entry names any of the labelled species."""
+    for key, value in entry.items():
+        if key == 'name':
+            continue
+
+        values = value if isinstance(value, list) else [value]
+
+        for item in values:
+            if isinstance(item, str) and split_prefix(item)[1] in labelled:
+                return True
+
+    return False
+
+
+def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_offset=None):
+    """Duplicate a namelist's reactions for an isotope, in place.
+
+    The thermodynamic database is only half an isotope system. A model also needs its aqueous
+    kinetics reactions duplicated -- SukindaCr53.dbs's model has `Cr53_Fe_redox`, `Cr53_H2S_redox`
+    and `Cr53_S(s)_redox` alongside their unlabelled counterparts -- and, for microbial models, its
+    catabolic pathways.
+
+    Each reaction referencing a labelled species is copied with the species relabelled and the
+    reaction's own name labelled by the same formula rule, which happens to suit these names:
+    `Cr_Fe_redox` becomes `Cr53_Fe_redox` because the underscore is neither lowercase nor a digit.
+    Names it cannot derive -- `Sulfate_reduction`, where 'S' is the start of a word -- are reported.
+
+    Rates are copied unchanged. **Kinetic fractionation belongs in the input file**, where CrunchTope's
+    AQUEOUS_KINETICS block sets the rate per reaction and Omphalos already sweeps it: the Sukinda deck
+    carries `Cr_Fe_redox -rate 29.59E6` against `Cr53_Fe_redox -rate 29.51E6`, a ratio of 0.9973.
+    `keq_offset` is here for the other kind -- equilibrium fractionation, which does belong in the
+    database, as an offset on the labelled reaction's equilibrium constant.
+
+    Args:
+        namelist: A CrunchNameList to add to, or None.
+        element: The element symbol.
+        label: The mass number.
+        labelled: {existing species: labelled species}, as add_isotope worked out.
+        names: {existing reaction name: labelled name}, for names the rule cannot derive.
+        keq_offset: Added to the copy's `keq` where it has one. For equilibrium fractionation.
+
+    Returns:
+        A (added, needs_name) pair of lists.
+    """
+    import copy as copy_module
+
+    added, needs_name = [], []
+
+    if namelist is None or not getattr(namelist, 'namelist', None):
+        return added, needs_name
+
+    names = dict(names or {})
+
+    for group in REACTION_GROUPS:
+        try:
+            entries = namelist.namelist[group]
+        except KeyError:
+            continue
+
+        existing = {entry['name'] for entry in entries if 'name' in entry}
+
+        for entry in list(entries):
+            name = entry.get('name')
+
+            if name is None or not references_labelled(entry, labelled):
+                continue
+
+            new_name = names.get(name) or isotope_name(name, element, label)
+
+            if new_name is None:
+                if name not in needs_name:
+                    needs_name.append(name)
+                continue
+
+            if new_name in existing:
+                continue
+
+            copied = copy_module.deepcopy(dict(entry))
+            copied['name'] = new_name
+
+            for key, value in copied.items():
+                if key != 'name':
+                    copied[key] = relabel_value(value, labelled)
+
+            if keq_offset is not None and 'keq' in copied:
+                copied['keq'] = copied['keq'] + keq_offset
+
+            namelist.namelist.add_cogroup(group, copied)
+            existing.add(new_name)
+            added.append(f'{group}/{new_name}')
+
+    return added, needs_name

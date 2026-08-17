@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-914%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-925%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -511,7 +511,15 @@ database_isotopes:
     mass_shift: 4             # per atom; omitted, it is derived as label - atomic weight
     kinetics_from:            # where a copy's rate law comes from, if not its parent's
       Calcite44: 'Calcite'
+    reaction_names:           # for namelist reactions the rule cannot name
+      Sulfate_reduction: 'Sulfate34_reduction'
+    keq_offset: -0.002        # equilibrium fractionation, applied to the copies' keq
 ```
+
+Each system reaches the **aqueous kinetics namelist and the catabolic pathways** as well as the
+`.dbs`, since a thermodynamic isotopologue with no reactions does nothing. Reaction names take the
+same formula rule — `Cr_Fe_redox` becomes `Cr53_Fe_redox` — and ones it cannot derive, like
+`Sulfate_reduction`, are reported for `reaction_names`.
 
 Affected species are found by **stoichiometry, not name** — `Calcite` and `Dolomite` contain calcium
 without 'Ca' in their names — and transitively, since a reaction may stand on a secondary species
@@ -526,8 +534,11 @@ Molecular weights are shifted by default, per atom of the element, by the label 
 rounded standard atomic weight — +1 for Cr53, +4 for Ca44. Set `mass_shift` to a number to override,
 or `null` to keep the parents' weights.
 
-Nothing here imposes a fractionation — the log Ks are copied. That belongs in the aqueous kinetics
-database.
+Fractionation splits by kind. **Equilibrium** fractionation belongs in the database, so `keq_offset`
+applies it to the copied reactions' equilibrium constants. **Kinetic** fractionation belongs in the
+input file, where the deck's `AQUEOUS_KINETICS` block sets a rate per reaction — the Sukinda deck
+carries `Cr_Fe_redox -rate 29.59E6` against `Cr53_Fe_redox -rate 29.51E6` — and Omphalos already
+sweeps those through `aqueous_kinetics:`, `fix_ratio` included.
 
 #### Recomputing log K with pyGCC
 
@@ -987,7 +998,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **914 tests**:
+The project includes a comprehensive test suite with **925 tests**:
 
 ```bash
 # Run all tests

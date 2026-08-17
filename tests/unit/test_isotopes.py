@@ -529,3 +529,135 @@ class TestScopePullsInDependencies:
                     continue
                 for species in entry.reaction.products:
                     assert species in known, f'{name} references unknown {species}'
+
+
+class TestNamelistReactions:
+    """A thermodynamic isotopologue with no reactions does nothing.
+
+    The aqueous kinetics namelist and the catabolic pathways need duplicating too. Ground truth is
+    tests/omphalos_test/aqueous.dbs, which carries three hand-built Cr53 reactions in each of
+    &Aqueous and &AqueousKinetics.
+    """
+
+    AQUEOUS = Path(__file__).parent.parent / 'omphalos_test' / 'aqueous.dbs'
+    LABELLED = {'CrO4--': 'Cr53O4--', 'Cr+++': 'Cr53+++'}
+
+    @pytest.fixture
+    def stripped_namelist(self, tmp_path):
+        """The namelist with every Cr53 reaction block removed."""
+        import re
+
+        from omphalos.namelist import CrunchNameList
+
+        text = self.AQUEOUS.read_text()
+        blocks = re.split(r'(?=^&)', text, flags=re.M)
+        path = tmp_path / 'no_cr53.dbs'
+        path.write_text(''.join(b for b in blocks if 'Cr53' not in b))
+        return CrunchNameList(str(path))
+
+    @pytest.fixture
+    def original_namelist(self):
+        from omphalos.namelist import CrunchNameList
+
+        return CrunchNameList(str(self.AQUEOUS))
+
+    def test_the_reactions_are_rebuilt_identically(self, stripped_namelist, original_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        added, needs_name = add_isotope_reactions(
+            stripped_namelist, 'Cr', '53', self.LABELLED)
+
+        assert not needs_name
+        assert len(added) == 6
+
+        for group in ('aqueous', 'aqueouskinetics'):
+            for hand in original_namelist.namelist[group]:
+                if 'Cr53' not in hand['name']:
+                    continue
+                tool = next(e for e in stripped_namelist.namelist[group]
+                            if e['name'] == hand['name'])
+                assert dict(tool) == dict(hand), hand['name']
+
+    def test_the_reaction_name_takes_the_formula_rule(self):
+        # 'Cr_Fe_redox' works because the underscore is neither lowercase nor a digit.
+        assert isotope_name('Cr_Fe_redox', 'Cr', '53') == 'Cr53_Fe_redox'
+
+    def test_a_reaction_named_as_a_word_is_reported(self, stripped_namelist):
+        # 'Sulfate_reduction' starts with a word, not a symbol, so the rule declines it.
+        from omphalos.isotopes import add_isotope_reactions
+
+        _, needs_name = add_isotope_reactions(
+            stripped_namelist, 'S', '34', {'SO4--': 'S34O4--'})
+
+        assert 'Sulfate_reduction' in needs_name
+
+    def test_a_given_reaction_name_is_used(self, stripped_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        added, needs_name = add_isotope_reactions(
+            stripped_namelist, 'S', '34', {'SO4--': 'S34O4--'},
+            names={'Sulfate_reduction': 'Sulfate34_reduction'})
+
+        assert not needs_name
+        assert any('Sulfate34_reduction' in name for name in added)
+
+    def test_a_prefixed_species_is_relabelled(self, stripped_namelist):
+        # Rate dependences name species as 'tot_CrO4--'.
+        from omphalos.isotopes import add_isotope_reactions
+
+        add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED)
+        kinetics = next(e for e in stripped_namelist.namelist['aqueouskinetics']
+                        if e['name'] == 'Cr53_Fe_redox')
+
+        assert 'tot_Cr53O4--' in kinetics['dependence']
+        assert 'tot_CrO4--' not in kinetics['dependence']
+
+    def test_rates_are_copied_unchanged(self, stripped_namelist):
+        # Kinetic fractionation lives in the deck's AQUEOUS_KINETICS rates, not here.
+        from omphalos.isotopes import add_isotope_reactions
+
+        add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED)
+        entries = {e['name']: e for e in stripped_namelist.namelist['aqueouskinetics']}
+
+        assert entries['Cr53_Fe_redox']['rate25c'] == entries['Cr_Fe_redox']['rate25c']
+
+    def test_keq_offset_applies_equilibrium_fractionation(self, stripped_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED, keq_offset=-0.01)
+        entries = {e['name']: e for e in stripped_namelist.namelist['aqueous']}
+
+        assert entries['Cr53_Fe_redox']['keq'] == pytest.approx(
+            entries['Cr_Fe_redox']['keq'] - 0.01)
+
+    def test_a_reaction_naming_nothing_labelled_is_left_alone(self, stripped_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        added, _ = add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED)
+
+        assert not any('C5H7O2N_RCH2_Ace_NH4_SR' in name for name in added)
+
+    def test_a_reaction_already_labelled_is_not_duplicated(self, original_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        before = len(original_namelist.namelist['aqueous'])
+        added, _ = add_isotope_reactions(original_namelist, 'Cr', '53', self.LABELLED)
+
+        assert not added
+        assert len(original_namelist.namelist['aqueous']) == before
+
+    def test_no_namelist_is_not_an_error(self):
+        from omphalos.isotopes import add_isotope_reactions
+
+        assert add_isotope_reactions(None, 'Cr', '53', self.LABELLED) == ([], [])
+
+    def test_the_result_round_trips_through_f90nml(self, stripped_namelist, tmp_path):
+        from omphalos.isotopes import add_isotope_reactions
+        from omphalos.namelist import CrunchNameList
+
+        add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED)
+        out = tmp_path / 'written.dbs'
+        stripped_namelist.print(str(out))
+
+        names = [e['name'] for e in CrunchNameList(str(out)).namelist['aqueous']]
+        assert 'Cr53_Fe_redox' in names

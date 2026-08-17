@@ -227,6 +227,12 @@ class Template(InputFile):
         columns are recomputed for the isotopologues too, and a ``database_parameters`` sweep can
         name one. The config section is ``database_isotopes``, a list of systems.
 
+        Each system reaches the aqueous kinetics namelist and the catabolic pathways as well as the
+        .dbs, since a thermodynamic isotopologue with no reactions does nothing. Two keys are for
+        those files: ``reaction_names`` for reaction names the formula rule cannot derive, and
+        ``keq_offset`` for equilibrium fractionation. Kinetic fractionation is not set here -- it
+        lives in the deck's AQUEOUS_KINETICS rates, which ``aqueous_kinetics:`` already sweeps.
+
         Returns:
             A list of IsotopeReports, empty where the config asks for none.
         """
@@ -241,7 +247,7 @@ class Template(InputFile):
             # do nothing, but the check says so rather than relying on that.
             return []
 
-        from omphalos.isotopes import add_isotope
+        from omphalos.isotopes import add_isotope, add_isotope_reactions
 
         reports = []
 
@@ -249,9 +255,20 @@ class Template(InputFile):
             settings = dict(system)
             element = settings.pop('element')
             label = str(settings.pop('label'))
+            reaction_names = settings.pop('reaction_names', None)
+            keq_offset = settings.pop('keq_offset', None)
 
             print(f'*** Adding {element}{label} to the database ***')
             report = add_isotope(self.database, element, label, **settings)
+
+            for namelist in (self.aqueous_database, self.catabolic_pathways):
+                added, needs_name = add_isotope_reactions(
+                    namelist, element, label, report.labelled,
+                    names=reaction_names, keq_offset=keq_offset,
+                )
+                report.reactions.extend(added)
+                report.reactions_needing_name.extend(needs_name)
+
             print(report.summary())
             reports.append(report)
 

@@ -93,3 +93,7 @@ database_isotopes:
     parents: ['Ca++']         # inferred from names if omitted, but a name is not proof of content
     species: ['CaCO3(aq)']    # restrict the copies; their dependencies are added too
     mass_shift: 4             # per atom; derived as label - atomic weight if omitted
+    # The aqueous kinetics namelist and catabolic pathways are duplicated too.
+    reaction_names:           # for namelist reaction names the formula rule cannot derive
+      Sulfate_reduction: 'Sulfate34_reduction'
+    keq_offset: -0.002        # equilibrium fractionation; kinetic goes in the deck's rates

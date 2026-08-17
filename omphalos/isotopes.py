@@ -122,6 +122,7 @@ class IsotopeReport:
         self.reactions_needing_name = []
         self.unknown_element = None
         self.labelled = {}
+        self.uncounted = []
 
     @property
     def isotope(self):
@@ -164,6 +165,11 @@ class IsotopeReport:
 
         if self.kinetics:
             lines.append(f'  mineral kinetics copied for: {self.kinetics}')
+
+        if self.uncounted:
+            lines.append(
+                f'  atoms not counted, so these keep their parent weight: {self.uncounted}'
+            )
 
         if self.no_kinetics:
             lines.append(
@@ -277,17 +283,75 @@ def required_species(database, labelled, wanted, parents):
     return required
 
 
-def close_over_reactions(database, element, label, labelled, atoms, wanted, names, report):
-    """Extend the labelled set until nothing new references it, counting atoms as it goes.
+def count_atoms(database, labelled, parents, report=None, passes=100):
+    """Return how many atoms of the element each labelled species holds.
+
+    A species holds as many atoms as its reaction's signed coefficients on labelled species say it
+    does: `Cr2O7--`, written as two `CrO4--`, holds two. A primary species holds one, by construction.
+
+    Counted after the labelled set is complete, and relaxed until nothing changes, rather than as the
+    set is built. Counting during the walk fixed each species' total from whatever was labelled at
+    the moment it was reached, so a species standing on both the parent and a species labelled later
+    came out short -- and was never revised, because a count was only ever written once. File order
+    decided whether a weight was right.
+    """
+    lookup = entries_by_name(database)
+    atoms = {name: 1.0 for name in parents}
+
+    for _ in range(passes):
+        changed = False
+
+        for name in labelled:
+            if name in parents:
+                continue
+
+            found = lookup.get(name)
+            reaction = getattr(found[1], 'reaction', None) if found else None
+
+            if reaction is None:
+                continue
+
+            total = 0.0
+            complete = True
+
+            for species, coefficient in reaction.products.items():
+                if species in labelled:
+                    if species in atoms:
+                        total += coefficient * atoms[species]
+                    else:
+                        complete = False
+
+            for species, coefficient in reaction.reactants.items():
+                if species != name and species in labelled:
+                    if species in atoms:
+                        total -= coefficient * atoms[species]
+                    else:
+                        complete = False
+
+            if complete and atoms.get(name) != total:
+                atoms[name] = total
+                changed = True
+
+        if not changed:
+            break
+    else:
+        # Only reachable if the reactions form a cycle, which a CrunchTope database should not.
+        if report is not None:
+            report.uncounted = sorted(set(labelled) - set(atoms))
+
+    if report is not None and not report.uncounted:
+        report.uncounted = sorted(set(labelled) - set(atoms))
+
+    return atoms
+
+
+def close_over_reactions(database, element, label, labelled, wanted, names, report):
+    """Extend the labelled set until nothing new references it.
 
     Labelling cannot stop at the primary species. A CrunchTope reaction may be written in terms of
     primary, secondary or gas species -- `Cr(OH)3` in SukindaCr53.dbs is written on `Cr+++`, which is
     secondary -- so the mineral is only reached once `Cr+++` itself has been labelled. Repeating
     until the set stops growing is what gets from `CrO4--` to `Cr53(OH)3`.
-
-    The atom count comes out of the same walk: a species holds as many atoms of the element as its
-    reaction's signed coefficients on already-labelled species say it does. `Cr2O7--`, written as
-    two `CrO4--`, holds two.
     """
     growing = True
 
@@ -307,18 +371,10 @@ def close_over_reactions(database, element, label, labelled, atoms, wanted, name
                 if reaction is None:
                     continue
 
-                count = 0.0
-                references = False
-
-                for species, coefficient in reaction.products.items():
-                    if species in labelled:
-                        references = True
-                        count += coefficient * atoms[species]
-
-                for species, coefficient in reaction.reactants.items():
-                    if species != name and species in labelled:
-                        references = True
-                        count -= coefficient * atoms[species]
+                references = any(
+                    species in labelled
+                    for species in set(reaction.products) | (set(reaction.reactants) - {name})
+                )
 
                 if not references:
                     continue
@@ -330,10 +386,9 @@ def close_over_reactions(database, element, label, labelled, atoms, wanted, name
                     continue
 
                 labelled[name] = new_name
-                atoms[name] = count
                 growing = True
 
-    return labelled, atoms
+    return labelled
 
 
 def copy_weight(entry, new_name, weights, mass_shift, atoms):
@@ -417,12 +472,12 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
 
     report.mass_shift = mass_shift
 
-    # A primary species holds one atom of its own element, by construction.
-    atoms = {name: 1.0 for name in labelled}
+    parents_labelled = list(labelled)
 
-    labelled, atoms = close_over_reactions(
-        database, element, label, labelled, atoms, wanted, names, report
+    labelled = close_over_reactions(
+        database, element, label, labelled, wanted, names, report
     )
+    atoms = count_atoms(database, labelled, parents_labelled, report)
     report.atoms = atoms
 
     # The closure runs over the whole database; the scope is applied here, with whatever the
@@ -486,9 +541,21 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
     database.reparse()
 
     report.added = {section: [name for name, _ in rows] for section, rows in new_rows.items()}
-    report.labelled = labelled
+    # Only what the database now actually holds. `labelled` is the whole closure -- every species the
+    # isotope could apply to -- and a scope means most of it was never written. Handing that to
+    # add_isotope_reactions pointed namelist reactions at species CrunchTope would not find. Read
+    # back after the reparse rather than taken from what this call added, since a species already
+    # there from an earlier run counts as available too.
+    report.labelled = {
+        name: new_name for name, new_name in labelled.items() if in_database(database, new_name)
+    }
 
     return report
+
+
+def in_database(database, name):
+    """Whether a species of this name is in any of the sections an isotope touches."""
+    return any(name in getattr(database, section, {}) for section in ISOTOPE_SECTIONS)
 
 
 def requote(database, line_index, token_index, new):

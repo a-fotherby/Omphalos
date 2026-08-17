@@ -85,10 +85,20 @@ class Template(InputFile):
         # on a Template that will write one. Parsing is not free -- 60 ms and 2 MB a time, and a log
         # K recomputation is minutes -- and a later input file never writes a database of its own:
         # _print_aux_files writes the top-level InputFile's.
-        if (config.get('database') is not None
-                and config.get('parse_database', True)
-                and (config.get('database_parameters') or config.get('database_logk')
-                     or config.get('database_isotopes'))):
+        database_sections = [
+            key for key in ('database_parameters', 'database_logk', 'database_isotopes')
+            if config.get(key)
+        ]
+
+        if config.get('parse_database', True) and database_sections:
+            if config.get('database') is None:
+                # Doing nothing would be the failure this whole feature exists to avoid: a config
+                # that asks for something and is quietly ignored.
+                raise ValueError(
+                    f'ConfigError: {database_sections} need a \'database\' entry naming the .dbs '
+                    f'file to edit.'
+                )
+
             self.database = Database(config['database'])
             self.add_isotopes()
             self.recompute_log_k()

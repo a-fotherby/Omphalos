@@ -771,3 +771,107 @@ class TestBiomassInsideAKineticsBlock:
 
         line = "  biomass = 'C5H7O2NSO4(s)' /\n"
         assert relabel_quoted(line, {'SO4--': 'S34O4--'}) == line
+
+
+class TestAtomCountsAreCountedAfterwards:
+    """The count has to be taken once the labelled set is complete, not as it is built.
+
+    Counting during the walk fixed each species' total from whatever was labelled at the moment it
+    was reached, and never revised it -- so a species standing on both the parent and a species
+    labelled later came out short, and file order decided whether its weight was right.
+    """
+
+    ORDERED = """\
+'temperature points' 1   25.
+'Debye-Huckel adh'   0.5114
+'Debye-Huckel bdh'   0.3288
+'Debye-Huckel bdt'   0.0410
+'H+' 9.0  1.0    1.0079
+'Ca++' 6.0  2.0    40.0780
+'End of primary'  0.0  0.0  0.0
+'XCaY' 2    1.0000 'Ca++'    1.0000 'YCa'    1.0  3.0  0.0   200.0
+'YCa' 1    1.0000 'Ca++'    2.0  3.0  0.0   100.0
+'End of secondary' 1 0. '0' 0. 0. 0.
+'End of gases' 0. 1 1. '0' 0. 0. 0.
+'End of minerals' 0. 1 0. '0' 0. 0. 0.
+"""
+
+    @pytest.fixture
+    def ordered(self, tmp_path):
+        # XCaY stands on Ca++ *and* on YCa, and its row comes first, so when it is reached YCa has
+        # not been labelled yet.
+        path = tmp_path / 'ordered.dbs'
+        path.write_text(self.ORDERED, newline='')
+        return Database(str(path))
+
+    def test_a_species_standing_on_a_later_one_is_counted_in_full(self, ordered):
+        report = add_isotope(ordered, 'Ca', '44')
+
+        assert report.atoms['YCa'] == pytest.approx(1.0)
+        assert report.atoms['XCaY'] == pytest.approx(2.0)
+
+    def test_and_gets_the_weight_that_follows(self, ordered):
+        add_isotope(ordered, 'Ca', '44')
+
+        # Ca44 shifts by +4 per atom: one atom for YCa, two for XCaY.
+        assert ordered.secondary_species['YCa44'].weight == pytest.approx(104.0)
+        assert ordered.secondary_species['XCa44Y'].weight == pytest.approx(208.0)
+
+    def test_nothing_is_left_uncounted(self, ordered):
+        report = add_isotope(ordered, 'Ca', '44')
+
+        assert report.uncounted == []
+
+    def test_the_counts_agree_with_a_relaxed_recount_on_the_real_database(self, stripped):
+        # The check the audit used: recompute from the finished labelled set and compare.
+        from omphalos.isotopes import count_atoms
+
+        database = stripped('Cr53')
+        report = add_isotope(database, 'Cr', '53', parents=['CrO4--'])
+        recount = count_atoms(Database(str(database.path)), report.labelled, ['CrO4--'])
+
+        for name, atoms in report.atoms.items():
+            if name in recount:
+                assert atoms == pytest.approx(recount[name]), name
+
+
+class TestLabelledIsWhatTheDatabaseHolds:
+    """A scope means most of the closure was never written, and the namelists must not use it.
+
+    Relabelling a namelist reference to a species the database does not contain gives CrunchTope a
+    reaction it cannot resolve.
+    """
+
+    def test_only_written_species_are_exposed(self, stripped):
+        database = stripped('Cr53')
+        report = add_isotope(database, 'Cr', '53', species=['Cr(OH)3'])
+
+        for name, new_name in report.labelled.items():
+            assert any(new_name in getattr(database, section) for section in
+                       ['primary_species', 'secondary_species', 'gases', 'minerals',
+                        'surface_complexation', 'exchange']), f'{new_name} is not in the database'
+
+    def test_a_scoped_out_species_is_not_exposed(self, stripped):
+        database = stripped('Cr53')
+        report = add_isotope(database, 'Cr', '53', species=['Cr(OH)3'])
+
+        # CrCl++ is in the closure but outside the scope, so nothing may relabel a reference to it.
+        assert 'CrCl++' not in report.labelled
+        assert 'Cr53Cl++' not in database.secondary_species
+
+    def test_a_namelist_reference_is_left_alone_for_a_scoped_out_species(self, stripped):
+        from omphalos.isotopes import relabel_value
+
+        database = stripped('Cr53')
+        report = add_isotope(database, 'Cr', '53', species=['Cr(OH)3'])
+
+        assert relabel_value('tot_CrCl++', report.labelled) == 'tot_CrCl++'
+        assert relabel_value('tot_CrO4--', report.labelled) == 'tot_Cr53O4--'
+
+    def test_a_species_already_present_still_counts_as_available(self):
+        # Not "what this call added": an isotope added by an earlier run is there to be referenced.
+        database = Database(str(DB_PATH))
+        report = add_isotope(database, 'Cr', '53', species=['Cr(OH)3'])
+
+        assert report.already_present
+        assert report.labelled.get('Cr(OH)3') == 'Cr53(OH)3'

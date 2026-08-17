@@ -164,15 +164,30 @@ class TestPrintAuxFiles:
 
 
 class TestConfigErrors:
-    def test_sweeping_without_a_database_fails_loudly(self, sweep_config, in_test_dir, tmp_path):
-        # Doing nothing here would run every case against the same unedited database.
+    def test_sweeping_without_a_database_fails_loudly(self, sweep_config, in_test_dir):
+        # Doing nothing here would run every case against the same unedited database. Caught when
+        # the template is read, which is before anything has been generated.
         sweep_config['database'] = None
 
-        with contextlib.redirect_stdout(io.StringIO()):
-            template = Template(sweep_config)
+        with pytest.raises(ValueError, match="need a 'database' entry"):
+            with contextlib.redirect_stdout(io.StringIO()):
+                Template(sweep_config)
 
-        with pytest.raises(ValueError, match="needs a 'database' entry"):
-            gi.configure_input_files(template, str(tmp_path) + '/', rhea=True)
+    @pytest.mark.parametrize('section', ['database_parameters', 'database_logk',
+                                         'database_isotopes'])
+    def test_every_database_section_needs_a_database(self, sample_config, in_test_dir, section):
+        # database_logk and database_isotopes used to be skipped in silence.
+        import copy as copy_module
+
+        config = copy_module.deepcopy(sample_config)
+        config['database'] = None
+        config.pop('database_parameters', None)
+        config[section] = [{'element': 'Ca', 'label': 44}] if section == 'database_isotopes' else {
+            'exchange': {'CaXRifle': {'log_k': ['constant', -1.0]}}}
+
+        with pytest.raises(ValueError, match=section):
+            with contextlib.redirect_stdout(io.StringIO()):
+                Template(config)
 
     def test_unknown_species_fails_at_generation_time(self, sweep_config, in_test_dir, tmp_path):
         sweep_config['database_parameters'] = {

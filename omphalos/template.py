@@ -87,8 +87,10 @@ class Template(InputFile):
         # _print_aux_files writes the top-level InputFile's.
         if (config.get('database') is not None
                 and config.get('parse_database', True)
-                and (config.get('database_parameters') or config.get('database_logk'))):
+                and (config.get('database_parameters') or config.get('database_logk')
+                     or config.get('database_isotopes'))):
             self.database = Database(config['database'])
+            self.add_isotopes()
             self.recompute_log_k()
 
         # Check template is not a restart file to avoid infinite recursion.
@@ -117,6 +119,7 @@ class Template(InputFile):
                         later_config['parse_database'] = False
                         later_config.pop('database_parameters', None)
                         later_config.pop('database_logk', None)
+                        later_config.pop('database_isotopes', None)
                         later_config['restart'] = True
                         self.later_inputs.update({later_file: Template(later_config)})
                         print(f'*** IMPORTED LATER FILE {later_file} ***')
@@ -216,6 +219,43 @@ class Template(InputFile):
         entry. Both are nothing to read, so callers skip them.
         """
         return self.raw.get(line_num, '').split()
+
+    def add_isotopes(self):
+        """Add the isotope systems the config asks for, before anything else touches the database.
+
+        First, because everything downstream is written in terms of what the database holds: log K
+        columns are recomputed for the isotopologues too, and a ``database_parameters`` sweep can
+        name one. The config section is ``database_isotopes``, a list of systems.
+
+        Returns:
+            A list of IsotopeReports, empty where the config asks for none.
+        """
+        systems = self.config.get('database_isotopes')
+
+        if not systems:
+            return []
+
+        if self.config.get('add_isotopes') is False:
+            # rhea sets this on the per-run Templates it rebuilds from the run directories, whose
+            # databases already carry the isotopes. Adding them again would find them present and
+            # do nothing, but the check says so rather than relying on that.
+            return []
+
+        from omphalos.isotopes import add_isotope
+
+        reports = []
+
+        for system in systems:
+            settings = dict(system)
+            element = settings.pop('element')
+            label = str(settings.pop('label'))
+
+            print(f'*** Adding {element}{label} to the database ***')
+            report = add_isotope(self.database, element, label, **settings)
+            print(report.summary())
+            reports.append(report)
+
+        return reports
 
     def recompute_log_k(self):
         """Recompute the database's log K columns with pyGCC, where the config asks for it.

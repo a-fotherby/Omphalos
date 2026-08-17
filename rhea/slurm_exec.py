@@ -78,7 +78,7 @@ def execute(file_num, config, pflo, min3p=False):
     # The databases in the run directory already have their log K columns recomputed: rhea/main.py
     # did it once, on the template, before generating anything. Doing it again here would repeat a
     # SUPCRT-style calculation per reaction for every run in the sweep.
-    config.update({'recompute_log_k': False})
+    config.update({'recompute_log_k': False, 'add_isotopes': False})
 
     # Check for staged restart runs
     if not pflo and 'restart_chain' in config and config['restart_chain']:

@@ -645,6 +645,48 @@ class Database:
         self.lines[line_index] = line[:start] + ''.join(texts) + line[end:]
         self.raw_database[line_index] = values(tokenise(self.lines[line_index]))
 
+    def rewrite_tokens(self, line_index, replacements):
+        """Return this line with the named tokens replaced, without altering the database.
+
+        Used to build a new row from an existing one -- an isotopologue from its parent -- so the
+        copy keeps the original's spacing, alignment and trailing fields.
+
+        Args:
+            line_index: The line to copy.
+            replacements: A {token index: text} mapping.
+
+        Returns:
+            The rewritten line, terminator included.
+        """
+        line = self.lines[line_index]
+        tokens = tokenise(line)
+
+        # Right to left, so the spans of the tokens still to be replaced stay valid.
+        for token_index in sorted(replacements, reverse=True):
+            _, start, end = tokens[token_index]
+            line = line[:start] + replacements[token_index] + line[end:]
+
+        return line
+
+    def insert_lines(self, line_index, texts):
+        """Insert lines before line_index, leaving the parse to be rebuilt by reparse().
+
+        Insertion moves every line after it, so the caller inserts from the bottom of the file
+        upwards and calls reparse() once at the end.
+        """
+        self.lines[line_index:line_index] = list(texts)
+
+    def section_end(self, section):
+        """Return the line index of a section's End marker, where a new row goes before it."""
+        for name, (_, end) in self.sections.items():
+            if SECTION_ATTRIBUTES[name] == section:
+                return end
+
+        raise KeyError(
+            f"'{section}' is not a section of {self.path}. Available: "
+            f'{sorted(SECTION_ATTRIBUTES[name] for name in self.sections)}'
+        )
+
     def reparse(self):
         """Rebuild the parse from the current lines, after the row layout has changed."""
         self.parse(self.path, self.lines)
@@ -698,6 +740,12 @@ class ReactingSpecies(Species):
         self.reaction = Reaction(self.name, entry[reaction_start:reaction_end])
         self.log_k = entry[reaction_end:log_k_end]
         self.parameters = {'log_k': (line_index, list(range(reaction_end, log_k_end)))}
+
+        # Which tokens hold the reacting species' names. The reaction is written as alternating
+        # coefficient and name, so the names are the odd positions. Rewriting a species name has to
+        # be aimed at these: substituting textually across the line would also hit things that
+        # merely look like formulae, such as the trailing '25C.data' on some mineral rows.
+        self.reaction_tokens = list(range(reaction_start + 1, reaction_end, 2))
 
         self.read_trailing(entry, log_k_end, line_index)
 

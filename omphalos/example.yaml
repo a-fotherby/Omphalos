@@ -84,3 +84,12 @@ database_logk:
   Dielec_method: 'JN91'
   heatcap_method: 'SUPCRT'
   densityextrap: false
+
+# Add an isotope of an element: every species containing it is duplicated under a labelled name,
+# with the reaction rewritten onto the labelled parent and the log Ks copied unchanged.
+database_isotopes:
+  - element: 'Ca'
+    label: 44
+    parents: ['Ca++']         # inferred from names if omitted, but a name is not proof of content
+    species: ['CaCO3(aq)']    # restrict the copies; their dependencies are added too
+    mass_shift: 4             # per atom of the element; omit to keep the parent's weight

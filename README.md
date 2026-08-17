@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-845%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-906%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -49,6 +49,7 @@
   - [Parameter Modification](#parameter-modification)
     - [Namelists](#namelists)
     - [Database Parameters](#database-parameters)
+    - [Adding an isotope](#adding-an-isotope)
     - [Recomputing log K with pyGCC](#recomputing-log-k-with-pygcc)
     - [Changing the temperature points](#changing-the-temperature-points)
   - [Modification Options](#modification-options)
@@ -493,6 +494,36 @@ Notes:
   log K would no longer belong to it.
 - The in-database `aqueous_kinetics` block is deprecated and read-only; sweep aqueous kinetics
   through `namelists:` above.
+
+#### Adding an isotope
+
+`database_isotopes:` duplicates every species containing an element under a labelled name, with the
+reaction rewritten onto the labelled parent and the log Ks copied unchanged:
+
+```yaml
+database_isotopes:
+  - element: 'Ca'
+    label: 44
+    parents: ['Ca++']         # the primary species to label; inferred from names if omitted
+    species: ['CaCO3(aq)']    # restrict the copies; their dependencies come too
+    names:                    # required where no formula name can be derived
+      Calcite: 'Calcite44'
+    mass_shift: 4             # added per atom of the element; omit to keep the parent's weight
+    kinetics_from:            # where a copy's rate law comes from, if not its parent's
+      Calcite44: 'Calcite'
+```
+
+Affected species are found by **stoichiometry, not name** — `Calcite` and `Dolomite` contain calcium
+without 'Ca' in their names — and transitively, since a reaction may stand on a secondary species
+that must be labelled first.
+
+Names are formula-aware: a symbol counts only where the next character is neither lowercase nor a
+digit, so `Cl-` reads as chlorine, not carbon. Anything it cannot name unambiguously is reported
+rather than guessed; supply it in `names`. A copied mineral needs a rate law or CrunchTope stops, so
+the parent's kinetics block is copied where it has one and reported where it does not.
+
+Nothing here imposes a fractionation — the log Ks are copied. That belongs in the aqueous kinetics
+database.
 
 #### Recomputing log K with pyGCC
 
@@ -952,7 +983,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **845 tests**:
+The project includes a comprehensive test suite with **906 tests**:
 
 ```bash
 # Run all tests
@@ -988,6 +1019,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_database.py` | `omphalos/database.py` — parsing, round-trip fidelity and surgical editing of a `.dbs` |
 | `tests/unit/test_database_sweep.py` | `database_parameters` end to end: per-run databases, staged chains, config errors |
 | `tests/unit/test_logk.py` | `omphalos/logk.py` — pyGCC log K recomputation, stoichiometry reconciliation, regridding |
+| `tests/unit/test_isotopes.py` | `omphalos/isotopes.py` — isotope insertion, checked by rebuilding the hand-built systems |
 | `tests/unit/test_crunch_keywords.py` | `omphalos/crunch_keywords.py` — which auxiliary-database keywords a build reads |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
 | `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |

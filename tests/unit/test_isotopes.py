@@ -875,3 +875,58 @@ class TestLabelledIsWhatTheDatabaseHolds:
 
         assert report.already_present
         assert report.labelled.get('Cr(OH)3') == 'Cr53(OH)3'
+
+
+class TestSpeciesThatConsumeTheElement:
+    """A reaction may consume the labelled element rather than contain it.
+
+    The ex9 Rifle database has `Fe(OH)3_HS = -0.5 HS- - 2.5 H+ + 1 Fe++ + 3 H2O`, a pseudo-phase for
+    ferrihydrite reduced by sulfide. Read as a composition that is -0.5 atoms of sulfur, so the mass
+    shift would make the S34 copy *lighter* than its parent -- by 1 g/mol, silently.
+    """
+
+    CONSUMING = """\
+'temperature points' 1   25.
+'Debye-Huckel adh'   0.5114
+'Debye-Huckel bdh'   0.3288
+'Debye-Huckel bdt'   0.0410
+'H+' 9.0  1.0    1.0079
+'Fe++' 6.0  2.0    55.8470
+'H2O' 3.0  0.0    18.0153
+'HS-' 3.0 -1.0    33.0739
+'End of primary'  0.0  0.0  0.0
+'H2S(aq)' 2    1.0000 'H+'    1.0000 'HS-'   -7.4159  3.0  0.0    34.0819
+'End of secondary' 1 0. '0' 0. 0. 0.
+'End of gases' 0. 1 1. '0' 0. 0. 0.
+'Fe(OH)3_HS' 34.360 4  -0.5 'HS-' -2.5 'H+' 1.0 'Fe++' 3.0 'H2O'   17.05905   106.86902
+'End of minerals' 0. 1 0. '0' 0. 0. 0.
+"""
+
+    @pytest.fixture
+    def consuming(self, tmp_path):
+        path = tmp_path / 'consuming.dbs'
+        path.write_text(self.CONSUMING, newline='')
+        return Database(str(path))
+
+    def test_a_negative_count_is_clamped_to_zero(self, consuming):
+        report = add_isotope(consuming, 'S', '34', parents=['HS-'])
+
+        assert report.atoms['Fe(OH)3_HS'] == pytest.approx(0.0)
+        assert report.consuming == ['Fe(OH)3_HS']
+
+    def test_the_copy_keeps_its_parent_weight(self, consuming):
+        # Not merely 'not lowered': it must equal the parent, since it is the same phase.
+        add_isotope(consuming, 'S', '34', parents=['HS-'])
+
+        assert consuming.minerals['Fe(OH)3_HS34'].weight == pytest.approx(106.86902)
+
+    def test_it_is_named_in_the_summary(self, consuming):
+        report = add_isotope(consuming, 'S', '34', parents=['HS-'])
+
+        assert 'consume S rather than containing it' in report.summary()
+
+    def test_a_real_isotopologue_still_shifts(self, consuming):
+        # The clamp must not blunt the ordinary case sitting beside it.
+        add_isotope(consuming, 'S', '34', parents=['HS-'])
+
+        assert consuming.secondary_species['H2S34(aq)'].weight == pytest.approx(36.0819)

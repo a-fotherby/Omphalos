@@ -123,6 +123,7 @@ class IsotopeReport:
         self.unknown_element = None
         self.labelled = {}
         self.uncounted = []
+        self.consuming = []
 
     @property
     def isotope(self):
@@ -169,6 +170,13 @@ class IsotopeReport:
         if self.uncounted:
             lines.append(
                 f'  atoms not counted, so these keep their parent weight: {self.uncounted}'
+            )
+
+        if self.consuming:
+            lines.append(
+                f'  these consume {self.element} rather than containing it -- a negative atom count '
+                f'-- so they keep their parent weight rather than being made lighter: '
+                f'{self.consuming}'
             )
 
         if self.no_kinetics:
@@ -294,6 +302,12 @@ def count_atoms(database, labelled, parents, report=None, passes=100):
     the moment it was reached, so a species standing on both the parent and a species labelled later
     came out short -- and was never revised, because a count was only ever written once. File order
     decided whether a weight was right.
+
+    A count can come out **negative**, which means the entry is not an isotopologue by composition.
+    The ex9 Rifle database has `Fe(OH)3_HS = -0.5 HS- - 2.5 H+ + 1 Fe++ + 3 H2O`, a pseudo-phase for
+    ferrihydrite reduced by sulfide: the sulfur is consumed to form it, not held in it. Taken at face
+    value that is -0.5 atoms of S, and the mass shift would *lower* the copy's weight -- by 1 for
+    S34, silently. Those are reported and left at their parent's weight instead.
     """
     lookup = entries_by_name(database)
     atoms = {name: 1.0 for name in parents}
@@ -341,6 +355,14 @@ def count_atoms(database, labelled, parents, report=None, passes=100):
 
     if report is not None and not report.uncounted:
         report.uncounted = sorted(set(labelled) - set(atoms))
+
+    consuming = sorted(name for name, count in atoms.items() if count < 0)
+
+    if consuming:
+        if report is not None:
+            report.consuming = consuming
+        for name in consuming:
+            atoms[name] = 0.0
 
     return atoms
 

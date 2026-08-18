@@ -353,6 +353,19 @@ than being runnable: for sweeps you can run, see [Worked Examples](#worked-examp
 > The filename is the *first* token of the keyword: anything after it is a format specifier, as in
 > `read_PorosityFile porosity.dat FullForm`.
 
+> **An `aqueous_database` or `catabolic_pathways` entry must be named in the deck's RUNTIME block**,
+> in the spelling your CrunchTope reads — `kinetic_database`/`catabolic_database` for 1.x,
+> `aqueousdatabase`/`catabolicdatabase` for 2+. Omphalos writes the file under whatever name RUNTIME
+> gives, checks the spelling against the executable before each sweep, and refuses to run on a
+> mismatch: CrunchTope ignores a keyword it does not recognise and completes the run without the
+> database, which is not a failure you would notice in the output.
+>
+> **`AqueousControl.ant` and `CatabolicControl.ant` are not supported.** Some builds take the
+> filename from those instead, which is how a few of the short-course exercises are set up — they
+> work under CrunchTope with no RUNTIME keyword at all. Omphalos has nothing to write to in that
+> case, so add the keyword to the deck; the `.ant` files are then unnecessary. Rare, but it is why an
+> exercise deck may need that one line added before a sweep will start.
+
 ### Parameter Modification
 
 #### Keyword Blocks

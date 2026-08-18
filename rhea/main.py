@@ -235,6 +235,8 @@ if __name__ == '__main__':
     else:
         file_dict = gi.configure_input_files(template, 'foo', rhea=True)
         dict_size = len(file_dict) - 1
+    si.clear_run_directories(dict_size + 1)
+
     # Start timer for directory preparation and submission
     t_start = time.time()
 

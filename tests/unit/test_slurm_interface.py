@@ -213,3 +213,129 @@ class TestResultsPathReporting:
         summary = si.compile_results(1)
 
         assert summary['results'] is None
+
+
+class TestClearRunDirectories:
+    """A reused run directory used to keep everything the previous sweep left in it.
+
+    prep_directories.sh does `mkdir run$N` and cleared nothing, so a rerun inherited the old
+    database, deck, .tec output and .rst restart. CrunchTope writes output per snapshot, so a run
+    producing fewer snapshots than last time left the surplus behind to be parsed as its own.
+    """
+
+    def _run_dir(self, tmp_path, number, *, files=('conc1.tec', 'conc2.tec', 'deck.in'),
+                 pickle=True):
+        directory = tmp_path / f'run{number}'
+        directory.mkdir()
+        for name in files:
+            (directory / name).write_text('stale')
+        if pickle:
+            (directory / f'input_file{number}_complete.pkl').write_text('record')
+        return directory
+
+    def test_stale_output_is_removed(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        directory = self._run_dir(tmp_path, 0)
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert not (directory / 'conc1.tec').exists()
+        assert not (directory / 'deck.in').exists()
+
+    def test_the_per_run_pickle_survives(self, tmp_path):
+        # The record of what ran. A rerun must not destroy it before it has been compiled.
+        from rhea.slurm_interface import clear_run_directories
+
+        directory = self._run_dir(tmp_path, 0)
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert (directory / 'input_file0_complete.pkl').read_text() == 'record'
+
+    def test_a_stage_aux_subdirectory_is_removed(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        directory = self._run_dir(tmp_path, 0)
+        aux = directory / 'stage0_aux'
+        aux.mkdir()
+        (aux / 'datacom.dbs').write_text('stale')
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert not aux.exists()
+
+    def test_the_directory_itself_is_kept(self, tmp_path):
+        # prep_directories.sh does `mkdir -p`, but the pickle has to stay somewhere.
+        from rhea.slurm_interface import clear_run_directories
+
+        directory = self._run_dir(tmp_path, 0)
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert directory.is_dir()
+
+    def test_a_bigger_previous_sweep_is_refused(self, tmp_path):
+        # run3..run7 from an eight-run sweep would not be rerun, and coeus would compile their
+        # pickles beside this sweep's results, joined silently on run number.
+        from rhea.slurm_interface import clear_run_directories
+
+        for number in range(8):
+            self._run_dir(tmp_path, number)
+
+        with pytest.raises(SystemExit, match='left over from a larger sweep'):
+            clear_run_directories(3, directory=tmp_path)
+
+    def test_the_refusal_names_the_surplus(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        for number in range(5):
+            self._run_dir(tmp_path, number)
+
+        with pytest.raises(SystemExit) as raised:
+            clear_run_directories(3, directory=tmp_path)
+
+        assert "'run3'" in str(raised.value) and "'run4'" in str(raised.value)
+        assert "'run0'" not in str(raised.value)
+
+    def test_nothing_is_touched_when_it_refuses(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        for number in range(4):
+            self._run_dir(tmp_path, number)
+
+        with pytest.raises(SystemExit):
+            clear_run_directories(2, directory=tmp_path)
+
+        assert (tmp_path / 'run0' / 'conc1.tec').exists(), 'cleared before refusing'
+
+    def test_a_first_run_has_nothing_to_do(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        clear_run_directories(3, directory=tmp_path)
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_directories_that_only_look_like_runs_are_left_alone(self, tmp_path):
+        # 'runtime_notes' starts with 'run' and is not a run directory.
+        from rhea.slurm_interface import clear_run_directories
+
+        other = tmp_path / 'runtime_notes'
+        other.mkdir()
+        (other / 'notes.md').write_text('keep me')
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert (other / 'notes.md').read_text() == 'keep me'
+
+    def test_results_beside_the_run_directories_are_untouched(self, tmp_path):
+        from rhea.slurm_interface import clear_run_directories
+
+        self._run_dir(tmp_path, 0)
+        (tmp_path / 'results.nc').write_text('previous results')
+        (tmp_path / 'conditions.nc').write_text('previous record')
+
+        clear_run_directories(1, directory=tmp_path)
+
+        assert (tmp_path / 'results.nc').read_text() == 'previous results'
+        assert (tmp_path / 'conditions.nc').read_text() == 'previous record'

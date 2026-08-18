@@ -14,7 +14,9 @@ restart_file=$RESTART_FILE
 pflotran=$PFLOTRAN
 
 run_dir=run${SLURM_ARRAY_TASK_ID}
-mkdir ${run_dir}
+# -p because rhea/main.py has already emptied a reused directory and left the per-run pickle in it,
+# so the directory may exist. Without -p this failed on every rerun.
+mkdir -p ${run_dir}
 cp ${database_name} ${run_dir}/${database_name}
 
 if [ "${restart_file}" ]; then

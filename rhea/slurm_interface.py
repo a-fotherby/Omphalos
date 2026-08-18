@@ -1,5 +1,7 @@
 """Methods for interfacing with slurm."""
 
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -162,3 +164,52 @@ def compile_results(dict_len, simulator='crunchtope'):
 
     return {'total': dict_len, 'compiled': len(results_dict), 'no_output': no_output,
             'errors': errors, 'results': results_path}
+
+
+def clear_run_directories(num_runs, directory=None):
+    """Empty the run directories this sweep will use, and refuse to reuse a bigger sweep's.
+
+    prep_directories.sh does `mkdir run$N` and used to clear nothing, so a directory reused by a
+    later sweep kept everything the previous one left: its database, its deck, its .tec output and
+    its .rst restart. CrunchTope writes output per snapshot, so a run that produced fewer
+    snapshots this time left the extra ones behind to be parsed as its own.
+
+    **The per-run pickle is kept.** It is the record of what ran, which coeus reads, and a rerun
+    should not destroy it before there has been a chance to compile it.
+
+    Surplus directories -- run3 to run7 left by an eight-run sweep when this one has three -- are
+    refused rather than cleared or ignored. Clearing them would throw away a record; ignoring them
+    lets coeus find their pickles and write eight runs' parameters beside three runs' results,
+    joined silently on run number. Neither is acceptable without being asked.
+    """
+    directory = Path(directory) if directory is not None else Path.cwd()
+    pattern = re.compile(r'^run(\d+)$')
+
+    existing = {}
+    for path in directory.iterdir():
+        match = pattern.match(path.name) if path.is_dir() else None
+        if match:
+            existing[int(match.group(1))] = path
+
+    surplus = sorted(number for number in existing if number >= num_runs)
+
+    if surplus:
+        sys.exit(
+            f'ERROR: {len(surplus)} run directory(ies) are left over from a larger sweep in this '
+            f'directory: {[existing[number].name for number in surplus]}. This sweep has '
+            f'{num_runs} run(s), so those would not be rerun, and their pickles would be '
+            f'compiled beside this sweep\'s results as if they belonged to it. Move or delete '
+            f'them, or run this sweep somewhere else.'
+        )
+
+    cleared = 0
+    for number in sorted(existing):
+        for path in existing[number].iterdir():
+            if path.name == f'input_file{number}_complete.pkl':
+                continue
+            shutil.rmtree(path) if path.is_dir() else path.unlink()
+            cleared += 1
+
+    if cleared:
+        print(f'Cleared {cleared} file(s) from {len(existing)} reused run directory(ies); '
+              f'per-run pickles kept.')

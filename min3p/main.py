@@ -66,16 +66,23 @@ if __name__ == '__main__':
         sys.exit()
 
     print('*** Begin running input files... ***')
+    # The deck is run away from where it was read, so the auxiliary files it reads by run name
+    # (.hyc, .ivs, .bcvs and the rest) have to travel with it.
+    from min3p import file_methods as min3p_fm
+
     if is_staged:
         # Each run's stages execute sequentially in a per-run subdirectory so
         # their restart.tmp state files do not collide across runs.
         file_dict = {}
         for run_num in staged:
             run_dir = tmp_dir / f'run{run_num}'
+            run_dir.mkdir(parents=True, exist_ok=True)
+            min3p_fm.copy_auxiliary_files(config['template'], run_dir)
             file_dict[run_num] = run.run_staged(
                 staged[run_num], run_num, str(run_dir), config['timeout'], binary=binary
             )
     else:
+        min3p_fm.copy_auxiliary_files(config['template'], tmp_dir)
         run.run_dataset(file_dict, str(tmp_dir), config['timeout'], binary=binary)
 
     print('*** Writing results to results.nc ***')

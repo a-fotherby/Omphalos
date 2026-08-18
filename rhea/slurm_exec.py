@@ -54,7 +54,9 @@ def execute(file_num, config, pflo, min3p=False):
         from min3p.template import Template
 
         cwd = Path.cwd()
-        name = config['template']
+        # The basename, not the config value: joining an absolute template path onto the run
+        # directory yields the template itself, so every run would re-read the unswept deck.
+        name = Path(config['template']).name
         tmp_dir = Path(f'run{file_num}')
         config.update({'template': str(cwd / tmp_dir / name)})
 

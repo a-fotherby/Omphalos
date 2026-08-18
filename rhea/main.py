@@ -143,7 +143,8 @@ if __name__ == '__main__':
         Template at them, and run.run_staged_input copies them into the run directory under the
         deck's names before the stage runs.
 
-        MIN3P and PFLOTRAN have none of these files, so this is CrunchTope only.
+        Only CrunchTope has files Omphalos sweeps and so must write out per run. MIN3P's auxiliary
+        files are copied verbatim, which its own branch does; PFLOTRAN has none.
         """
         if args.min3p or args.pflotran:
             return
@@ -179,11 +180,11 @@ if __name__ == '__main__':
 
     if args.min3p:
         # MIN3P has an isolated local-mode orchestration: it needs neither the
-        # database-file copy nor the temperature/restart machinery that the
-        # CrunchTope/PFLOTRAN prep script performs (MIN3P reads an absolute
-        # database directory baked into each input file by generate_inputs).
-        # This branch therefore bypasses prep_directories.sh entirely, leaving
-        # the existing backends' code path untouched.
+        # thermodynamic-database copy nor the temperature/restart machinery that
+        # the CrunchTope/PFLOTRAN prep script performs (MIN3P reads an absolute
+        # database directory baked into each input file by generate_inputs). Its
+        # own auxiliary files are handled below. This branch therefore bypasses
+        # prep_directories.sh entirely, leaving the other backends untouched.
         if args.run_type != 'local':
             sys.exit('ERROR: MIN3P backend currently supports only run_type "local" in rhea.')
 
@@ -193,11 +194,21 @@ if __name__ == '__main__':
         si.clear_run_directories(dict_size + 1)
         t_start = time.time()
 
-        # Create run directories and print each input file into its own dir.
+        # Create run directories, print each input file into its own, and give it the auxiliary
+        # files the deck reads. MIN3P names those after the run rather than in the deck, so they
+        # travel with it: a run directory holding only the deck can run only those problems that
+        # read nothing besides it. The deck is written under its basename because the config may
+        # name it by an absolute path, as the shipped examples do.
+        import min3p.file_methods as min3p_fm
+
+        deck_name = Path(config['template']).name
+
         for f in file_dict:
-            Path(f'{dir_name}{f}').mkdir(exist_ok=True)
-            file_dict[f].path = f'{dir_name}{f}/{config["template"]}'
+            run_dir = Path(f'{dir_name}{f}')
+            run_dir.mkdir(exist_ok=True)
+            file_dict[f].path = run_dir / deck_name
             file_dict[f].print()
+            min3p_fm.copy_auxiliary_files(config['template'], run_dir)
 
         if args.debug:
             sys.exit('Debug mode: MIN3P input files generated. Exiting before running.')

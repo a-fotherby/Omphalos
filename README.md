@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-1044%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1056%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -1114,7 +1114,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **1044 tests**:
+The project includes a comprehensive test suite with **1056 tests**:
 
 ```bash
 # Run all tests
@@ -1641,6 +1641,13 @@ modifications:
     method: linspace
     params: [0.005, 0.02]
 ```
+
+MIN3P reads its auxiliary inputs as `<run name>.<ext>` — `.hyc` for a hydraulic conductivity field,
+`.ivs` for an initial condition, `.bcvs` for transient boundary conditions, and the porosity, CEC,
+Skempton, specific-storage, energy-balance, mineral and unstructured-grid variants — so the deck
+never names them. Omphalos copies every such file beside the template into each run directory,
+along with `solver.cfg`; MIN3P's own output is excluded, carrying an index (`run_12.gsc`) that an
+input never has. Withholding one is fatal, so anything unrecognised is copied rather than skipped.
 
 Results are written to `results.nc` with one group per MIN3P output category,
 concatenated over `file_num`. All field-output categories from the MIN3P User

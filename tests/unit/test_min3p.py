@@ -701,3 +701,85 @@ class TestFlowBenchmark:
         assert heads == ['0.99', '0.95', '0.9']
         assert types == ["'first'", "'first'", "'first'"]
         assert inflow == ['1.0', '1.0', '1.0']
+
+
+class TestAuxiliaryFiles:
+    """Tests for the files a deck reads from its working directory.
+
+    MIN3P names its auxiliary inputs after the run, not in the deck, so they are found by that
+    convention: `<stem>.<ext>` beside the deck. Output is excluded by the same convention from the
+    other side -- it carries an index, `<stem>_12.gsc`.
+    """
+
+    def _deck(self, tmp_path, *names):
+        deck = tmp_path / 'clement.dat'
+        deck.write_text("'global control parameters'\n'done'\n")
+
+        for name in names:
+            (tmp_path / name).write_text('x')
+
+        return deck
+
+    def test_a_stem_keyed_sibling_is_an_input(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement.bcvs', 'clement.hyc')
+
+        assert [p.name for p in fm.auxiliary_files(deck)] == ['clement.bcvs', 'clement.hyc']
+
+    def test_indexed_output_is_not(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement_1.gsp', 'clement_12.vel', 'clement_o.hyc')
+
+        assert fm.auxiliary_files(deck) == []
+
+    def test_output_sharing_the_stem_exactly_is_not(self, tmp_path):
+        # Older benchmarks ship un-indexed output beside the deck; the extension rules it out.
+        deck = self._deck(tmp_path, 'clement.gsc', 'clement.gsv', 'clement.log')
+
+        assert fm.auxiliary_files(deck) == []
+
+    def test_plotting_artefacts_are_not(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement.lay', 'clement.png', 'clement.bat')
+
+        assert fm.auxiliary_files(deck) == []
+
+    def test_another_deck_in_the_directory_is_left_alone(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement-comp.lay', 'steadfs.hyc', 'other.dat')
+
+        assert fm.auxiliary_files(deck) == []
+
+    def test_an_unrecognised_extension_is_still_copied(self, tmp_path):
+        """Test that the selector does not need to know the keyword that reads a file.
+
+        The point of choosing by naming convention: a `read ... from file` keyword added to a later
+        MIN3P reads a file this version has never heard of, and withholding it would be fatal.
+        """
+        deck = self._deck(tmp_path, 'clement.somethingnew')
+
+        assert [p.name for p in fm.auxiliary_files(deck)] == ['clement.somethingnew']
+
+    def test_the_solver_configuration_is_taken_by_name(self, tmp_path):
+        # The one auxiliary file MIN3P names in the deck rather than after the run.
+        deck = self._deck(tmp_path, 'solver.cfg')
+
+        assert [p.name for p in fm.auxiliary_files(deck)] == ['solver.cfg']
+
+    def test_the_deck_itself_is_not_copied(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement.hyc')
+
+        assert deck not in fm.auxiliary_files(deck)
+
+    def test_copying_puts_them_beside_the_run(self, tmp_path):
+        deck = self._deck(tmp_path, 'clement.bcvs', 'clement.lay')
+        run_dir = tmp_path / 'run0'
+        run_dir.mkdir()
+
+        copied = fm.copy_auxiliary_files(deck, run_dir)
+
+        assert copied == ['clement.bcvs']
+        assert (run_dir / 'clement.bcvs').is_file()
+        assert not (run_dir / 'clement.lay').exists()
+
+    def test_editor_backups_are_left_behind(self, tmp_path):
+        # The benchmarks tree is full of them, and they share the deck's stem.
+        deck = self._deck(tmp_path, 'clement.dat~', 'clement.usg~', 'clement.usg')
+
+        assert [p.name for p in fm.auxiliary_files(deck)] == ['clement.usg']

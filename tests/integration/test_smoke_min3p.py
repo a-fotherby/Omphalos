@@ -55,6 +55,7 @@ def min3p_examples():
 EXAMPLES = min3p_examples()
 APPELO = EXAMPLES / 'Benchmarks/benchmarks_standard/batch/appelo'
 DISSOL = EXAMPLES / 'Benchmarks/benchmarks_standard/reactran/dissol'
+CLEMENT = EXAMPLES / 'Benchmarks/benchmarks_standard/flow/clement-transient'
 DATABASE = EXAMPLES / 'database/default'
 
 needs_min3p = pytest.mark.skipif(
@@ -66,8 +67,9 @@ needs_min3p = pytest.mark.skipif(
 def _copy_deck(source, destination):
     """Copy a benchmark's whole directory, as a modeller running it by hand would.
 
-    A MIN3P deck travels with auxiliary files (`.hyc`, `.lbc`, `.lay`) that the executable reads from
-    the working directory, so the deck alone is not enough to run.
+    Wholesale, rather than through `file_methods.auxiliary_files`, so that what the selector chooses
+    is never what these tests are given -- `TestAuxiliaryFilesTravelWithTheDeck` is where the two are
+    compared.
     """
     destination.mkdir(parents=True, exist_ok=True)
 
@@ -255,3 +257,46 @@ class TestTransportDeckRuns:
         single = _run(self._prepare(_copy_deck(DISSOL, dissol.parent / 'single'))[0],
                       dissol.parent / 'single')
         assert final.results['gsc'].sizes['output'] > single.results['gsc'].sizes['output']
+
+
+@pytest.mark.skipif(not CLEMENT.is_dir(), reason='MIN3P clement benchmark not available')
+@needs_min3p
+class TestAuxiliaryFilesTravelWithTheDeck:
+    """A deck is run away from where it was read, so what it reads has to come too.
+
+    MIN3P names its auxiliary inputs after the run rather than in the deck, so a run directory
+    holding only the deck looks complete and is not. `clement` is the case that says so plainly:
+    without `clement.bcvs` MIN3P stops with `file clement.bcvs missing`.
+    """
+
+    def _run_from(self, source, tmp_path, copy_auxiliary):
+        from min3p import file_methods as min3p_fm
+        from min3p import generate_inputs as gi
+        from min3p.template import Template
+
+        template = source / 'clement.dat'
+        file_dict = gi.configure_input_files(
+            Template(_config(template)), str(source)
+        )
+
+        run_dir = tmp_path / f'run_{"with" if copy_auxiliary else "without"}'
+        run_dir.mkdir()
+
+        if copy_auxiliary:
+            min3p_fm.copy_auxiliary_files(template, run_dir)
+
+        return _run(file_dict[0], run_dir)
+
+    def test_the_deck_alone_is_not_enough(self, tmp_path):
+        # The premise. Were this to pass, the copy below would be proving nothing.
+        source = _copy_deck(CLEMENT, tmp_path / 'source')
+
+        assert self._run_from(source, tmp_path, copy_auxiliary=False).error_code != 0
+
+    def test_copying_them_makes_it_run(self, tmp_path):
+        source = _copy_deck(CLEMENT, tmp_path / 'source')
+
+        input_file = self._run_from(source, tmp_path, copy_auxiliary=True)
+
+        assert input_file.error_code == 0, 'MIN3P did not complete'
+        assert 'gsp' in input_file.results, sorted(input_file.results)

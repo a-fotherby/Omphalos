@@ -11,8 +11,7 @@ notebook that reads and plots the results.
 | `dissol_sweep.yaml` | Sweep config: 4 runs varying the inflow acidity (free H⁺ at the inflow boundary) |
 | `dissol_sweep.ipynb` | Reads `results.nc` and plots the dissolution front (Ca²⁺, pH, calcite volume fraction vs depth) |
 | `dissol_sweep.png` | The figure produced by the notebook |
-| `results.nc` | Sweep output — one netCDF group per MIN3P output category |
-| `records.pkl` | Pickled `InputFile` records for the run |
+| `results.nc`, `records.pkl` | Sweep output (git-ignored; regenerable) |
 
 ## Reproduce
 

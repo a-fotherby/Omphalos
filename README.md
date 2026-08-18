@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-1002%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1029%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -55,6 +55,7 @@
     - [Database Parameters](#database-parameters)
     - [Adding an isotope](#adding-an-isotope)
     - [Recomputing log K with pyGCC](#recomputing-log-k-with-pygcc)
+    - [Adding species a database lacks](#adding-species-a-database-lacks)
     - [Changing the temperature points](#changing-the-temperature-points)
   - [Modification Options](#modification-options)
   - [Staged Restarts](#staged-restarts)
@@ -566,7 +567,8 @@ database_isotopes:
       Calcite44: 'Calcite'
     reaction_names:           # for namelist reactions the rule cannot name
       Sulfate_reduction: 'Sulfate34_reduction'
-    keq_offset: -0.002        # equilibrium fractionation, applied to the copies' keq
+    keq_offset: -0.002        # equilibrium fractionation in the namelists, on keq
+    logk_offset: -0.002       # and in the database, on the copies' log K columns
 ```
 
 Each system reaches the **aqueous kinetics namelist and the catabolic pathways** as well as the
@@ -594,8 +596,9 @@ Fractionation splits by kind. **Equilibrium** fractionation is an offset on the 
 equilibrium constant, and `keq_offset` applies it to the copied **namelist** reactions' `keq` — the
 aqueous kinetics and catabolic pathways, not the `.dbs`. It is a no-op for a system with no namelist,
 and for a mineral or secondary species, whose equilibrium constant is a log K column: offset those
-with `database_parameters:` on the isotopologue row, which a config may name in the same sweep that
-creates it. **Kinetic** fractionation belongs in the
+with `logk_offset`, which applies it per atom of the element — a species holding two sulfurs gets
+twice the offset. It is applied *after* any recomputation, since a recomputation copies each parent's
+column onto its copy and would otherwise wipe it. **Kinetic** fractionation belongs in the
 input file, where the deck's `AQUEOUS_KINETICS` block sets a rate per reaction and overrides whatever
 the aqueous database gives — the Sukinda deck carries `Cr_Fe_redox -rate 29.59E6` against
 `Cr53_Fe_redox -rate 29.51E6`. Omphalos sweeps those through `aqueous_kinetics:`, `fix_ratio`
@@ -656,10 +659,40 @@ example: [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_p
 
 > **Needs `pygcc >= 1.5.3`**, which `requirements.yml` installs with pip.
 
+#### Adding species a database lacks
+
+`database_add:` copies species in from the source compilation, leaving everything else alone. The
+alternative — regenerating the database — produces a different species set and placeholder kinetics,
+discarding exactly the fitted values pyGCC cannot compute.
+
+```yaml
+database_add:
+  minerals: ['Anhydrite', 'Barite']
+  secondary_species: ['CaSO4(aq)']
+  on_unknown: 'warn'        # warn | error | leave
+```
+
+The reaction, log K, molecular weight, ion size, charge and molar volume all come from the
+compilation. A species is added only where every species its reaction stands on is already in the
+database — a row written on a basis the database lacks is one CrunchTope stops reading — and those
+are reported rather than pulled in, since resolving them recursively would grow the database in ways
+you did not ask for.
+
+Checked against the row it replaces: stripping `Anhydrite` from `datacom.dbs` and adding it back
+reproduces the molar volume and molecular weight exactly, and the log K to within 0.008.
+
 #### Changing the temperature points
 
 The usual eight points span 0–300 °C, so a low-temperature model wastes most of them.
 `LogKCalculator.regrid` rewrites the database onto a grid chosen for the problem:
+
+```yaml
+database_regrid:
+  temperatures: [0.0, 5.0, 10.0, 15.0, 25.0]
+  reactions: 'all'          # or a list; the rest are resampled from their own curve
+```
+
+or from Python:
 
 ```python
 database = Database('SukindaCr53.dbs')
@@ -1087,7 +1120,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **1002 tests**:
+The project includes a comprehensive test suite with **1029 tests**:
 
 ```bash
 # Run all tests
@@ -1107,6 +1140,16 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 
 Per-module counts are deliberately left out — they go stale as soon as anyone adds a test. Run
 `pytest --collect-only -q -o addopts=''` for the current breakdown.
+
+Everything under `tests/unit` mocks the solver, so it runs in seconds and needs nothing installed.
+`tests/integration/test_smoke.py` does the opposite: it runs CrunchTope against the shipped quartz
+deck and against databases Omphalos has edited, augmented and added an isotope to, checking that
+what it writes is a file CrunchTope reads. Those skip where no binary is configured, and are marked
+`smoke`, so `pytest -m 'not smoke'` leaves them out.
+
+They exist because every serious database bug found so far was found by running the solver, not by a
+unit test — a kinetics block appended past the section's trailing `+` separator parses perfectly and
+makes CrunchTope read to end of file.
 
 | Module | Covers |
 |--------|--------|

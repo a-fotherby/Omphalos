@@ -1159,3 +1159,188 @@ class TestTriviallyNamedCopies:
         assert 'minerals/Anhydrite34' in result.split_copies
         assert 'minerals/Anhydrite34' not in result.isotopes_restored
         assert 'WARNING' in result.summary()
+
+
+class TestRegridConfigSurface:
+    """`database_regrid` puts the temperature grid where the rest of the sweep surface is.
+
+    Regridding was API-only, so a low-temperature model — the case it exists for — needed a script.
+    """
+
+    @pytest.fixture
+    def config(self, omphalos_test_dir):
+        import yaml
+        with open(omphalos_test_dir / 'sukinda_cr.yaml') as file:
+            config = yaml.safe_load(file)
+        config['number_of_files'] = 1
+        config.pop('database_parameters', None)
+        return config
+
+    @pytest.fixture
+    def in_test_dir(self, omphalos_test_dir):
+        import os
+        original = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            yield omphalos_test_dir
+        finally:
+            os.chdir(original)
+
+    def _template(self, config):
+        import contextlib
+        import io
+        import warnings
+        from omphalos.template import Template
+        with contextlib.redirect_stdout(io.StringIO()), warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            return Template(config)
+
+    GRID = [0.0, 5.0, 10.0, 15.0, 25.0]
+
+    def test_no_section_means_no_regrid(self, config, in_test_dir):
+        config['database_logk'] = {'reactions': ['Calcite'], 'on_unmatched': 'leave'}
+        template = self._template(config)
+
+        assert template.regrid_database() is None
+
+    def test_the_grid_is_rewritten(self, config, in_test_dir):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        config['database_regrid'] = {'temperatures': self.GRID, 'reactions': ['Calcite']}
+        template = self._template(config)
+
+        assert [float(t) for t in template.database.temp_field] == pytest.approx(self.GRID)
+
+    def test_every_gridded_row_matches_the_new_width(self, config, in_test_dir):
+        # A file with rows of two widths is not a database.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        config['database_regrid'] = {'temperatures': self.GRID, 'reactions': ['Calcite']}
+        template = self._template(config)
+
+        for section in ('secondary_species', 'gases', 'minerals'):
+            for name in list(getattr(template.database, section))[:20]:
+                values = template.database.value(section, name, 'log_k')
+                assert len(values) == len(self.GRID), f'{section}/{name}'
+
+    def test_a_missing_grid_fails_loudly(self, config, in_test_dir):
+        config['database_regrid'] = {'reactions': ['Calcite']}
+
+        with pytest.raises(ValueError, match="needs a 'temperatures' entry"):
+            self._template(config)
+
+    def test_it_runs_before_the_recomputation(self, config, in_test_dir):
+        # The recomputation edits tokens in place, so it has to see the new grid.
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        config['database_regrid'] = {'temperatures': self.GRID, 'reactions': ['Calcite']}
+        config['database_logk'] = {'reactions': ['Calcite'], 'on_unmatched': 'leave'}
+        template = self._template(config)
+
+        assert len(template.database.value('minerals', 'Calcite', 'log_k')) == len(self.GRID)
+
+    def test_regridding_needs_a_database(self, config, in_test_dir):
+        config['database'] = None
+        config['database_regrid'] = {'temperatures': self.GRID}
+
+        with pytest.raises(ValueError, match='database_regrid'):
+            self._template(config)
+
+
+class TestAugmentation:
+    """Adding the row a model is missing, rather than regenerating the database around it.
+
+    A full pyGCC regeneration of SukindaCr53.dbs gives a third of the species and none of the custom
+    ones, so it discards exactly the fitted values pyGCC cannot compute. This is the alternative.
+    """
+
+    SHIPPED = (Path(__file__).parent.parent.parent / 'omphalos' / 'examples'
+               / 'quartz_pressure_series' / 'datacom.dbs')
+
+    @pytest.fixture
+    def without_anhydrite(self, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        import io
+
+        path = tmp_path / 'no_anhydrite.dbs'
+        with io.open(self.SHIPPED, newline='') as source:
+            lines = source.readlines()
+        with io.open(path, 'w', newline='') as target:
+            target.writelines(line for line in lines if not line.startswith("'Anhydrite'"))
+
+        return path
+
+    def _add(self, path, sections, **kwargs):
+        import warnings
+
+        database = Database(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = logk.LogKCalculator().add_species(database, sections, **kwargs)
+        database.print(str(path))
+
+        return Database(str(path)), result
+
+    def test_the_species_is_added(self, without_anhydrite):
+        database, result = self._add(without_anhydrite, {'minerals': ['Anhydrite']})
+
+        assert 'Anhydrite' in database.minerals
+        assert result.added['minerals'] == ['Anhydrite']
+
+    def test_the_row_matches_the_one_it_replaced(self, without_anhydrite):
+        # The strongest check available: the shipped database has this row, so the generated one can
+        # be compared against it field by field.
+        database, _ = self._add(without_anhydrite, {'minerals': ['Anhydrite']})
+        shipped = Database(str(self.SHIPPED))
+
+        built = database.minerals['Anhydrite']
+        reference = shipped.minerals['Anhydrite']
+
+        assert built.molar_volume == pytest.approx(reference.molar_volume)
+        assert built.weight == pytest.approx(reference.weight)
+        assert built.reaction.products == reference.reaction.products
+        assert built.reaction.reactants == reference.reaction.reactants
+
+    def test_the_log_k_agrees_with_the_shipped_column(self, without_anhydrite):
+        database, _ = self._add(without_anhydrite, {'minerals': ['Anhydrite']})
+        shipped = Database(str(self.SHIPPED))
+
+        built = [float(v) for v in database.value('minerals', 'Anhydrite', 'log_k')]
+        reference = [float(v) for v in shipped.value('minerals', 'Anhydrite', 'log_k')]
+
+        # The same agreement the plan records for pyGCC against this compilation.
+        assert built == pytest.approx(reference, abs=0.008)
+
+    def test_the_column_width_matches_the_grid(self, without_anhydrite):
+        database, _ = self._add(without_anhydrite, {'minerals': ['Anhydrite']})
+
+        assert (len(database.value('minerals', 'Anhydrite', 'log_k'))
+                == len(database.temp_field))
+
+    def test_nothing_else_changes(self, without_anhydrite):
+        import io
+
+        before = io.open(without_anhydrite, newline='').readlines()
+        self._add(without_anhydrite, {'minerals': ['Anhydrite']})
+        after = io.open(without_anhydrite, newline='').readlines()
+
+        added = [line for line in after if line not in before]
+        assert len(added) == 1 and added[0].startswith("'Anhydrite'")
+
+    def test_a_species_already_there_is_left_alone(self, without_anhydrite):
+        _, result = self._add(without_anhydrite, {'secondary_species': ['CaSO4(aq)']})
+
+        assert result.already_present == ['CaSO4(aq)']
+        assert not result.added
+
+    def test_an_unknown_species_is_reported(self, without_anhydrite):
+        _, result = self._add(without_anhydrite, {'minerals': ['NotAMineral']},
+                              on_unknown='leave')
+
+        assert result.unknown == ['NotAMineral']
+
+    def test_an_unknown_species_can_be_fatal(self, without_anhydrite):
+        with pytest.raises(ValueError, match='not in the source compilation'):
+            self._add(without_anhydrite, {'minerals': ['NotAMineral']}, on_unknown='error')
+
+    def test_a_section_without_a_log_k_is_refused(self, without_anhydrite):
+        # Exchange and surface complexation parameters are not species with a log K column.
+        with pytest.raises(ValueError, match='cannot be added to'):
+            self._add(without_anhydrite, {'exchange': ['NaX']})

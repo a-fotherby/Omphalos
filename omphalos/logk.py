@@ -31,6 +31,7 @@ Requires ``pygcc >= 1.5.3``: earlier releases return length-1 arrays from ``fsol
 """
 
 import math
+import re
 import warnings
 
 from omphalos.database import HEADER_LINES, tokenise
@@ -341,6 +342,65 @@ class LogKRecalculation:
             lines.append(f'  skipped {name}: {reason}')
 
         return '\n'.join(lines)
+
+
+class Augmentation:
+    """What adding species from a source compilation did, and what it could not do."""
+
+    def __init__(self, settings):
+        self.settings = settings
+        self.added = {}
+        self.already_present = []
+        self.unknown = []
+        self.unsupported = {}
+        self.no_data = {}
+
+    @property
+    def counts(self):
+        return {
+            'added': sum(len(names) for names in self.added.values()),
+            'already_present': len(self.already_present),
+            'unknown': len(self.unknown),
+            'unsupported': len(self.unsupported),
+        }
+
+    def summary(self):
+        lines = [f'database augmentation: {self.counts}', f'  settings: {self.settings}']
+
+        for section, names in sorted(self.added.items()):
+            lines.append(f'  {section}: {len(names)} added, {names[:8]}')
+
+        if self.already_present:
+            lines.append(f'  already in the database, left alone: {sorted(self.already_present)}')
+
+        if self.unknown:
+            lines.append(
+                f'  not in the source compilation: {sorted(self.unknown)}'
+            )
+
+        for name, reason in sorted(self.unsupported.items()):
+            lines.append(f'  skipped {name}: {reason}')
+
+        if self.no_data:
+            points = sum(self.no_data.values())
+            lines.append(
+                f'  {points} point(s) across {len(self.no_data)} row(s) written as {NO_DATA:g}'
+            )
+
+        return '\n'.join(lines)
+
+
+def in_any_section(database, name):
+    """Whether the database holds this species anywhere a reaction may stand on it."""
+    return any(
+        name in getattr(database, section, {})
+        for section in ('primary_species', 'secondary_species', 'gases', 'minerals')
+    )
+
+
+def database_newline():
+    """CrunchTope databases are CRLF; a row appended with a bare newline breaks the file."""
+    return '\r\n'
 
 
 class LogKCalculator:
@@ -839,6 +899,168 @@ class LogKCalculator:
             entry.line_index, first, last,
             [f'{value:>{COLUMN_WIDTH}.{LOG_K_DECIMALS}f}' for value in values],
         )
+
+    # ------------------------------------------------------------------ augmentation
+
+    def source_fields(self, name):
+        """Return (charge, ion size, molecular weight, molar volume) from the source compilation.
+
+        A CrunchTope row needs more than a reaction and a log K. pyGCC carries the rest: molecular
+        weights in `MWdic`, charge and ion size in `chargedic`, and the molar volume as the sixth
+        field of a `dbaccessdic` entry -- the V of the SUPCRT record, which reproduces the shipped
+        Calcite volume (36.934) exactly.
+        """
+        weight = self.source.MWdic.get(name)
+
+        charge, size = None, None
+        record = self.source.chargedic.get(name)
+
+        if record:
+            numbers = re.findall(r'=\s*(-?[\d.]+)', str(record))
+            if len(numbers) >= 2:
+                charge, size = float(numbers[0]), float(numbers[1])
+
+        volume = None
+        entry = self.source.dbaccessdic.get(name)
+
+        if isinstance(entry, (list, tuple)) and len(entry) > 5:
+            try:
+                volume = float(entry[5])
+            except (TypeError, ValueError):
+                volume = None
+
+        return charge, size, weight, volume
+
+    def add_species(self, database, sections, on_unknown='warn'):
+        """Add named species from the source compilation to a database that lacks them.
+
+        The alternative to regenerating a database wholesale, which discards exactly the custom
+        species, exchange coefficients and fitted rates that make one usable. This adds the row and
+        changes nothing else.
+
+        A reaction is only added where every species it stands on is already in the target, since a
+        row written on a basis the database does not have is one CrunchTope stops reading. Those are
+        reported rather than resolved: pulling dependencies in recursively would grow the database
+        in ways the modeller did not ask for.
+
+        Args:
+            database: The Database to add to, in place. Rewritten and reparsed.
+            sections: {section name: [species names]}, e.g. {'minerals': ['Anhydrite']}.
+            on_unknown: 'warn', 'error' or 'leave', for names the compilation does not have.
+
+        Returns:
+            An Augmentation.
+        """
+        result = Augmentation(self.settings)
+        temperatures = tuple(float(value) for value in database.temp_field)
+        new_rows = {}
+
+        for section, names in (sections or {}).items():
+            if section not in GRIDDED_SECTIONS:
+                raise ValueError(
+                    f"ConfigError: '{section}' cannot be added to. Species with a log K column "
+                    f'live in {sorted(GRIDDED_SECTIONS)}.'
+                )
+
+            for name in names:
+                if name in getattr(database, section, {}):
+                    result.already_present.append(name)
+                    continue
+
+                reaction = self.source_reaction(name)
+
+                if reaction is None:
+                    result.unknown.append(name)
+                    continue
+
+                basis = {s for s in reaction.products} | {
+                    s for s in reaction.reactants if s != name
+                }
+                missing = sorted(s for s in basis if not in_any_section(database, s))
+
+                if missing:
+                    result.unsupported[name] = (
+                        f'written on {missing}, which this database does not have'
+                    )
+                    continue
+
+                values = self.log_k(name, SECTION_SPECIE_CLASS[section], temperatures)
+
+                if values is None:
+                    result.unsupported[name] = 'pyGCC could not compute its log K'
+                    continue
+
+                blanks = sum(1 for value in values if math.isnan(value))
+
+                if blanks:
+                    values = [NO_DATA if math.isnan(value) else value for value in values]
+                    result.no_data[f'{section}/{name}'] = blanks
+
+                line = self.build_row(section, name, reaction, values)
+
+                if line is None:
+                    result.unsupported[name] = 'the source compilation gave no molecular weight'
+                    continue
+
+                new_rows.setdefault(section, []).append(line)
+                result.added.setdefault(section, []).append(name)
+
+        for section, lines in new_rows.items():
+            database.insert_lines(database.section_end(section), lines)
+
+        if new_rows:
+            database.reparse()
+
+        self._report_unknown(result, on_unknown)
+
+        return result
+
+    def build_row(self, section, name, reaction, values):
+        """Write one database row, in the layout its section uses."""
+        charge, size, weight, volume = self.source_fields(name)
+
+        if weight is None:
+            return None
+
+        signed = dict(reaction.products)
+        for species, coefficient in reaction.reactants.items():
+            if species != name:
+                signed[species] = signed.get(species, 0.0) - coefficient
+
+        stoichiometry = ' '.join(
+            f'{coefficient:>9.4f} {chr(39)}{species}{chr(39)}'
+            for species, coefficient in signed.items()
+        )
+        columns = ' '.join(f'{value:>{COLUMN_WIDTH}.{LOG_K_DECIMALS}f}' for value in values)
+
+        if section == 'minerals':
+            head = f"'{name}' {volume if volume is not None else 0.0:>9.4f} {len(signed):>3d}"
+            tail = f' {weight:>10.4f}'
+        elif section == 'gases':
+            head = f"'{name}' {volume if volume is not None else 0.0:>9.4f} {len(signed):>3d}"
+            tail = f' {weight:>10.4f}'
+        else:
+            head = f"'{name}' {len(signed):>3d}"
+            tail = (f' {size if size is not None else 3.0:>5.1f}'
+                    f' {charge if charge is not None else 0.0:>5.1f}'
+                    f' {weight:>10.4f}')
+
+        return f'{head}  {stoichiometry}  {columns}{tail}{database_newline()}'
+
+    @staticmethod
+    def _report_unknown(result, on_unknown):
+        if not result.unknown or on_unknown == 'leave':
+            return
+
+        message = (
+            f'{len(result.unknown)} species(s) are not in the source compilation and were not '
+            f'added: {sorted(result.unknown)}'
+        )
+
+        if on_unknown == 'error':
+            raise ValueError(message)
+
+        warnings.warn(message)
 
     @staticmethod
     def write_header(database, temperatures, old_temperatures):

@@ -36,6 +36,11 @@ addopts = [
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    # Tests that run a solver binary rather than mocking it. Slow by this suite's standards --
+    # seconds each -- and skipped where no binary is configured. Deselect with '-m \"not smoke\"'.
+    "smoke: runs CrunchTope or MIN3P end to end",
+]
 
 [tool.coverage.run]
 source = ["core", "omphalos", "pflotran", "rhea", "coeus"]

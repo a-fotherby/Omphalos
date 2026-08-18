@@ -199,3 +199,45 @@ class TestConfigErrors:
 
         with pytest.raises(KeyError, match="not in the 'exchange' section"):
             gi.configure_input_files(template, str(tmp_path) + '/', rhea=True)
+
+
+class TestSurfaceComplexation:
+    """Surface complexation constants are fitted parameters, swept for the same reasons as
+    exchange coefficients. The section was indexed and editable but never exercised end to end."""
+
+    @pytest.fixture
+    def swept(self, sample_config, in_test_dir, tmp_path):
+        config = copy.deepcopy(sample_config)
+        config['number_of_files'] = 3
+        config['database_parameters'] = {
+            'surface_complexation': {'>FeO-_str': {'log_k': ['custom', [-8.5, -8.8, -9.1]]}},
+        }
+        with contextlib.redirect_stdout(io.StringIO()):
+            template = Template(config)
+            return gi.configure_input_files(template, str(tmp_path) + '/', rhea=True)
+
+    def test_each_run_gets_its_own_constant(self, swept):
+        found = [
+            float(swept[run].database.value('surface_complexation', '>FeO-_str', 'log_k')[0])
+            for run in swept
+        ]
+        assert found == pytest.approx([-8.5, -8.8, -9.1])
+
+    def test_only_that_row_changes(self, swept):
+        runs = list(swept)
+        first = swept[runs[0]].database.lines
+        last = swept[runs[-1]].database.lines
+        differing = [i for i, (a, b) in enumerate(zip(first, last)) if a != b]
+
+        assert differing == [
+            swept[runs[0]].database.surface_complexation['>FeO-_str'].line_index
+        ]
+
+    def test_a_scalar_fills_the_whole_vector(self, swept):
+        # Worth pinning: many surface complexation rows carry data at 25 C only, the rest being the
+        # no-data value, and a scalar sweep replaces all eight points. Consistent with minerals, but
+        # it changes the row's temperature dependence.
+        values = [float(v) for v in
+                  swept[0].database.value('surface_complexation', '>FeO-_str', 'log_k')]
+
+        assert len(set(values)) == 1 and values[0] == pytest.approx(-8.5)

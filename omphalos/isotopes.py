@@ -584,6 +584,57 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
     return report
 
 
+def apply_logk_offset(database, labelled, atoms, offset):
+    """Offset each isotopologue's log K from its parent's, for equilibrium fractionation.
+
+    `add_isotope` copies log Ks unchanged, so an isotope system starts with no fractionation at all.
+    This is how one is imposed: a small offset on the labelled reaction's equilibrium constant,
+    scaled by how many atoms of the element the species holds, the same count the mass shift uses.
+    A species with two sulfurs gets twice the offset, because each exchanged atom contributes.
+
+    **Applied after any recomputation, not before.** A recomputation copies each parent's new column
+    onto its copy to keep the pair together, which would wipe an offset applied at insertion time.
+    Running last means the offset sits on top of whatever the parent ended up with.
+
+    Args:
+        database: The Database to edit, in place.
+        labelled: {parent name: isotopologue name}, as IsotopeReport.labelled gives it.
+        atoms: {name: atom count}, as IsotopeReport.atoms gives it.
+        offset: Added to the parent's log K per atom of the element.
+
+    Returns:
+        {isotopologue name: the offset applied to it}.
+    """
+    applied = {}
+
+    for parent, child in labelled.items():
+        count = atoms.get(parent, 1.0)
+
+        if not count:
+            continue
+
+        for section in ISOTOPE_SECTIONS:
+            entries = getattr(database, section, {})
+
+            if parent not in entries or child not in entries:
+                continue
+
+            try:
+                values = database.value(section, parent, 'log_k')
+            except KeyError:
+                break                       # primary species carry no log K
+
+            shift = offset * count
+            database.modify(
+                section, child, 'log_k',
+                [f'{float(value) + shift:.4f}' for value in values],
+            )
+            applied[child] = shift
+            break
+
+    return applied
+
+
 def suspected_isotope_pairs(database):
     """Names that look like labelled forms of another species the database also holds.
 

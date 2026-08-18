@@ -86,7 +86,8 @@ class Template(InputFile):
         # K recomputation is minutes -- and a later input file never writes a database of its own:
         # _print_aux_files writes the top-level InputFile's.
         database_sections = [
-            key for key in ('database_parameters', 'database_logk', 'database_isotopes')
+            key for key in ('database_parameters', 'database_logk', 'database_isotopes',
+                            'database_regrid', 'database_add')
             if config.get(key)
         ]
 
@@ -100,8 +101,18 @@ class Template(InputFile):
                 )
 
             self.database = Database(config['database'])
-            self.add_isotopes()
+            # Isotopes first, so the copies exist to be regridded and held to their parents; the
+            # regrid next, because it rebuilds every gridded row and changes their width; the
+            # recomputation last, since it edits tokens in place on whatever grid it finds.
+            # Augmentation first: a species has to be in the database before it can be
+            # labelled as an isotope, or regridded, or swept.
+            self.add_species()
+            reports = self.add_isotopes()
+            self.regrid_database()
             self.recompute_log_k()
+            # Last, because a recomputation copies each parent's column onto its copy to keep the
+            # pair together, which would wipe an offset applied any earlier.
+            self.apply_isotope_offsets(reports)
 
         # Check template is not a restart file to avoid infinite recursion.
         if not self.config['restart']:
@@ -269,6 +280,7 @@ class Template(InputFile):
             label = str(settings.pop('label'))
             reaction_names = settings.pop('reaction_names', None)
             keq_offset = settings.pop('keq_offset', None)
+            logk_offset = settings.pop('logk_offset', None)
 
             print(f'*** Adding {element}{label} to the database ***')
             report = add_isotope(self.database, element, label, **settings)
@@ -281,10 +293,141 @@ class Template(InputFile):
                 report.reactions.extend(added)
                 report.reactions_needing_name.extend(needs_name)
 
+            report.logk_offset = logk_offset
             print(report.summary())
             reports.append(report)
 
         return reports
+
+    def apply_isotope_offsets(self, reports):
+        """Impose equilibrium fractionation on the isotopologues, where the config asks for it.
+
+        ``keq_offset`` reaches the namelist reactions; ``logk_offset`` reaches the database rows,
+        which is where a mineral or secondary species keeps its equilibrium constant. Both are
+        optional, and an isotope system with neither has no fractionation in it at all -- which is
+        the point of copying log Ks unchanged.
+
+        Args:
+            reports: The IsotopeReports add_isotopes returned.
+
+        Returns:
+            {isotopologue: offset applied}, across every system.
+        """
+        from omphalos.isotopes import apply_logk_offset
+
+        applied = {}
+
+        for report in reports or []:
+            offset = getattr(report, 'logk_offset', None)
+
+            if offset is None:
+                continue
+
+            moved = apply_logk_offset(self.database, report.labelled, report.atoms, offset)
+            applied.update(moved)
+
+            print(f'*** Offset {len(moved)} {report.isotope} row(s) by {offset:+g} per atom ***')
+
+        return applied
+
+    def add_species(self):
+        """Add species the database lacks, from a source compilation, where the config asks.
+
+        The alternative to regenerating a database wholesale, which the plan's appendix argues
+        against with measurements: a full pyGCC regeneration of `SukindaCr53.dbs` produces a third
+        of the species and none of the custom ones, discarding exactly the fitted values pyGCC
+        cannot compute. Adding the row a model is missing changes nothing else.
+
+        The config section is ``database_add``, a mapping of section to species names, with
+        ``on_unknown`` steering strictness and every other key passed to LogKCalculator.
+
+        Returns:
+            The Augmentation, or None where the config asks for nothing.
+        """
+        settings = self.config.get('database_add')
+
+        if not settings:
+            return None
+
+        if self.config.get('recompute_log_k') is False:
+            # rhea sets this on the per-run Templates it rebuilds from run directories, whose
+            # databases already carry the added rows.
+            return None
+
+        from omphalos.logk import LogKCalculator
+
+        settings = dict(settings)
+        on_unknown = settings.pop('on_unknown', 'warn')
+        sections = {
+            key: settings.pop(key)
+            for key in list(settings)
+            if isinstance(settings[key], list)
+        }
+
+        if not sections:
+            raise ValueError(
+                "ConfigError: 'database_add' needs at least one section naming species to add, "
+                "e.g. minerals: ['Anhydrite']."
+            )
+
+        print(f'*** Adding {sum(len(v) for v in sections.values())} species from the source '
+              f'compilation ***')
+
+        result = LogKCalculator(**settings).add_species(
+            self.database, sections, on_unknown=on_unknown
+        )
+        print(result.summary())
+
+        return result
+
+    def regrid_database(self):
+        """Rewrite the database onto a different set of temperature points, where the config asks.
+
+        The usual eight points span 0-300 C, so a model that lives between 2 and 40 spends five of
+        them on temperatures it never visits. A grid chosen for the problem is worth having, and it
+        is also what makes a low pressure computable: pyGCC returns no value above 100 C at 1 bar,
+        because the water there is steam.
+
+        The config section is ``database_regrid``; ``temperatures`` is the new grid and ``reactions``
+        steers which rows pyGCC is asked for, with every other key passed to LogKCalculator. Rows it
+        cannot supply are resampled from the curve they already carry.
+
+        Done once, on the template. Unlike a recomputation this is not a token edit -- changing the
+        number of points changes the width of every row carrying a log K vector -- so it is not
+        something to vary between runs of one sweep.
+
+        Returns:
+            The LogKRegrid, or None where the config asks for nothing.
+        """
+        settings = self.config.get('database_regrid')
+
+        if not settings:
+            return None
+
+        if self.config.get('recompute_log_k') is False:
+            # rhea sets this on the per-run Templates it rebuilds from the run directories, whose
+            # databases are already on the new grid.
+            return None
+
+        from omphalos.logk import LogKCalculator
+
+        settings = dict(settings)
+
+        try:
+            temperatures = settings.pop('temperatures')
+        except KeyError:
+            raise ValueError(
+                "ConfigError: 'database_regrid' needs a 'temperatures' entry giving the new grid, "
+                'in degrees Celsius.'
+            ) from None
+
+        reactions = settings.pop('reactions', 'all')
+
+        print(f'*** Regridding the database onto {temperatures} ***')
+
+        return LogKCalculator(**settings).regrid(
+            self.database, temperatures, reactions=reactions
+        )
 
     def recompute_log_k(self):
         """Recompute the database's log K columns with pyGCC, where the config asks for it.

@@ -930,3 +930,103 @@ class TestSpeciesThatConsumeTheElement:
         add_isotope(consuming, 'S', '34', parents=['HS-'])
 
         assert consuming.secondary_species['H2S34(aq)'].weight == pytest.approx(36.0819)
+
+
+class TestEquilibriumFractionationOnLogK:
+    """`keq_offset` reaches the namelists; a mineral keeps its equilibrium constant in the .dbs.
+
+    Without `logk_offset` there was no way to impose equilibrium fractionation on a mineral or
+    secondary species short of hand-editing the isotopologue row through database_parameters.
+    """
+
+    SYSTEM = """\
+'temperature points' 2   25.  60.
+'Debye-Huckel adh'   0.5114  0.5465
+'Debye-Huckel bdh'   0.3288  0.3346
+'Debye-Huckel bdt'   0.0410  0.0440
+'H+' 9.0  1.0    1.0079
+'HS-' 3.0 -1.0    33.0739
+'End of primary'  0.0  0.0  0.0
+'H2S(aq)' 2    1.0000 'H+'    1.0000 'HS-'   -7.4159  -6.9877  3.0  0.0    34.0819
+'XSY' 1    2.0000 'HS-'   13.7100  12.9351  5.0 -2.0    64.1320
+'End of secondary' 1 0. '0' 0. 0. 0.
+'End of gases' 0. 1 1. '0' 0. 0. 0.
+'End of minerals' 0. 1 0. '0' 0. 0. 0.
+"""
+
+    @pytest.fixture
+    def database(self, tmp_path):
+        path = tmp_path / 'offset.dbs'
+        path.write_text(self.SYSTEM, newline='')
+        return Database(str(path))
+
+    def test_nothing_moves_without_an_offset(self, database):
+        add_isotope(database, 'S', '34', parents=['HS-'])
+
+        assert (database.value('secondary_species', 'H2S(aq)', 'log_k')
+                == database.value('secondary_species', 'H2S34(aq)', 'log_k'))
+
+    def test_an_offset_separates_the_copy_from_its_parent(self, database):
+        from omphalos.isotopes import apply_logk_offset
+
+        report = add_isotope(database, 'S', '34', parents=['HS-'])
+        apply_logk_offset(database, report.labelled, report.atoms, -0.002)
+
+        parent = [float(v) for v in database.value('secondary_species', 'H2S(aq)', 'log_k')]
+        child = [float(v) for v in database.value('secondary_species', 'H2S34(aq)', 'log_k')]
+
+        assert child == pytest.approx([p - 0.002 for p in parent], abs=1e-9)
+
+    def test_it_scales_with_the_atom_count(self, database):
+        # XSY stands on two HS-, so it holds two sulfurs and each exchanged atom contributes.
+        # (A real two-sulfur name like S2-- cannot be labelled at all: the digit is a subscript,
+        # and 'S342--' could not be read back apart.)
+        from omphalos.isotopes import apply_logk_offset
+
+        report = add_isotope(database, 'S', '34', parents=['HS-'])
+        applied = apply_logk_offset(database, report.labelled, report.atoms, -0.002)
+
+        assert report.atoms['XSY'] == pytest.approx(2.0)
+        assert applied['XS34Y'] == pytest.approx(-0.004)
+
+    def test_the_config_key_is_honoured(self, omphalos_test_dir, tmp_path):
+        import contextlib
+        import io
+        import os
+        import shutil
+
+        import yaml
+
+        from omphalos.template import Template
+
+        source = omphalos_test_dir / 'SukindaCr53.dbs'
+        stripped = tmp_path / 'no_s34.dbs'
+        lines = source.read_text(newline='').splitlines(keepends=True)
+        stripped.write_text(''.join(l for l in lines if 'S34' not in l), newline='')
+
+        original = os.getcwd()
+        os.chdir(omphalos_test_dir)
+        try:
+            shutil.copy(stripped, 'offset_probe.dbs')
+            with open('sukinda_cr.yaml') as file:
+                config = yaml.safe_load(file)
+            config['number_of_files'] = 1
+            config['database'] = 'offset_probe.dbs'
+            config.pop('database_parameters', None)
+            config['database_isotopes'] = [{
+                'element': 'S', 'label': 34, 'parents': ['SO4--', 'HS-'],
+                'species': ['H2S(aq)'], 'logk_offset': -0.002,
+            }]
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                template = Template(config)
+
+            parent = [float(v) for v in
+                      template.database.value('secondary_species', 'H2S(aq)', 'log_k')]
+            child = [float(v) for v in
+                     template.database.value('secondary_species', 'H2S34(aq)', 'log_k')]
+
+            assert child == pytest.approx([p - 0.002 for p in parent], abs=1e-9)
+        finally:
+            (omphalos_test_dir / 'offset_probe.dbs').unlink(missing_ok=True)
+            os.chdir(original)

@@ -27,6 +27,32 @@ def _netcdf_name(name):
     return str(name).replace('/', '_')
 
 
+def _min3p_token(input_file, block_name, keyword, line, token):
+    """Return the raw token at a MIN3P modification's coordinate.
+
+    Resolved with generate_inputs' own helpers rather than a second lookup written here, so the
+    coordinate a sweep was applied at and the coordinate it is read back from cannot drift apart.
+    """
+    from min3p.generate_inputs import _resolve_block
+
+    return _resolve_block(input_file, block_name).contents[keyword][line].tokens[token]
+
+
+def _min3p_number(token):
+    """Return a MIN3P token as a float, or None where it is not one.
+
+    MIN3P writes Fortran double-precision exponents ('1.00d-2'), which float() rejects, and a
+    modification may legitimately set an enumerated string ("'geometric'"), which is not a number at
+    all.
+    """
+    text = str(token).strip().strip("'")
+
+    try:
+        return float(text.replace('d', 'e').replace('D', 'E'))
+    except ValueError:
+        return None
+
+
 def load_input_files(directory, verbose=True):
     """Load the completed InputFile pickle from every run directory under directory.
 
@@ -95,18 +121,84 @@ def pairing_warning(directory='.', output='conditions.nc'):
             f'match it: {suggestions}.')
 
 
-def compile_inputs(config, output='conditions.nc', directory=None, verbose=True):
+def _write_min3p_record(config, input_files, file_nums, make_var, make_coords, write, xr):
+    """Write the 'modifications' group of a MIN3P sweep, and return the number of groups written.
+
+    A MIN3P parameter is a token at a positional coordinate rather than a named entry, so there is
+    nothing to group by: every modification the config names becomes one variable of a single
+    'modifications' group, under the name the config gave it.
+
+    Args:
+        config: The run's config, as a dict.
+        input_files: {run number: InputFile}, as loaded from the per-run pickles.
+        file_nums: The run numbers, in order.
+        make_var: Wraps a list of per-run values into an xr.Variable.
+        make_coords: Returns the coordinates those variables are indexed by.
+        write: Writes a dataset into a named group.
+        xr: The xarray module (imported by the caller, which is where the dependency belongs).
+
+    Returns:
+        1 if a group was written, 0 if the config varies nothing.
+    """
+    from min3p.generate_inputs import _coordinates
+
+    data_vars = {}
+
+    for name, spec in (config.get('modifications') or {}).items():
+        block_name, keyword, line, token = _coordinates(spec)
+        tokens = []
+
+        for file_num in file_nums:
+            try:
+                tokens.append(_min3p_token(input_files[file_num], block_name, keyword, line, token))
+            except (KeyError, IndexError, AttributeError, TypeError) as error:
+                print(f'Warning: Could not read modifications/{name} for file {file_num}: {error}')
+                tokens.append(None)
+
+        numbers = [None if raw is None else _min3p_number(raw) for raw in tokens]
+        readable = [number for raw, number in zip(tokens, numbers) if raw is not None]
+
+        # Vacuously true where no run could be read at all, which is a column of NaNs rather than a
+        # column of empty strings: nothing there says the sweep was of anything but numbers.
+        if all(number is not None for number in readable):
+            # An unreadable coordinate becomes NaN, as it does for every CrunchTope block.
+            data_vars[_netcdf_name(name)] = make_var(
+                [float('nan') if number is None else number for number in numbers]
+            )
+        else:
+            # A modification may set an enumerated string ("'geometric'"), which has no numeric
+            # value to record and would be lost entirely as a column of NaNs.
+            data_vars[_netcdf_name(name)] = make_var(
+                ['' if raw is None else str(raw).strip("'") for raw in tokens]
+            )
+
+    if not data_vars:
+        return 0
+
+    write(xr.Dataset(data_vars, coords=make_coords()), 'modifications')
+
+    return 1
+
+
+def compile_inputs(config, output='conditions.nc', directory=None, verbose=True,
+                   simulator='crunchtope'):
     """Write the parameter values a sweep actually used to a netCDF file.
 
     Values are read from the per-run pickles, so they reflect what ran rather than what the config
     asked for. Parameters using the 'staged' method are re-derived from the config for each stage,
     since a single input file only carries the values of its own stage.
 
+    The two backends describe their parameters differently and so are recorded differently. A
+    CrunchTope config names keyword blocks and conditions, and each becomes a netCDF group. A MIN3P
+    config instead names positional coordinates under 'modifications', and those become one group of
+    that name, with a variable per modification.
+
     Args:
         config: The run's config, as a dict.
         output: Output file name, written inside directory.
         directory: Directory holding the run directories (default: the current directory).
         verbose: Whether to name each pickle and group as it is handled.
+        simulator: 'crunchtope' (default) or 'min3p', matching the backend the sweep ran on.
 
     Returns:
         dict: 'output' (Path written, or None if nothing was), 'groups' (number written), 'runs'
@@ -114,11 +206,17 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
 
     Raises:
         FileNotFoundError: If there are no run directories, or none of them holds a pickle.
+        ValueError: If simulator names a backend this cannot record.
     """
     import numpy as np
     import xarray as xr
 
-    from omphalos.generate_inputs import CT_IDs, CT_NMLs, evaluate_config
+    simulator = (simulator or 'crunchtope').lower()
+
+    if simulator not in ('crunchtope', 'min3p'):
+        raise ValueError(
+            f"Cannot record a '{simulator}' sweep. Supported backends: 'crunchtope', 'min3p'."
+        )
 
     directory = Path(directory) if directory is not None else Path.cwd()
 
@@ -128,9 +226,20 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
     stage_configs = {}
     stage_nums = None
     if staged_mode:
-        print(f'Staged run detected ({num_stages} stages). Re-deriving staged parameter values from config.')
-        stage_configs = {s: evaluate_config(config, stage_num=s) for s in range(num_stages)}
         stage_nums = np.arange(num_stages)
+
+        if simulator == 'crunchtope':
+            from omphalos.generate_inputs import evaluate_config
+
+            print(f'Staged run detected ({num_stages} stages). Re-deriving staged parameter values from config.')
+            stage_configs = {s: evaluate_config(config, stage_num=s) for s in range(num_stages)}
+        else:
+            # A MIN3P chain applies the same modifications to every stage and varies only the final
+            # solution time, which the config states outright and no run has to be read for. The
+            # values below are therefore the same across stages, and carry the dimension only so
+            # they align with a staged results file.
+            print(f'Staged run detected ({num_stages} stages). MIN3P varies only the final solution '
+                  f'time by stage; the modification values are those every stage used.')
 
     input_files, missing = load_input_files(directory, verbose=verbose)
     file_nums = sorted(input_files.keys())
@@ -185,6 +294,20 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
             print(f'Written group: {group}')
 
     groups_written = 0
+
+    if simulator == 'min3p':
+        groups_written += _write_min3p_record(config, input_files, file_nums, make_var, make_coords,
+                                              write, xr)
+
+        if groups_written == 0:
+            print('No varied parameters found in the config.')
+            return {'output': None, 'groups': 0, 'runs': file_nums, 'missing': missing}
+
+        print(f'\nConditions written to {output_path} ({groups_written} group(s))')
+        return {'output': output_path, 'groups': groups_written, 'runs': file_nums,
+                'missing': missing}
+
+    from omphalos.generate_inputs import CT_IDs, CT_NMLs
 
     for block in CT_IDs:
         if block not in config:
@@ -341,6 +464,12 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
 
     if groups_written == 0:
         print('No varied parameters found in the config.')
+
+        if config.get('modifications'):
+            # The one shape of config that reaches here with nothing recorded and plenty varied.
+            print("This config varies 'modifications', which is how a MIN3P sweep is written. "
+                  'Pass -m to record it.')
+
         return {'output': None, 'groups': 0, 'runs': file_nums, 'missing': missing}
 
     print(f'\nConditions written to {output_path} ({groups_written} group(s))')
@@ -360,6 +489,11 @@ if __name__ == "__main__":
         '-o', '--output', default='conditions.nc',
         help='Output filename (default: conditions.nc)'
     )
+    parser.add_argument(
+        '-m', '--min3p', action='store_true',
+        help="Read the run as a MIN3P sweep, recording its 'modifications' rather than CrunchTope "
+             'config blocks'
+    )
     cli_args = parser.parse_args()
 
     with open(cli_args.config) as f:
@@ -370,6 +504,7 @@ if __name__ == "__main__":
         print(warning)
 
     try:
-        compile_inputs(run_config, output=cli_args.output)
+        compile_inputs(run_config, output=cli_args.output,
+                       simulator='min3p' if cli_args.min3p else 'crunchtope')
     except FileNotFoundError as error:
         sys.exit(str(error))

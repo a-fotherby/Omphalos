@@ -83,6 +83,10 @@ def _spill_results(input_file, run_num, spill_dir):
         # Repair CrunchTope's unprintable small numbers here, while the arrays are still in memory
         # and writable: netCDF cannot store the mixed dtypes they arrive as.
         fix_smalls({run_num: input_file}, category)
+        # The spill is a netCDF file like any other, so a name netCDF forbids stops it here rather
+        # than at the results file the final writer renames for. Every MIN3P sweep carries one
+        # ('C-Alk [eq/L]'), which made this the step that ended them.
+        input_file.results[category] = fm.sanitise_netcdf_names(input_file.results[category])
         input_file.results[category].to_netcdf(spill_path, group=category, mode='a')
 
     input_file.results = fm.SpilledResults(spill_path, categories)

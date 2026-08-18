@@ -173,6 +173,30 @@ class TestSpilling:
         assert not spill_path.exists()
         assert not spill_path.parent.exists()
 
+    def test_a_name_netcdf_forbids_is_rewritten_not_fatal(self, fake_runs, monkeypatch):
+        """Test that a variable named with a '/' survives the spill.
+
+        netCDF reads '/' as its group separator and refuses it in a variable name outright. Every
+        MIN3P run carries one ('C-Alk [eq/L]'), and the spill is a netCDF file like any other, so it
+        used to end the sweep here -- before dataset_to_netcdf, which does rename them, was reached.
+        """
+        from core import file_methods as fm
+
+        seen = {}
+
+        def capture(dataset, simulator='crunchtope'):
+            seen['names'] = set(dataset[0].results['lbm'].load().data_vars)
+
+        monkeypatch.setattr(fm, 'dataset_to_netcdf', capture)
+        monkeypatch.setattr(fm, 'unpickle', lambda path: types.SimpleNamespace(
+            error_code=0,
+            results={'lbm': xr.Dataset({'C-Alk [eq/L]': ('time', np.array([1.0, 2.0]))})},
+        ))
+
+        si.compile_results(1, simulator='min3p')
+
+        assert seen['names'] == {'C-Alk [eq_per_L]'}
+
     def test_results_without_categories_are_left_alone(self, fake_runs):
         """Test that a backend keeping a single Dataset in results is not spilled.
 

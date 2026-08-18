@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-1029%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1044%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -223,13 +223,13 @@ python -m rhea.main config.yaml cluster
 - `-m, --min3p` — Use MIN3P instead of CrunchTope (see [MIN3P Support](#min3p-support))
 - `-d, --debug` — Generate files without running simulations. `omphalos` writes them to `tmp/` as
   `<template><N>.<ext>` (e.g. `tmp/model0.in`); `rhea` writes them into the prepared `run<N>/` directories
-- `-c, --compile-inputs` — After a local CrunchTope run, also record the parameter values the sweep used,
-  named to pair with the results file just written (see [Compiling Input Conditions](#compiling-input-conditions))
+- `-c, --compile-inputs` — After a local CrunchTope or MIN3P run, also record the parameter values the sweep
+  used, named to pair with the results file just written (see [Compiling Input Conditions](#compiling-input-conditions))
 - `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
-> **`rhea` empties a run directory before reusing it.** The stale deck, database, `.tec` output and
-> `.rst` restart all go, because CrunchTope writes output per snapshot and a run producing fewer
-> snapshots than last time would otherwise leave the surplus behind to be collated as its own. The
+> **`rhea` empties a run directory before reusing it.** The stale deck, database, `.tec` or MIN3P
+> output and `.rst` restart all go, because both solvers write output per snapshot and a run producing
+> fewer snapshots than last time would otherwise leave the surplus behind to be collated as its own. The
 > per-run `input_file<N>_complete.pkl` is kept, and nothing outside the run directories is touched, so
 > an earlier `results.nc` and `conditions.nc` survive.
 >
@@ -1114,7 +1114,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **1029 tests**:
+The project includes a comprehensive test suite with **1044 tests**:
 
 ```bash
 # Run all tests
@@ -1135,10 +1135,11 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 Per-module counts are deliberately left out — they go stale as soon as anyone adds a test. Run
 `pytest --collect-only -q -o addopts=''` for the current breakdown.
 
-`tests/unit` mocks the solver and needs nothing installed. `tests/integration/test_smoke.py` runs
-CrunchTope against the shipped deck and against databases Omphalos has edited, augmented and added an
-isotope to, checking that what it writes is a file CrunchTope reads. Skipped without a binary, and
-marked `smoke`, so `pytest -m 'not smoke'` leaves them out.
+`tests/unit` mocks the solver and needs nothing installed. The smoke tests run one: `test_smoke.py` puts
+CrunchTope to the shipped deck and to databases Omphalos has edited, augmented and added an isotope to;
+`test_smoke_min3p.py` puts MIN3P to the `appelo` and `dissol` benchmarks, a deck generated from a sweep,
+and a restart chain. Both check that what Omphalos writes is a file the solver reads and that a swept
+value reaches it. Skipped without a binary, and marked `smoke`, so `pytest -m 'not smoke'` leaves them out.
 
 | Module | Covers |
 |--------|--------|
@@ -1163,6 +1164,8 @@ marked `smoke`, so `pytest -m 'not smoke'` leaves them out.
 | `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that each run, and each stage, reads and writes its own auxiliary files |
 | `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
 | `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |
+| `tests/integration/test_smoke.py` | CrunchTope run against the decks and databases Omphalos writes |
+| `tests/integration/test_smoke_min3p.py` | MIN3P run against the decks Omphalos writes, including a restart chain |
 
 ---
 
@@ -1272,9 +1275,9 @@ rhea config.yaml local --compile-inputs
 
 The record is written straight after the results, into the same working directory and named to match: alongside
 `results.nc` it is `conditions.nc`, alongside `results1.nc` it is `conditions1.nc`. The flag applies to local
-CrunchTope runs: a cluster submission returns before its array has finished, and MIN3P and PFLOTRAN describe their
-parameters differently, so in those cases it says so and skips rather than writing something misleading. If
-compiling the record fails, the run still reports its results — the failure is a warning, not an error.
+CrunchTope and MIN3P runs: a cluster submission returns before its array has finished, and PFLOTRAN has no reader
+here, so in those cases it says so and skips rather than writing something misleading. If compiling the record
+fails, the run still reports its results — the failure is a warning, not an error.
 
 Run by hand, the script writes `conditions.nc` unless told otherwise, since it has no way of knowing which sweep
 you mean. Where several `results*.nc` exist it says so and shows the pairing, so pass `-o` to match the one you
@@ -1315,6 +1318,16 @@ The output is a netCDF file with groups mirroring the YAML config structure:
 This is particularly useful for runs using `random_uniform` parameter sampling, where the actual values used cannot be recovered from the YAML alone.
 
 For staged runs (configs with a `restart_chain` block), the script detects staging automatically and re-derives `staged` parameter values from the YAML for each stage. All output variables in a staged run include a `stage_num` dimension alongside `file_num`. Parameters that do not use the `staged` method are read from the pickles as normal and tiled across stages.
+
+A MIN3P sweep names positional coordinates under `modifications:` rather than keyword blocks, so its record is a
+single `modifications` group with a variable per entry. Pass `-m` to read a run that way, as you would to `rhea`:
+
+```bash
+python /path/to/omphalos/coeus/compile_inputs.py config.yaml -m
+```
+
+An enumerated value (`'geometric'`) is recorded as text, not a column of NaNs. A MIN3P chain varies only its stage
+final times, so its values are tiled across `stage_num` rather than re-derived.
 
 The conditions can then be loaded alongside results for combined analysis:
 
@@ -1608,6 +1621,9 @@ python -m min3p.main config.yaml records.pkl
 
 # Parallel (local)
 python -m rhea.main config.yaml local --min3p
+
+# ... and with a record of the parameter values each run used
+python -m rhea.main config.yaml local --min3p --compile-inputs
 ```
 
 MIN3P input files are positional (block-structured `.dat`, not key-value), so a
@@ -1656,6 +1672,10 @@ restart_chain:
 
 Any `modifications` sweep is inherited by every stage. Each run's stages execute
 sequentially in a per-run subdirectory so their restart state does not collide.
+
+Only the final solution time is set per stage, so every stage still asks for the deck's `output
+control` times. MIN3P refuses a run whose final time falls below one of them, so stages have to
+extend past the deck's last output time rather than subdivide it.
 
 > **Notes:** MIN3P mode currently supports `run_type local` only (cluster/sbatch
 > is a TODO). See `min3p/examples/dissol_sweep/` for a runnable worked example.

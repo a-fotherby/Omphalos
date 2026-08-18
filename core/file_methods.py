@@ -247,6 +247,21 @@ def matching_output_name(results_path, name='conditions.nc'):
     return f'{stem}{match.group(1)}{suffix}'
 
 
+def sanitise_netcdf_names(ds):
+    """Return ds with any variable or coordinate name netCDF cannot hold rewritten.
+
+    A '/' is the HDF5 group separator, so netCDF4 refuses it in a name outright rather than escaping
+    it. MIN3P emits several ('C-Alk [eq/L]'), which is why a MIN3P results file has to be renamed on
+    the way out; a CrunchTope label carrying one would fail identically.
+
+    Applied both when a run's results are spilled to a temporary file and when the results file
+    itself is written, so the two agree on what a variable is called.
+    """
+    renames = {name: name.replace('/', '_per_') for name in list(ds.variables) if '/' in name}
+
+    return ds.rename(renames) if renames else ds
+
+
 def dataset_to_netcdf(dataset, simulator='crunchtope'):
     """Convert a dataset to netCDF format.
 
@@ -283,12 +298,6 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
         import numpy as np
         import pandas as pd
 
-        def _sanitise_names(ds):
-            # netCDF forbids '/' in variable/coord names (it is the HDF5 group
-            # separator). MIN3P emits e.g. 'C-Alk [eq/L]'.
-            renames = {n: n.replace('/', '_per_') for n in list(ds.variables) if '/' in n}
-            return ds.rename(renames) if renames else ds
-
         def _positional_time(ds):
             # Batch outputs carry an adaptive per-run 'time' axis, so aligning on
             # time values across files would inject NaNs. Concatenate on a
@@ -309,7 +318,7 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             for k in keys:
                 results = dataset[k].results
                 if category in results:
-                    ds_list.append(_positional_time(_sanitise_names(results[category])))
+                    ds_list.append(_positional_time(sanitise_netcdf_names(results[category])))
                     file_nums.append(getattr(dataset[k], 'file_num', k))
             if not ds_list:
                 continue

@@ -385,3 +385,169 @@ class TestStagedDatabaseLogK:
         recorded = xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')['pressure']
         assert recorded.dims == ('file_num', 'stage_num')
         assert np.allclose(recorded.values, [[200.0, 500.0], [200.0, 500.0]])
+
+
+# ---------------------------------------------------------------------------
+# The MIN3P backend. A MIN3P config names positional coordinates under
+# 'modifications' rather than keyword blocks, so it is recorded as one group of
+# that name with a variable per modification.
+# ---------------------------------------------------------------------------
+MIN3P_DAT = (
+    "'global control parameters'\n"
+    "'A batch problem'\n"
+    ".false.                       ;varsat_flow\n"
+    "'done'\n"
+    "\n"
+    "'initial condition - local geochemistry'\n"
+    "'number and name of zone'\n"
+    "1\n"
+    "'zone one'\n"
+    "'mineral input'\n"
+    "1.00d-2   .true. 'geometric'  ;phim, minequil, update_type\n"
+    "'guess for ph'\n"
+    "7.0\n"
+    "'done'\n"
+).replace('\n', '\r\n')
+
+MIN3P_CONFIG = {
+    'number_of_files': 3,
+    'modifications': {
+        'calcite_volume': {'alias': 'calcite_volume', 'method': 'linspace',
+                           'params': [0.005, 0.02]},
+    },
+}
+
+
+def _write_min3p_runs(directory, volumes, update_types=None):
+    """Write one run directory per volume, each holding the deck that run used.
+
+    Built through min3p's own Template and block.modify rather than by string substitution, so what
+    is pickled is the object a worker would have pickled.
+    """
+    from min3p.template import Template
+
+    for run_num, volume in enumerate(volumes):
+        run_dir = directory / f'run{run_num}'
+        run_dir.mkdir()
+        deck = run_dir / 'batch.dat'
+        deck.write_text(MIN3P_DAT, newline='')
+
+        input_file = Template({'template': str(deck), 'number_of_files': 1})
+        block = input_file.keyword_blocks['initial condition - local geochemistry']
+        block.modify('mineral input', volume, token_pos=0, line_index=0)
+
+        if update_types is not None:
+            block.modify('mineral input', update_types[run_num], token_pos=2, line_index=0)
+
+        with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+            pickle.dump(input_file, f)
+
+
+class TestMin3pModifications:
+    """Tests for recording a MIN3P sweep."""
+
+    def test_modifications_are_written_as_one_group(self, tmp_path):
+        """Test that every modification the config names becomes a variable of one group."""
+        _write_min3p_runs(tmp_path, ['0.005', '0.0125', '0.02'])
+
+        summary = compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False,
+                                 simulator='min3p')
+
+        assert summary['groups'] == 1
+        ds = xr.open_dataset(summary['output'], group='modifications')
+        assert list(ds['file_num'].values) == [0, 1, 2]
+        assert np.allclose(ds['calcite_volume'].values, [0.005, 0.0125, 0.02])
+
+    def test_values_come_from_the_runs_not_the_config(self, tmp_path):
+        """Test that what is recorded is the token in the deck, not what the config asked for."""
+        _write_min3p_runs(tmp_path, ['0.003', '0.011', '0.019'])
+
+        summary = compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False,
+                                 simulator='min3p')
+
+        ds = xr.open_dataset(summary['output'], group='modifications')
+        assert np.allclose(ds['calcite_volume'].values, [0.003, 0.011, 0.019])
+
+    def test_a_fortran_exponent_is_read_as_a_number(self, tmp_path):
+        """Test that a token MIN3P writes as '1.00d-2' is recorded as 0.01, not skipped."""
+        _write_min3p_runs(tmp_path, ['1.00d-2', '2.50D-2', '4e-2'])
+
+        summary = compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False,
+                                 simulator='min3p')
+
+        ds = xr.open_dataset(summary['output'], group='modifications')
+        assert np.allclose(ds['calcite_volume'].values, [0.01, 0.025, 0.04])
+
+    def test_a_string_valued_modification_is_recorded_as_text(self, tmp_path):
+        """Test that an enumerated value is kept, rather than becoming a column of NaNs."""
+        _write_min3p_runs(tmp_path, ['0.005'] * 3,
+                          update_types=["'geometric'", "'surface'", "'geometric'"])
+        config = dict(MIN3P_CONFIG)
+        config['modifications'] = dict(
+            config['modifications'],
+            update_type={'block': 'initial condition - local geochemistry',
+                         'keyword': 'mineral input', 'line': 0, 'token': 2,
+                         'method': 'custom', 'params': ["'geometric'", "'surface'", "'geometric'"]},
+        )
+
+        summary = compile_inputs(config, directory=tmp_path, verbose=False, simulator='min3p')
+
+        ds = xr.open_dataset(summary['output'], group='modifications')
+        assert list(ds['update_type'].values) == ['geometric', 'surface', 'geometric']
+
+    def test_an_unreadable_coordinate_is_reported_not_invented(self, tmp_path, capsys):
+        """Test that a coordinate no longer in the deck becomes NaN and says so."""
+        _write_min3p_runs(tmp_path, ['0.005', '0.0125', '0.02'])
+        config = dict(MIN3P_CONFIG)
+        config['modifications'] = {
+            'phantom': {'block': 'initial condition - local geochemistry',
+                        'keyword': 'mineral input', 'line': 7, 'token': 0,
+                        'method': 'constant', 'params': 1.0},
+        }
+
+        summary = compile_inputs(config, directory=tmp_path, verbose=False, simulator='min3p')
+
+        assert 'Could not read modifications/phantom' in capsys.readouterr().out
+        ds = xr.open_dataset(summary['output'], group='modifications')
+        assert np.isnan(ds['phantom'].values).all()
+
+    def test_a_config_varying_nothing_writes_no_file(self, tmp_path):
+        """Test that a MIN3P config with no modifications is reported, not written empty."""
+        _write_min3p_runs(tmp_path, ['0.005', '0.0125', '0.02'])
+
+        summary = compile_inputs({'number_of_files': 3}, directory=tmp_path, verbose=False,
+                                 simulator='min3p')
+
+        assert summary == {'output': None, 'groups': 0, 'runs': [0, 1, 2], 'missing': []}
+
+    def test_a_staged_chain_carries_a_stage_dimension(self, tmp_path):
+        """Test that a chain's record aligns with a staged results file.
+
+        MIN3P applies the same modifications to every stage and varies only the final solution time,
+        so the values repeat across stages rather than being re-derived per stage as CrunchTope's are.
+        """
+        _write_min3p_runs(tmp_path, ['0.005', '0.0125', '0.02'])
+        config = dict(MIN3P_CONFIG,
+                      restart_chain={'stages': 2, 'final_times': [6.0, 12.0]})
+
+        summary = compile_inputs(config, directory=tmp_path, verbose=False, simulator='min3p')
+
+        recorded = xr.open_dataset(summary['output'], group='modifications')['calcite_volume']
+        assert recorded.dims == ('file_num', 'stage_num')
+        assert np.allclose(recorded.values, [[0.005] * 2, [0.0125] * 2, [0.02] * 2])
+
+    def test_a_min3p_config_read_as_crunchtope_says_which_flag_to_pass(self, tmp_path, capsys):
+        """Test that the one config shape that records nothing points at the reason."""
+        _write_min3p_runs(tmp_path, ['0.005', '0.0125', '0.02'])
+
+        summary = compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False)
+
+        assert summary['groups'] == 0
+        assert 'Pass -m' in capsys.readouterr().out
+
+    def test_an_unknown_backend_is_refused(self, tmp_path):
+        """Test that a backend with no reader is an error rather than an empty record."""
+        _write_min3p_runs(tmp_path, ['0.005'])
+
+        with pytest.raises(ValueError, match='pflotran'):
+            compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False, simulator='pflotran')

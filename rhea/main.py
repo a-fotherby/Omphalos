@@ -32,7 +32,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-c', '--compile-inputs', action='store_true',
         help='After the run, record the parameter values it used in conditions.nc, as '
-             'coeus/compile_inputs.py does. CrunchTope local runs only.'
+             'coeus/compile_inputs.py does. CrunchTope and MIN3P local runs only.'
     )
     parser.add_argument(
         '-b', '--backend',
@@ -63,16 +63,16 @@ if __name__ == '__main__':
 
     # Settle --compile-inputs before anything runs, so an unsupported combination is known now rather
     # than after a sweep. It reads the per-run pickles the workers leave behind, so it needs runs that
-    # have finished: a cluster submission returns as soon as the array is queued. MIN3P and PFLOTRAN
-    # describe their parameters differently, so it would have nothing meaningful to read there.
+    # have finished: a cluster submission returns as soon as the array is queued. PFLOTRAN describes
+    # its parameters in a way compile_inputs has no reader for, so it would find nothing there.
     compile_inputs_wanted = args.compile_inputs
     if args.compile_inputs and args.run_type != 'local':
         print('WARNING: --compile-inputs needs the completed runs, which a cluster submission does '
               'not wait for. Run coeus/compile_inputs.py once the array has finished.')
         compile_inputs_wanted = False
-    elif args.compile_inputs and (args.min3p or args.pflotran):
-        print(f'WARNING: --compile-inputs reads CrunchTope config blocks, so it does not apply to the '
-              f'{"MIN3P" if args.min3p else "PFLOTRAN"} backend. Skipped.')
+    elif args.compile_inputs and args.pflotran:
+        print('WARNING: --compile-inputs has no reader for PFLOTRAN config blocks, so it does not '
+              'apply to that backend. Skipped.')
         compile_inputs_wanted = False
 
     def compile_input_record(config, results_path=None):
@@ -99,7 +99,8 @@ if __name__ == '__main__':
             output = fm.unique_output_path('conditions.nc').name
 
         try:
-            compile_inputs(config, output=output, verbose=False)
+            compile_inputs(config, output=output, verbose=False,
+                           simulator='min3p' if args.min3p else 'crunchtope')
         except Exception as exc:  # noqa: BLE001 - the results are already written; do not lose them
             print(f'WARNING: could not compile the input record: {exc}')
 
@@ -189,6 +190,7 @@ if __name__ == '__main__':
         file_dict = gi.configure_input_files(template, 'foo', rhea=True)
         dict_size = len(file_dict) - 1
         dir_name = 'run'
+        si.clear_run_directories(dict_size + 1)
         t_start = time.time()
 
         # Create run directories and print each input file into its own dir.

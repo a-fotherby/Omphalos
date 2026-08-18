@@ -110,7 +110,7 @@ like a resolution error.
 | refine chain vs cold start, both at 5000 yr | 3.7% | what the chain achieves |
 | graded chain vs cold start, both at 5000 yr | 3.7% | as above, quarter the cells |
 
-- **The chain gets the fine answer for a third of the cost.** The coarse grid it starts from is 16%
+- **The chain gets the fine answer for a third of the cost.** The coarse grid it starts from is 15.7%
   off the fine answer at matched time (panel **A**); after 500 yr on the refined grid it is 3.7%
   (panel **B**), for 21 s against 56 s (panel **D**).
 - **Watch the second row of that table.** 500 yr of dissolution moves the profile by 4.4% on its

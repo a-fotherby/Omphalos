@@ -17,7 +17,7 @@
 # Omphalos copies each parent's new column onto its copy, reporting how many rows
 # it moved. The notebook checks the pair is still identical at every pressure, and
 # shows how large the invented fractionation would have been: it is exactly the
-# parent's own pressure shift, up to 0.29 log units here.
+# parent's own pressure shift, up to 0.27 log units at 25 C here.
 #
 # Run with rhea (from this directory, omphalos environment active):
 #     rhea isotope_pressure_series.yaml local --compile-inputs

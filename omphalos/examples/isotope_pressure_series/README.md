@@ -30,21 +30,22 @@ so no fractionation is invented: ['secondary_species/CaS34O4(aq)',
 rhea isotope_pressure_series.yaml local --compile-inputs
 ```
 
-Five runs, about a minute. Every pair is identical at every pressure, and δ³⁴S is flat:
+Five runs, about a minute. Every pair is identical at every pressure, and δ³⁴S$_{VCDT}$ is flat:
 
 | | |
 |---|---|
 | pair gap, parent to isotopologue | **0.0000** at all five pressures |
-| δ³⁴S along the column | −4.911‰ vs VCDT, range 5 × 10⁻⁶‰ |
-| δ³⁴S across the pressure series | spread 5 × 10⁻⁶‰ |
-| what an unprotected recomputation would have added | ≈ **260‰** |
+| δ³⁴S$_{VCDT}$ along the column | −4.911‰, range 5 × 10⁻⁶‰ |
+| δ³⁴S$_{VCDT}$ across the pressure series | spread 5 × 10⁻⁶‰ |
+| what an unprotected recomputation would have added | ≈ **855‰** |
 
-That last figure is the point. `CaSO4(aq)` moves 0.1006 log units between 150 and 1000 bar; a pair
-separated by Δ log K fractionates by (10^Δ − 1) × 1000 ‰, so an unprotected recomputation would put
-260‰ of invented fractionation into a system whose natural range is a few tens. On `SukindaCr53.dbs`
-it is worse — `H2S(aq)` and `H2S34(aq)` separate by 0.33 log units at 500 bar, over 1000‰.
+That last figure is the point. At the 25 °C this deck runs at, the widest gap between 150 and
+1000 bar is `HSO4-` at 0.268 log units, with `CaSO4(aq)` at 0.0758; a pair separated by Δ log K
+fractionates by (10^Δ − 1) × 1000‰, so an unprotected recomputation would put 855‰ of invented
+fractionation into a system whose natural range is a few tens. On `SukindaCr53.dbs` it is worse still
+— `H2S(aq)` and `H2S34(aq)` separate by 0.33 log units at 500 bar.
 
-![Pair gaps and δ34S](isotope_pressure_series.png)
+![Pair gaps and delta 34S](isotope_pressure_series.png)
 
 ## Two things to know
 

@@ -575,6 +575,39 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
     return report
 
 
+def suspected_isotope_pairs(database):
+    """Names that look like labelled forms of another species the database also holds.
+
+    Only for warning, never for editing. The test is that deleting a run of digits immediately after
+    an element symbol turns one name in the database into another -- which `H2O2` and `H2O` satisfy
+    without being an isotope pair at all, so acting on this would corrupt a database. It is good
+    enough to say "this database appears to contain isotopologues" and let the user declare them.
+
+    Args:
+        database: The Database to inspect.
+
+    Returns:
+        {suspected isotopologue: suspected parent}.
+    """
+    names = set()
+    for section in ISOTOPE_SECTIONS:
+        names.update(getattr(database, section, {}))
+
+    symbols = '|'.join(sorted(ATOMIC_WEIGHTS, key=len, reverse=True))
+    label = re.compile(f'({symbols})([0-9]+)')
+
+    found = {}
+
+    for name in names:
+        for match in label.finditer(name):
+            stripped = name[:match.end(1)] + name[match.end(2):]
+            if stripped != name and stripped in names:
+                found[name] = stripped
+                break
+
+    return found
+
+
 def in_database(database, name):
     """Whether a species of this name is in any of the sections an isotope touches."""
     return any(name in getattr(database, section, {}) for section in ISOTOPE_SECTIONS)

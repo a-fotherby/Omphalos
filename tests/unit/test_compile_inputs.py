@@ -347,3 +347,41 @@ class TestDatabaseLogK:
         assert xr.open_dataset(tmp_path / 'conditions.nc', group='flow') is not None
         with pytest.raises(OSError):
             xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')
+
+
+class TestStagedDatabaseLogK:
+    """A staged sweep has no per-stage record to read: one pickle survives per run.
+
+    Reading it recorded that stage's value for every stage -- 500/500 where the sweep applied 200
+    then 500. Re-derived from the config instead, as every other block does for a staged sweep.
+    """
+
+    CONFIG = {
+        'number_of_files': 2,
+        'restart_chain': {'stages': 2},
+        'database_logk': {
+            'reactions': ['Calcite'],
+            'pressure': ['staged', [[200.0, 200.0], [500.0, 500.0]]],
+        },
+    }
+
+    def _write_runs(self, directory):
+        for run_num in range(2):
+            run_dir = directory / f'run{run_num}'
+            run_dir.mkdir()
+            input_file = _input_file()
+            # Whichever stage wrote last is what the pickle holds.
+            input_file.logk_settings = {'pressure': 500.0}
+            with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+                pickle.dump(input_file, f)
+
+    def test_each_stage_gets_its_own_pressure(self, tmp_path):
+        import numpy as np
+
+        self._write_runs(tmp_path)
+
+        compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        recorded = xr.open_dataset(tmp_path / 'conditions.nc', group='database_logk')['pressure']
+        assert recorded.dims == ('file_num', 'stage_num')
+        assert np.allclose(recorded.values, [[200.0, 500.0], [200.0, 500.0]])

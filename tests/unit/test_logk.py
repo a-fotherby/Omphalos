@@ -988,3 +988,102 @@ class TestPressureRecordSurvivesTheRun:
         _restore_logk_record(rebuilt, tmp_path)
 
         assert rebuilt.logk_settings is None
+
+
+class TestSplitCopiesAreRejoined:
+    """A recomputation must not separate an isotopologue from its parent.
+
+    pyGCC can compute `H2S(aq)` and has never heard of `H2S34(aq)`, so it moves one side of every
+    labelled pair and leaves the other. add_isotope guaranteed the two were identical; the gap that
+    opens is an equilibrium fractionation the database never had. Measured before the fix: 0.0015 log
+    units at the saturation curve and 0.3342 at 500 bar for H2S(aq)/H2S34(aq).
+    """
+
+    PAIRS = [('secondary_species', 'H2S(aq)', 'H2S34(aq)'),
+             ('secondary_species', 'CaSO4(aq)', 'CaS34O4(aq)'),
+             ('gases', 'H2S(g)', 'H2S34(g)')]
+
+    @pytest.fixture
+    def rebuilt(self, tmp_path):
+        """The test database with S34 stripped and put back, then re-read from disk.
+
+        Re-read on purpose: nothing the rebuild recorded in memory survives, which is the case a
+        database that merely *ships* with isotopes is always in.
+        """
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        import io
+        import warnings
+
+        from omphalos.isotopes import add_isotope
+
+        with io.open(DB_PATH, newline='') as file:
+            lines = file.readlines()
+        path = tmp_path / 'no_s34.dbs'
+        with io.open(path, 'w', newline='') as file:
+            file.writelines(line for line in lines if 'S34' not in line)
+
+        database = Database(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            add_isotope(database, 'S', '34', parents=['SO4--', 'HS-'])
+        database.print(str(path))
+
+        return path
+
+    def _recompute(self, path, pressure):
+        import warnings
+
+        database = Database(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = logk.LogKCalculator(pressure=pressure).recompute(database,
+                                                                      on_unmatched='leave')
+        return database, result
+
+    def test_the_pairs_start_identical(self, rebuilt):
+        database = Database(str(rebuilt))
+
+        for section, parent, child in self.PAIRS:
+            assert (database.value(section, parent, 'log_k')
+                    == database.value(section, child, 'log_k')), child
+
+    @pytest.mark.parametrize('pressure', [None, 500.0])
+    def test_they_stay_identical_through_a_recomputation(self, rebuilt, pressure):
+        database, _ = self._recompute(rebuilt, pressure)
+
+        for section, parent, child in self.PAIRS:
+            assert (database.value(section, parent, 'log_k')
+                    == database.value(section, child, 'log_k')), f'{child} at {pressure}'
+
+    def test_the_rejoining_is_reported(self, rebuilt):
+        _, result = self._recompute(rebuilt, 500.0)
+
+        assert result.isotopes_restored, 'nothing was reported as rejoined'
+        assert 'secondary_species/H2S34(aq)' in result.isotopes_restored
+        assert 'isotopologue row(s) copied back' in result.summary()
+
+    def test_the_parent_still_moves(self, rebuilt):
+        # The point is to keep the pair together, not to freeze it.
+        original = Database(str(rebuilt)).value('secondary_species', 'H2S(aq)', 'log_k')
+        database, _ = self._recompute(rebuilt, 500.0)
+
+        assert database.value('secondary_species', 'H2S(aq)', 'log_k') != original
+
+
+class TestSuspectedIsotopePairs:
+    """Name-based detection is used to decide what is safe to edit, never to find the split."""
+
+    def test_a_labelled_name_is_suspected(self):
+        from omphalos.isotopes import suspected_isotope_pairs
+
+        suspected = suspected_isotope_pairs(Database(str(DB_PATH)))
+
+        assert suspected.get('Cr53O4--') == 'CrO4--'
+
+    def test_h2o2_is_also_suspected_which_is_why_it_only_gates(self):
+        # H2O2 looks exactly like a labelled H2O. Acting on names alone would overwrite a real
+        # species' log K with an unrelated one's, which is why the split itself is detected by
+        # comparing columns before and after instead.
+        from omphalos.isotopes import isotope_name
+
+        assert isotope_name('H2O', 'O', '2') == 'H2O2'

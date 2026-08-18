@@ -233,9 +233,11 @@ class Template(InputFile):
     def add_isotopes(self):
         """Add the isotope systems the config asks for, before anything else touches the database.
 
-        First, because everything downstream is written in terms of what the database holds: log K
-        columns are recomputed for the isotopologues too, and a ``database_parameters`` sweep can
-        name one. The config section is ``database_isotopes``, a list of systems.
+        First, because everything downstream is written in terms of what the database holds: a
+        ``database_parameters`` sweep can name an isotopologue, and a log K recomputation has to know
+        the pairs exist. It cannot *recompute* them -- pyGCC holds no isotopologues -- so what it
+        does instead is copy each parent's new column back onto its copy, which only works if the
+        copies are already there. The config section is ``database_isotopes``, a list of systems.
 
         Each system reaches the aqueous kinetics namelist and the catabolic pathways as well as the
         .dbs, since a thermodynamic isotopologue with no reactions does nothing. Two keys are for

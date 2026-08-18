@@ -783,3 +783,44 @@ class TestStagedAuxiliaryFiles:
         run.run_staged_input({n: self._stage(n) for n in range(3)}, 0, str(tmp_path), timeout=1)
 
         assert regridded == [1, 2]
+
+
+class TestStaleLogKRecord:
+    """A run directory is reused between sweeps, so a sidecar must not outlive its sweep.
+
+    rhea/prep_directories.sh does `mkdir run$N` and never clears it. A sweep that varied the
+    pressure left logk_settings.json behind; the next sweep, varying nothing, read it back as its
+    own and recorded a pressure that never applied.
+    """
+
+    def _input_file(self):
+        from omphalos.input_file import InputFile
+
+        return InputFile('deck.in', {}, {}, None, None, {})
+
+    def test_a_sweep_that_varies_nothing_clears_an_old_record(self, tmp_path):
+        import json
+
+        from omphalos import run as run_module
+
+        with open(tmp_path / run_module.LOGK_RECORD, 'w') as record:
+            json.dump({'pressure': 111.0}, record)
+
+        run_module._print_aux_files(self._input_file(), tmp_path)
+
+        assert not (tmp_path / run_module.LOGK_RECORD).exists()
+
+    def test_a_sweep_that_varies_something_overwrites_it(self, tmp_path):
+        import json
+
+        from omphalos import run as run_module
+
+        with open(tmp_path / run_module.LOGK_RECORD, 'w') as record:
+            json.dump({'pressure': 111.0}, record)
+
+        input_file = self._input_file()
+        input_file.logk_settings = {'pressure': 500.0}
+        run_module._print_aux_files(input_file, tmp_path)
+
+        with open(tmp_path / run_module.LOGK_RECORD) as record:
+            assert json.load(record) == {'pressure': 500.0}

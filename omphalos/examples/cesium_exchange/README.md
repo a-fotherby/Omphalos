@@ -28,8 +28,9 @@ Three runs, about three minutes. `ShortCourse12a.in` names the other two decks a
 
 ## What it produces
 
-Each run's database differs from the template on **exactly one line**, with the column alignment
-intact:
+Each run's database differs from the template on **at most one line**, with the column alignment
+intact. Run 1 differs on none: 7.25224 is the fitted value the sweep brackets, so its database is
+byte-identical to the template.
 
 ```
 run0: 'NaXhan1' 2  1.0 'Na+' 1.0 'Xhan1-'               6.25224  0.000
@@ -37,7 +38,7 @@ run1: 'NaXhan1' 2  1.0 'Na+' 1.0 'Xhan1-'               7.25224  0.000
 run2: 'NaXhan1' 2  1.0 'Na+' 1.0 'Xhan1-'               8.25224  0.000
 ```
 
-Everything else in those 3,700 lines — stoichiometry, the other eleven exchange coefficients, the
+Everything else in those 3,691 lines — stoichiometry, the other fourteen exchange coefficients, the
 mineral kinetics block — is byte for byte as it was.
 
 ![Caesium profiles](cesium_exchange.png)

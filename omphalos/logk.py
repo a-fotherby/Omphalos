@@ -34,6 +34,7 @@ import math
 import warnings
 
 from omphalos.database import HEADER_LINES, tokenise
+from omphalos.isotopes import suspected_isotope_pairs
 
 # The Omphalos database sections pyGCC can speak for, mapped to its Specie_class. Surface
 # complexation constants are not in a thermodynamic compilation, and exchange coefficients are
@@ -234,6 +235,8 @@ class LogKRegrid:
         self.resampled = []
         self.clamped = {}
         self.no_data = {}
+        self.isotopes_restored = {}
+        self.split_copies = {}
 
     @property
     def counts(self):
@@ -267,6 +270,12 @@ class LogKRegrid:
                 f'  {points} point(s) across {len(self.no_data)} row(s) written as {NO_DATA:g}'
             )
 
+        if self.isotopes_restored:
+            lines.append(
+                f'  {len(self.isotopes_restored)} isotopologue row(s) copied back from their '
+                f'parents, which were recomputed where the copies could not be'
+            )
+
         return '\n'.join(lines)
 
 
@@ -280,6 +289,14 @@ class LogKRecalculation:
         self.rescaled = {}
         self.skipped = {}
         self.no_data = {}
+        # {isotopologue: parent} for copies whose columns this recomputation had separated from
+        # their parent's, and which were copied back. pyGCC has no isotopologues, so it moves one
+        # side of every such pair and not the other.
+        self.isotopes_restored = {}
+        # Groups this recomputation split that do NOT look like labelled pairs.
+        # Reported, never edited: two rows may share a column without being
+        # copies of each other.
+        self.split_copies = {}
 
     @property
     def counts(self):
@@ -299,6 +316,21 @@ class LogKRecalculation:
             lines.append(
                 f'  {points} point(s) across {len(self.no_data)} reaction(s) could not be '
                 f'computed and were written as {NO_DATA:g}: {sorted(self.no_data)[:10]}'
+            )
+
+        if self.isotopes_restored:
+            lines.append(
+                f'  {len(self.isotopes_restored)} isotopologue row(s) copied back from the '
+                f'parent pyGCC recomputed and they cannot be, so no fractionation is invented: '
+                f'{sorted(self.isotopes_restored)[:10]}'
+            )
+
+        if self.split_copies:
+            lines.append(
+                f'  WARNING: {len(self.split_copies)} row(s) were identical to a recomputed row '
+                f'before this call and are not now, and their names do not look like an isotope '
+                f'label, so they were left alone. Check whether they should have moved together: '
+                f'{sorted(self.split_copies)[:10]}'
             )
 
         if self.rescaled:
@@ -558,6 +590,9 @@ class LogKCalculator:
         # The target's own grid, so the returned vector lines up with its header.
         temperatures = tuple(float(value) for value in database.temp_field)
         result = LogKRecalculation(self.settings)
+        # Taken before anything is rewritten: rows byte-identical now and not afterwards have been
+        # split by this call. See rejoin_split_copies.
+        before = self.identical_columns(database, sections)
 
         for section in sections:
             specie_class = SECTION_SPECIE_CLASS[section]
@@ -604,9 +639,73 @@ class LogKCalculator:
                     round(value, LOG_K_DECIMALS) for value in values
                 ]
 
+        self.rejoin_split_copies(database, before, result)
+
         self._report(result, on_unmatched)
 
         return result
+
+    @staticmethod
+    def identical_columns(database, sections):
+        """Group the names in these sections by the log K column they carry.
+
+        Only groups of more than one are kept. Two rows with byte-identical columns are, in a
+        thermodynamic database, one reaction written twice -- which is exactly what an isotopologue
+        is, since add_isotope copies the log Ks unchanged rather than offsetting them.
+        """
+        columns = {}
+
+        for section in sections:
+            for name in getattr(database, section, {}):
+                try:
+                    value = database.value(section, name, 'log_k')
+                except KeyError:
+                    continue
+                if isinstance(value, list):
+                    columns.setdefault((section, tuple(value)), []).append(name)
+
+        return {key: names for key, names in columns.items() if len(names) > 1}
+
+    def rejoin_split_copies(self, database, before, result, updated_keys=None):
+        """Put back together any group of identical rows this recomputation split.
+
+        pyGCC can compute `H2S(aq)` and has never heard of `H2S34(aq)`: it holds no isotopologues at
+        all. So a recomputation moves one side of every labelled pair and leaves the other, and the
+        gap that opens between them is an equilibrium fractionation the database never had -- silent,
+        and on `SukindaCr53.dbs` at 500 bar as large as 0.33 log units, which is the same order as
+        the signal an isotope model exists to measure.
+
+        Detection is mechanical rather than by name: a group whose rows were byte-identical before
+        and are not after, where pyGCC updated some members and not others, has been split by this
+        call. Names are only used to decide whether it is safe to *act* -- `H2O2` looks exactly like
+        a labelled `H2O`, so a name test alone would corrupt a database. A group that splits without
+        looking like a labelled pair is reported and left alone.
+        """
+        suspected = suspected_isotope_pairs(database)
+
+        if updated_keys is None:
+            # recompute() records what it wrote in `updated`; regrid() rewrites every row and
+            # records only which of them pyGCC supplied a value for.
+            updated_keys = set(getattr(result, 'updated', None) or getattr(result, 'recomputed', []))
+
+        for (section, _), names in before.items():
+            updated = [name for name in names if f'{section}/{name}' in updated_keys]
+            left = [name for name in names if f'{section}/{name}' not in updated_keys]
+
+            if not updated or not left:
+                continue
+
+            source = updated[0]
+            values = database.value(section, source, 'log_k')
+
+            for name in left:
+                labelled = suspected.get(name) in names or suspected.get(source) == name
+                if labelled:
+                    database.modify(section, name, 'log_k',
+                                    [f'{float(value):.{LOG_K_DECIMALS}f}' for value in values])
+                    result.isotopes_restored[f'{section}/{name}'] = f'{section}/{source}'
+                else:
+                    result.split_copies[f'{section}/{name}'] = f'{section}/{source}'
 
     def regrid(self, database, temperatures, reactions='all'):
         """Rewrite a database onto a different set of temperature points.
@@ -642,6 +741,7 @@ class LogKCalculator:
         if not temperatures:
             raise ValueError('A database needs at least one temperature point.')
 
+
         if len(temperatures) > MAX_TEMPERATURE_POINTS:
             raise ValueError(
                 f'{len(temperatures)} temperature points, but CrunchTope is built for at most '
@@ -660,6 +760,9 @@ class LogKCalculator:
 
         wanted = None if reactions == 'all' else set(reactions)
         old_temperatures = [float(value) for value in database.temp_field]
+        # Same reason as in recompute(): a labelled pair whose parent pyGCC can compute and whose
+        # copy it cannot has one row recomputed and the other resampled, which separates them.
+        before = self.identical_columns(database, GRIDDED_SECTIONS)
         result = LogKRegrid(temperatures, self.settings)
 
         for section in GRIDDED_SECTIONS:
@@ -693,6 +796,10 @@ class LogKCalculator:
 
         self.write_header(database, temperatures, old_temperatures)
         database.reparse()
+
+        # Same hazard as in recompute(): a labelled pair whose parent pyGCC can compute and whose
+        # copy it cannot ends up with one row recomputed and the other resampled.
+        self.rejoin_split_copies(database, before, result)
 
         print(result.summary())
 

@@ -158,11 +158,19 @@ def _print_aux_files(input_file, tmp_path):
     directory rather than from the object that carried the settings. Without the sidecar the
     pressure would be gone by the time anything came to record it.
     """
+    record_path = Path(tmp_path) / LOGK_RECORD
+
     if getattr(input_file, 'logk_settings', None):
         import json
 
-        with open(tmp_path / LOGK_RECORD, 'w') as record:
+        with open(record_path, 'w') as record:
             json.dump(input_file.logk_settings, record, indent=2, sort_keys=True)
+    elif record_path.exists():
+        # rhea/prep_directories.sh does `mkdir run$N` and never clears it, so a directory reused by
+        # a later sweep keeps whatever the last one left. A sidecar from a sweep that varied the
+        # pressure would otherwise be read back as this run's, and recorded as a pressure that never
+        # applied. Nothing swept means there is nothing to record.
+        record_path.unlink()
 
     if input_file.aqueous_database:
         kinetic_db = _get_kinetic_db_name(input_file)

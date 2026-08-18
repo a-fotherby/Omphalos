@@ -314,7 +314,17 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True)
             # recomputed with are therefore recorded on the InputFile at generation time, and read
             # from the pickle here -- which is still what ran, not what the config asked for.
             data_vars = {}
-            for setting in swept:
+            for setting, spec in swept.items():
+                if staged_mode and spec[0] == 'staged':
+                    # One pickle survives per run, so it can only carry one stage's settings --
+                    # reading it would record that stage's value for every stage. Re-derived from
+                    # the config instead, exactly as the other blocks do for a staged sweep.
+                    data_vars[_netcdf_name(setting)] = staged_var(
+                        {s: stage_configs[s]['database_logk']['swept'][setting]
+                         for s in range(num_stages)}
+                    )
+                    continue
+
                 values = []
                 for fn in file_nums:
                     used = getattr(input_files[fn], 'logk_settings', None) or {}

@@ -221,6 +221,18 @@ python -m rhea.main config.yaml cluster
   named to pair with the results file just written (see [Compiling Input Conditions](#compiling-input-conditions))
 - `-b, --backend` — Parallelization backend: `xargs` (default) or `parallel` (GNU Parallel)
 
+> **`rhea` empties a run directory before reusing it.** The stale deck, database, `.tec` output and
+> `.rst` restart all go, because CrunchTope writes output per snapshot and a run producing fewer
+> snapshots than last time would otherwise leave the surplus behind to be collated as its own. The
+> per-run `input_file<N>_complete.pkl` is kept, and nothing outside the run directories is touched, so
+> an earlier `results.nc` and `conditions.nc` survive.
+>
+> Directories left by a **larger** sweep are refused rather than cleared: rerunning a three-run config
+> where `run0`–`run7` exist stops with an error naming `run3`–`run7`, before anything is removed.
+> Clearing them would throw away a record; ignoring them would let `coeus` compile eight runs'
+> parameters beside three runs' results, joined silently on run number. Move them aside, or run the
+> smaller sweep elsewhere.
+
 ### Collecting Results
 
 Results are saved in two formats:
@@ -459,6 +471,11 @@ namelists:
         - [1e-10, 1e-8]
 ```
 
+> **A rate given in the deck overrides the one in the aqueous database.** So sweeping a reaction rate
+> normally means `aqueous_kinetics:` — the deck's `AQUEOUS_KINETICS` block — and not `namelists:`,
+> whose `rate25C` the deck then supersedes. Use `namelists:` for what the deck cannot say: the Monod
+> terms, the biomass species, `chi`, the stoichiometry.
+
 #### Database Parameters
 
 Modify the thermodynamic database (`.dbs`). `database:` names the file, so the parameters inside it
@@ -545,13 +562,30 @@ the parent's kinetics block is copied where it has one and reported where it doe
 
 Molecular weights are shifted by default, per atom of the element, by the label minus the element's
 rounded standard atomic weight — +1 for Cr53, +4 for Ca44. Set `mass_shift` to a number to override,
-or `null` to keep the parents' weights.
+`null` to keep the parents' weights, or `weights` to set one outright. A species whose reaction
+*consumes* the element rather than containing it — `Fe(OH)3_HS`, ferrihydrite reduced by sulfide,
+written `-0.5 HS- …` — holds a negative number of atoms, which would make its copy lighter than its
+parent. Those keep the parent's weight and are named in the report.
 
-Fractionation splits by kind. **Equilibrium** fractionation belongs in the database, so `keq_offset`
-applies it to the copied reactions' equilibrium constants. **Kinetic** fractionation belongs in the
-input file, where the deck's `AQUEOUS_KINETICS` block sets a rate per reaction — the Sukinda deck
-carries `Cr_Fe_redox -rate 29.59E6` against `Cr53_Fe_redox -rate 29.51E6` — and Omphalos already
-sweeps those through `aqueous_kinetics:`, `fix_ratio` included.
+Fractionation splits by kind. **Equilibrium** fractionation is an offset on the labelled reaction's
+equilibrium constant, and `keq_offset` applies it to the copied **namelist** reactions' `keq` — the
+aqueous kinetics and catabolic pathways, not the `.dbs`. It is a no-op for a system with no namelist,
+and for a mineral or secondary species, whose equilibrium constant is a log K column: offset those
+with `database_parameters:` on the isotopologue row, which a config may name in the same sweep that
+creates it. **Kinetic** fractionation belongs in the
+input file, where the deck's `AQUEOUS_KINETICS` block sets a rate per reaction and overrides whatever
+the aqueous database gives — the Sukinda deck carries `Cr_Fe_redox -rate 29.59E6` against
+`Cr53_Fe_redox -rate 29.51E6`. Omphalos sweeps those through `aqueous_kinetics:`, `fix_ratio`
+included, which is how a fractionation factor is swept directly: the ratio of the two rates *is*
+alpha.
+
+> **Combining this with `database_logk:`.** pyGCC holds no isotopologues, so it cannot recompute one.
+> What happens instead is that a recomputation copies each parent's new column onto its copy, keeping
+> the pair identical as `add_isotope` left it. Without that, pyGCC would move one side of every
+> labelled pair and not the other, and the gap opening between them would be an equilibrium
+> fractionation the database never had — on `SukindaCr53.dbs` at 500 bar, as much as 0.33 log units,
+> which is the order of the signal an isotope model exists to measure. It is reported as
+> `isotopologue row(s) copied back` in the recomputation summary. `regrid` does the same.
 
 #### Recomputing log K with pyGCC
 
@@ -1067,7 +1101,7 @@ Per-module counts are deliberately left out — they go stale as soon as anyone 
 | `tests/unit/test_crunch_keywords.py` | `omphalos/crunch_keywords.py` — which auxiliary-database keywords a build reads |
 | `tests/unit/test_namelist.py` | `omphalos/namelist.py` — Fortran namelist (aqueous database, catabolic pathways) editing |
 | `tests/unit/test_min3p.py` | `min3p/` — the MIN3P backend: schema, template parsing, output parsing, restart chains |
-| `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation and failed-run accounting |
+| `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation, failed-run accounting, run-directory clearing |
 | `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that each run, and each stage, reads and writes its own auxiliary files |
 | `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
 | `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |

@@ -184,3 +184,8 @@ dmypy.json
 
 # MIN3P integration design notes (kept local, not tracked)
 MIN3P_integration_notes.md
+
+# Database editing design notes (kept local, not tracked)
+DATABASE_EDITING_PLAN.md
+DATABASE_AUDIT_3.md
+EXAMPLES_AUDIT.md

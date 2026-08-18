@@ -41,12 +41,16 @@
   - [Windows](#windows)
   - [Development Setup](#development-setup)
 - [Quick Start](#quick-start)
+  - [Example Configuration](#example-configuration)
+  - [Run Your First Simulation](#run-your-first-simulation)
 - [Usage](#usage)
   - [Running Simulations](#running-simulations)
   - [Collecting Results](#collecting-results)
 - [Configuration Guide](#configuration-guide)
   - [Frontmatter](#frontmatter)
   - [Parameter Modification](#parameter-modification)
+    - [Keyword Blocks](#keyword-blocks)
+    - [Condition Blocks](#condition-blocks)
     - [Namelists](#namelists)
     - [Database Parameters](#database-parameters)
     - [Adding an isotope](#adding-an-isotope)
@@ -56,6 +60,7 @@
   - [Staged Restarts](#staged-restarts)
 - [Project Structure](#project-structure)
 - [Testing](#testing)
+  - [Test Categories](#test-categories)
 - [Analysis with Coeus](#analysis-with-coeus)
   - [Loading and Filtering Results](#loading-and-filtering-results)
   - [Attribute Tables](#attribute-tables)
@@ -155,7 +160,7 @@ python .githooks/update_test_counts.py
 
 Omphalos requires two inputs:
 
-1. **A working CrunchTope/PFLOTRAN model** — Your template input file
+1. **A working CrunchTope, PFLOTRAN or MIN3P model** — Your template input file
 2. **A YAML configuration file** — Specifies how to vary model parameters
 
 > **Note:** Your CrunchTope template must have `graphics tecplot` in the RUNTIME block. Omphalos parses the TecPlot output format.
@@ -393,6 +398,11 @@ Modify parameters in standard CrunchTope blocks:
 | `MINERALS` | `mineral_rates` |
 | `AQUEOUS_KINETICS` | `aqueous_kinetics` |
 | `EROSION/BURIAL` | `erosion/burial` |
+| `BOUNDARY_CONDITIONS` | `boundary_conditions` |
+
+> **Note:** `boundary_conditions` varies the *condition* a boundary draws from, not the boundary
+> type — `x_begin: ['custom', ['boundary', 'initial']]` turns `x_begin boundary flux` into
+> `x_begin initial flux`, leaving `flux` alone.
 
 > **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`). The one exception is `CONDITION`, which is matched case insensitively, so `CONDITION`, `Condition` and `condition` all work. Matching the others case insensitively would mistake condition-block entries such as `temperature` for block delimiters.
 
@@ -462,6 +472,14 @@ gases:
 
 Modify auxiliary files (aqueous database, catabolic pathways):
 
+Three namelist groups are reachable, keyed by the file they live in:
+
+| Config keyword | File | Namelist group | Typical use |
+|---|---|---|---|
+| `aqueous` | `aqueous_database` | `&Aqueous` | `keq`, the reaction's equilibrium constant |
+| `aqueous_kinetics` | `aqueous_database` | `&AqueousKinetics` | `rate25C`, Monod terms, biomass, `chi` |
+| `catabolic_pathways` | `catabolic_pathways` | `&CatabolicPathway` | pathway stoichiometry and yields |
+
 ```yaml
 namelists:
   aqueous_kinetics:
@@ -469,6 +487,11 @@ namelists:
       rate:
         - 'random_uniform'
         - [1e-10, 1e-8]
+  aqueous:
+    Cr_Fe_redox:
+      keq:
+        - 'linspace'
+        - [1.5, 2.5]
 ```
 
 > **A rate given in the deck overrides the one in the aqueous database.** So sweeping a reaction rate
@@ -1298,7 +1321,8 @@ sweep from config to figure, and a README:
   the cold-start cost. Also shows where a chain's answer legitimately departs from a cold start, and why.
 - [`omphalos/examples/cesium_exchange`](omphalos/examples/cesium_exchange/) — **CrunchTope + rhea**: an
   ion-exchange selectivity coefficient swept in the *thermodynamic database*, where no keyword block can reach
-  it. Each run's `.dbs` differs from the template on exactly one line.
+  it. Each run's `.dbs` differs from the template on at most one line — the middle run is the fitted
+  value the sweep brackets, so its database is byte-identical.
 - [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_pressure_series/) — **CrunchTope +
   rhea**: a database whose log K columns are recomputed with pyGCC at a different pressure for each run, taking
   a quartz column from 1 km to 4 km depth. Shows how to record a parameter the database itself cannot carry.

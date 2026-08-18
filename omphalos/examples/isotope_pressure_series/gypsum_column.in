@@ -1,0 +1,154 @@
+! Gypsum dissolution with a sulfur isotope, at depth — Omphalos/rhea example.
+!
+! A dilute water advects through gypsum sand and dissolves it. Sulfur is carried as
+! two species, SO4-- and S34O4--, and neither the deck nor the shipped database
+! contains the second one: Omphalos builds the whole S34 system before each run,
+! from the config's database_isotopes block.
+!
+! isotope_pressure_series.yaml then sweeps the pressure the log K columns are
+! computed at. The point of the example is what that does to the isotope pair.
+! pyGCC can recompute CaSO4(aq) and has never heard of CaS34O4(aq), so a naive
+! recomputation would move one and not the other -- and the gap between them is an
+! equilibrium fractionation nobody asked for. Omphalos copies each parent's new
+! column onto its copy, so the pair stays together and the isotope ratio the fluid
+! carries is the ratio the solid has.
+
+TITLE
+Gypsum dissolution with S34, 1 to 1000 bar.
+END
+
+RUNTIME
+time_units       years
+timestep_max     0.05
+timestep_init    1.e-10
+time_tolerance   0.1
+hindmarsh        true
+correction_max   2.0
+debye-huckel     true
+database_sweep   no
+speciate_only    false
+gimrt            true
+graphics         tecplot
+database         datacom.dbs
+screen_output    1000
+END
+
+! The pore velocity is q/phi = 100 m/yr, so the column flushes in about a year.
+! Gypsum is abundant and dissolves slowly enough that the solid is barely touched
+! over these times; the 5 yr slice is the one the analysis uses.
+
+OUTPUT
+time_units           years
+spatial_profile      2 5 20
+END
+
+TRANSPORT
+distance_units meters
+time_units     years
+fix_diffusion  0.0
+dispersivity   0.0
+END
+
+BOUNDARY_CONDITIONS
+x_begin   inflow    flux
+x_end     initial   flux
+END
+
+INITIAL_CONDITIONS
+initial 1-100
+END
+
+! Sulfur enters at close to its natural 34S abundance, and the two gypsums are
+! present in that ratio -- 0.0132 against 0.3000, or 4.21%. They share a rate
+! constant, a log K and a *specific* surface area, so their reactive areas follow
+! the amount of each phase present and keep doing so as the column dissolves.
+! Far from equilibrium that area ratio is what the fluid picks up. Cl- carries the
+! charge balance, and there is no carbonate anywhere in this system, deliberately.
+
+CONDITION inflow
+units            mol/kg
+temperature      25.0
+H2O              55.50843506
+pH               7.00
+Ca++             1.0e-6
+SO4--            9.58e-7
+S34O4--          4.21e-8
+Na+              0.001
+Cl-              charge
+Gypsum           0.3000   specific_surface_area  1.0
+Gypsum34         0.0132   specific_surface_area  1.0
+END
+
+CONDITION initial
+units            mol/kg
+temperature      25.0
+H2O              55.50843506
+pH               7.00
+Ca++             1.0e-6
+SO4--            9.58e-7
+S34O4--          4.21e-8
+Na+              0.001
+Cl-              charge
+Gypsum           0.3000   specific_surface_area  1.0
+Gypsum34         0.0132   specific_surface_area  1.0
+END
+
+TEMPERATURE
+set_temperature  25.0
+END
+
+POROSITY
+fix_porosity     0.30
+END
+
+PRIMARY_SPECIES
+H2O
+H+
+Ca++
+SO4--
+S34O4--
+Na+
+Cl-
+END
+
+! CaSO4(aq) and HSO4- are the pair that matters: pyGCC recomputes them, so their
+! S34 copies are the ones a recomputation would otherwise leave behind.
+
+SECONDARY_SPECIES
+OH-
+CaSO4(aq)
+CaS34O4(aq)
+HSO4-
+HS34O4-
+CaOH+
+NaSO4-
+NaS34O4-
+END
+
+MINERALS
+Gypsum     -label default   -rate -8.00
+Gypsum34   -label default   -rate -8.00
+END
+
+! This block is what makes CrunchTope treat the S34 species as the rare partners of
+! their S32 counterparts, rather than as unrelated components that happen to share a
+! log K. It needs a line per pair -- for the mineral as well as the primary species.
+!
+! Without the mineral line, Gypsum and Gypsum34 are independent phases, each driving
+! its own ion activity product to the same K, and the fluid degenerates to
+! 34SO4 = SO4 regardless of how much of each mineral is present.
+
+ISOTOPES
+primary  S34O4--   SO4--    0.0441626
+mineral  Gypsum34  Gypsum   none
+END
+
+DISCRETIZATION
+xzones 100 1.0
+END
+
+FLOW
+time_units       years
+distance_units   meters
+constant_flow    30.0
+END

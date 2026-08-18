@@ -681,7 +681,12 @@ class LogKCalculator:
         a labelled `H2O`, so a name test alone would corrupt a database. A group that splits without
         looking like a labelled pair is reported and left alone.
         """
-        suspected = suspected_isotope_pairs(database)
+        # Authoritative where it exists -- add_isotope records what it created, names given by hand
+        # included -- and the name heuristic only as a fallback for a database that merely ships with
+        # isotopologues.
+        declared = getattr(database, 'isotope_pairs', None) or {}
+        suspected = dict(suspected_isotope_pairs(database))
+        suspected.update({child: parent for parent, child in declared.items()})
 
         if updated_keys is None:
             # recompute() records what it wrote in `updated`; regrid() rewrites every row and

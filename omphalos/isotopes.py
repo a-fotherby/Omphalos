@@ -572,6 +572,15 @@ def add_isotope(database, element, label, parents=None, species=None, names=None
         name: new_name for name, new_name in labelled.items() if in_database(database, new_name)
     }
 
+    # Recorded on the database as well as returned. A log K recomputation has to know which rows are
+    # copies of which, and it cannot always tell from the names: a trivially-named mineral is labelled
+    # through `names`, so 'Anhydrite34' carries no element symbol before its digits and no name rule
+    # can recover 'Anhydrite' from it. Where this record is absent -- a database that merely ships
+    # with isotopologues -- a split pair is reported rather than rejoined.
+    pairs = dict(getattr(database, 'isotope_pairs', None) or {})
+    pairs.update(report.labelled)
+    database.isotope_pairs = pairs
+
     return report
 
 

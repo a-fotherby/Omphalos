@@ -1087,3 +1087,75 @@ class TestSuspectedIsotopePairs:
         from omphalos.isotopes import isotope_name
 
         assert isotope_name('H2O', 'O', '2') == 'H2O2'
+
+
+class TestTriviallyNamedCopies:
+    """A copy named by hand carries no element symbol before its digits.
+
+    `Anhydrite34` is what `names: {Anhydrite: 'Anhydrite34'}` produces, and no name rule can recover
+    `Anhydrite` from it — the character before the digits is a lowercase 'e'. So the name heuristic
+    cannot protect it, and the mapping add_isotope records has to.
+    """
+
+    @pytest.fixture
+    def with_named_copy(self, tmp_path):
+        pytest.importorskip('pygcc', reason='requires pygcc >= 1.5.3')
+        import shutil
+        import warnings
+
+        from omphalos.isotopes import add_isotope
+
+        source = Path(__file__).parent.parent.parent / 'omphalos' / 'examples' \
+            / 'quartz_pressure_series' / 'datacom.dbs'
+        path = tmp_path / 'named.dbs'
+        shutil.copy(source, path)
+
+        database = Database(str(path))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            add_isotope(database, 'S', '34', parents=['SO4--'],
+                        species=['Anhydrite'], names={'Anhydrite': 'Anhydrite34'})
+
+        return database, path
+
+    def test_the_name_rule_cannot_recover_the_parent(self, with_named_copy):
+        from omphalos.isotopes import suspected_isotope_pairs
+
+        database, _ = with_named_copy
+
+        assert suspected_isotope_pairs(database).get('Anhydrite34') is None
+
+    def test_but_the_recorded_pairs_can(self, with_named_copy):
+        database, _ = with_named_copy
+
+        assert database.isotope_pairs.get('Anhydrite') == 'Anhydrite34'
+
+    def test_so_it_is_rejoined_when_the_record_is_there(self, with_named_copy):
+        import warnings
+
+        database, _ = with_named_copy
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = logk.LogKCalculator(pressure=1000.0).recompute(database, on_unmatched='leave')
+
+        assert 'minerals/Anhydrite34' in result.isotopes_restored
+        assert (database.value('minerals', 'Anhydrite', 'log_k')
+                == database.value('minerals', 'Anhydrite34', 'log_k'))
+
+    def test_and_reported_rather_than_silently_split_without_it(self, with_named_copy):
+        # A database that merely *ships* with a trivially-named isotopologue: read from disk, nothing
+        # recorded. Nothing can safely identify the pair, so it is named for the reader instead.
+        import warnings
+
+        database, path = with_named_copy
+        database.print(str(path))
+        reread = Database(str(path))
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            result = logk.LogKCalculator(pressure=1000.0).recompute(reread, on_unmatched='leave')
+
+        assert 'minerals/Anhydrite34' in result.split_copies
+        assert 'minerals/Anhydrite34' not in result.isotopes_restored
+        assert 'WARNING' in result.summary()

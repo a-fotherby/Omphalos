@@ -1,0 +1,72 @@
+# Omphalos / CrunchTope example — an isotope system and a log K recomputation
+# together, which is the one combination that needs care.
+#
+# A gypsum column carries sulfur as SO4-- and S34O4--. Neither the deck's database
+# nor the deck's chemistry ships with S34: database_isotopes builds the whole
+# system first, and database_logk then recomputes the log K columns at a different
+# pressure for each run.
+#
+# THE INTERACTION
+# ---------------
+# pyGCC holds no isotopologues. It can recompute CaSO4(aq) and has never heard of
+# CaS34O4(aq), so a recomputation moves one side of every labelled pair and leaves
+# the other -- and the gap that opens between them is an equilibrium fractionation
+# the database never had. add_isotope copies log Ks unchanged precisely so that
+# nothing it does imposes a fractionation, and a recomputation would undo that.
+#
+# Omphalos copies each parent's new column onto its copy, reporting how many rows
+# it moved. The notebook checks the pair is still identical at every pressure, and
+# shows how large the invented fractionation would have been: it is exactly the
+# parent's own pressure shift, up to 0.29 log units here.
+#
+# Run with rhea (from this directory, omphalos environment active):
+#     rhea isotope_pressure_series.yaml local --compile-inputs
+
+### Frontmatter
+template: 'gypsum_column.in'
+database: 'datacom.dbs'
+aqueous_database:
+catabolic_pathways:
+restart_file:
+
+timeout: 600
+
+conditions:
+
+number_of_files: 5
+nodes: 4
+
+### The isotope system, built before any run
+# 'names' is needed because Gypsum and Anhydrite are trivial names: the formula
+# rule needs a capital S to label and there is none, so it reports them rather
+# than guessing. That also matters for the interaction — 'Gypsum34' carries no
+# element symbol before its digits, so no name rule can recover 'Gypsum' from it
+# either, and the pairing is taken from what this block recorded when it built it.
+database_isotopes:
+  - element: 'S'
+    label: 34
+    parents: ['SO4--']
+    species: ['CaSO4(aq)', 'HSO4-', 'NaSO4-', 'Gypsum']
+    names:
+      Gypsum: 'Gypsum34'
+
+### The pressure series
+# 150 bar is roughly hydrostatic at 1.5 km; 1000 bar is roughly lithostatic at 4 km.
+#
+# These five are pressures this deck's inflow condition speciates at. It does not
+# speciate at 1, 50, 100 or 900 bar -- CrunchTope's condition solver gives up on
+# this fluid at those, and the failure is chaotic rather than systematic, the same
+# behaviour the quartz_pressure_series README records for carbonate conditions.
+# It has nothing to do with the recomputation: the log K pairing below was checked
+# at all twelve pressures tried, the four that fail included, and every pair came
+# back identical. Change a pressure here and you may need to pick another.
+#
+# 'all' is the realistic setting for a deck with real aqueous speciation, and it is
+# what makes the interaction live: CaSO4(aq), HSO4- and NaSO4- are all recomputed,
+# and their S34 copies are not and cannot be.
+database_logk:
+  reactions: 'all'
+  on_unmatched: 'leave'
+  pressure:
+    - 'custom'
+    - [150.0, 250.0, 400.0, 600.0, 1000.0]

@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-998%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1002%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -585,7 +585,9 @@ alpha.
 > labelled pair and not the other, and the gap opening between them would be an equilibrium
 > fractionation the database never had — on `SukindaCr53.dbs` at 500 bar, as much as 0.33 log units,
 > which is the order of the signal an isotope model exists to measure. It is reported as
-> `isotopologue row(s) copied back` in the recomputation summary. `regrid` does the same.
+> `isotopologue row(s) copied back` in the recomputation summary, and `regrid` does the same. Worked
+> example, including how large the invented fractionation would have been:
+> [`omphalos/examples/isotope_pressure_series`](omphalos/examples/isotope_pressure_series/).
 
 #### Recomputing log K with pyGCC
 
@@ -1024,7 +1026,8 @@ omphalos/
 │   ├── restart_file.py      # Read/regrid CrunchTope .rst restart files (also a CLI)
 │   ├── example.yaml         # Annotated reference config
 │   └── examples/            # Worked examples (quartz_flow_sweep, grid_refinement_chain,
-│                            #   cesium_exchange, quartz_pressure_series)
+│                            #   cesium_exchange, quartz_pressure_series,
+│                            #   isotope_pressure_series)
 ├── pflotran/                # PFLOTRAN-specific code
 │   └── ...
 ├── min3p/                   # MIN3P-specific code
@@ -1061,7 +1064,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **998 tests**:
+The project includes a comprehensive test suite with **1002 tests**:
 
 ```bash
 # Run all tests
@@ -1299,6 +1302,11 @@ sweep from config to figure, and a README:
 - [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_pressure_series/) — **CrunchTope +
   rhea**: a database whose log K columns are recomputed with pyGCC at a different pressure for each run, taking
   a quartz column from 1 km to 4 km depth. Shows how to record a parameter the database itself cannot carry.
+- [`omphalos/examples/isotope_pressure_series`](omphalos/examples/isotope_pressure_series/) —
+  **CrunchTope + rhea**: `database_isotopes` and `database_logk` together, the one combination that
+  needs care. pyGCC cannot recompute an isotopologue, so a recomputation would separate it from its
+  parent and invent a fractionation; this shows the pair held together across a pressure series, and
+  how large the invented fractionation would have been.
 - [`min3p/examples/dissol_sweep`](min3p/examples/dissol_sweep/) — **MIN3P**: a calcite dissolution front driven by
   varying inflow acidity.
 - [`min3p/examples/velocity_sweep`](min3p/examples/velocity_sweep/) — **MIN3P**: an advective pH front and Darcy's

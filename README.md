@@ -596,9 +596,8 @@ Fractionation splits by kind. **Equilibrium** fractionation is an offset on the 
 equilibrium constant, and `keq_offset` applies it to the copied **namelist** reactions' `keq` — the
 aqueous kinetics and catabolic pathways, not the `.dbs`. It is a no-op for a system with no namelist,
 and for a mineral or secondary species, whose equilibrium constant is a log K column: offset those
-with `logk_offset`, which applies it per atom of the element — a species holding two sulfurs gets
-twice the offset. It is applied *after* any recomputation, since a recomputation copies each parent's
-column onto its copy and would otherwise wipe it. **Kinetic** fractionation belongs in the
+with `logk_offset`, per atom of the element, so a species holding two sulfurs gets twice the offset.
+Applied after any recomputation, which would otherwise wipe it. **Kinetic** fractionation belongs in the
 input file, where the deck's `AQUEOUS_KINETICS` block sets a rate per reaction and overrides whatever
 the aqueous database gives — the Sukinda deck carries `Cr_Fe_redox -rate 29.59E6` against
 `Cr53_Fe_redox -rate 29.51E6`. Omphalos sweeps those through `aqueous_kinetics:`, `fix_ratio`
@@ -661,9 +660,9 @@ example: [`omphalos/examples/quartz_pressure_series`](omphalos/examples/quartz_p
 
 #### Adding species a database lacks
 
-`database_add:` copies species in from the source compilation, leaving everything else alone. The
-alternative — regenerating the database — produces a different species set and placeholder kinetics,
-discarding exactly the fitted values pyGCC cannot compute.
+`database_add:` copies species in from the source compilation, leaving everything else alone —
+unlike regenerating the database, which discards the custom species and fitted values pyGCC cannot
+compute.
 
 ```yaml
 database_add:
@@ -672,14 +671,9 @@ database_add:
   on_unknown: 'warn'        # warn | error | leave
 ```
 
-The reaction, log K, molecular weight, ion size, charge and molar volume all come from the
-compilation. A species is added only where every species its reaction stands on is already in the
-database — a row written on a basis the database lacks is one CrunchTope stops reading — and those
-are reported rather than pulled in, since resolving them recursively would grow the database in ways
-you did not ask for.
-
-Checked against the row it replaces: stripping `Anhydrite` from `datacom.dbs` and adding it back
-reproduces the molar volume and molecular weight exactly, and the log K to within 0.008.
+Reaction, log K, molecular weight, ion size, charge and molar volume all come from the compilation.
+A species is added only where its reaction stands on species the database already has; the rest are
+reported, since a row on a basis the database lacks is one CrunchTope stops reading.
 
 #### Changing the temperature points
 
@@ -1141,15 +1135,10 @@ pytest tests/unit/test_keyword_block.py::TestConditionBlock -v
 Per-module counts are deliberately left out — they go stale as soon as anyone adds a test. Run
 `pytest --collect-only -q -o addopts=''` for the current breakdown.
 
-Everything under `tests/unit` mocks the solver, so it runs in seconds and needs nothing installed.
-`tests/integration/test_smoke.py` does the opposite: it runs CrunchTope against the shipped quartz
-deck and against databases Omphalos has edited, augmented and added an isotope to, checking that
-what it writes is a file CrunchTope reads. Those skip where no binary is configured, and are marked
-`smoke`, so `pytest -m 'not smoke'` leaves them out.
-
-They exist because every serious database bug found so far was found by running the solver, not by a
-unit test — a kinetics block appended past the section's trailing `+` separator parses perfectly and
-makes CrunchTope read to end of file.
+`tests/unit` mocks the solver and needs nothing installed. `tests/integration/test_smoke.py` runs
+CrunchTope against the shipped deck and against databases Omphalos has edited, augmented and added an
+isotope to, checking that what it writes is a file CrunchTope reads. Skipped without a binary, and
+marked `smoke`, so `pytest -m 'not smoke'` leaves them out.
 
 | Module | Covers |
 |--------|--------|

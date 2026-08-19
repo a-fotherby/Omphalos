@@ -281,6 +281,11 @@ class InputFile:
                     for i, coords in enumerate(coord_pairs):
                         result = re.findall(r"\d+", coords)
                         result = list(map(int, result))
+                        # A single index is the one-cell range: '1' means the same as '1-1', and a
+                        # region of [1] rather than [1, 1] is not the pair every reader of this
+                        # expects.
+                        if len(result) == 1:
+                            result = result * 2
                         condition_region[i] = result
 
                 except KeyError:

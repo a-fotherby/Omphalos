@@ -897,3 +897,108 @@ class TestSurfaceSiteNames:
         template = self._template(tmp_path, '')
 
         assert template._surface_sites() == ()
+
+
+class TestSingleIndexInitialConditions:
+    """CrunchTope accepts a single index where a range would do.
+
+    `speciate1 1 1 1` means the same as `speciate1 1-1 1-1 1-1`, and the short-course exercises write
+    0-D problems the first way. The block is keyed on its coordinate set so that one condition may be
+    applied over several non-contiguous regions, and that key used to be built by matching a range
+    -- which finds nothing in a single index. The key came out empty, collided with the block
+    keyword's (also keyed on ''), and overwrote it: the deck Omphalos then wrote had an orphan
+    condition name where its INITIAL_CONDITIONS block should have been, and CrunchTope could not read
+    it back.
+    """
+
+    DECK = """TITLE
+initial conditions form
+END
+
+RUNTIME
+database  d.dbs
+END
+
+OUTPUT
+spatial_profile  50.0
+END
+
+PRIMARY_SPECIES
+Na+
+END
+
+DISCRETIZATION
+xzones  1  1.0
+END
+
+Condition speciate1
+temperature  25.0
+Na+  0.01
+END
+
+INITIAL_CONDITIONS
+{initial_conditions}
+END
+"""
+
+    def _template(self, tmp_path, initial_conditions):
+        import contextlib
+        import io
+
+        deck = tmp_path / 'deck.in'
+        deck.write_text(self.DECK.format(initial_conditions=initial_conditions))
+
+        from omphalos.template import Template
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template({'template': str(deck), 'database': None, 'aqueous_database': None,
+                             'catabolic_pathways': None, 'number_of_files': 1, 'timeout': 60,
+                             'conditions': None})
+
+    def test_the_block_keyword_survives_a_single_index_condition(self, tmp_path):
+        template = self._template(tmp_path, 'speciate1 1 1 1')
+        contents = template.keyword_blocks['INITIAL_CONDITIONS'].contents
+
+        assert contents[''] == ['INITIAL_CONDITIONS']
+        assert contents['1 1 1'] == ['speciate1']
+
+    def test_a_range_is_unaffected(self, tmp_path):
+        template = self._template(tmp_path, 'speciate1 1-1 1-1 1-1')
+        contents = template.keyword_blocks['INITIAL_CONDITIONS'].contents
+
+        assert contents[''] == ['INITIAL_CONDITIONS']
+        assert contents['1-1 1-1 1-1'] == ['speciate1']
+
+    def test_a_single_index_is_the_one_cell_range(self, tmp_path):
+        """Test that '1' becomes [1, 1] rather than [1], which is the pair every reader expects."""
+        template = self._template(tmp_path, 'speciate1 1 1 1')
+
+        assert template.condition_blocks['speciate1'].region == [[[1, 1], [1, 1], [1, 1]]]
+
+    def test_the_written_deck_carries_the_block_and_its_coordinates(self, tmp_path):
+        """Test the failure that actually bit: what Omphalos writes has to be readable again."""
+        template = self._template(tmp_path, 'speciate1 1 1 1')
+        written = tmp_path / 'written.in'
+        template.path = written
+        template.print()
+
+        lines = [line.split() for line in written.read_text().splitlines()]
+        assert ['INITIAL_CONDITIONS'] in lines
+        assert ['speciate1', '1', '1', '1'] in lines
+
+    def test_a_fix_keyword_is_kept_off_the_coordinates(self, tmp_path):
+        # 'fix' is not part of the region, so it belongs with the condition rather than in the key.
+        template = self._template(tmp_path, 'speciate1 1 1 1 fix')
+        contents = template.keyword_blocks['INITIAL_CONDITIONS'].contents
+
+        assert contents['1 1 1'] == ['speciate1', 'fix']
+
+    def test_non_contiguous_regions_still_get_their_own_keys(self, tmp_path):
+        """Test the reason the block is keyed on coordinates at all."""
+        template = self._template(tmp_path, 'speciate1 1-5 1-1 1-1\nspeciate1 8-10 1-1 1-1')
+        contents = template.keyword_blocks['INITIAL_CONDITIONS'].contents
+
+        assert contents['1-5 1-1 1-1'] == ['speciate1']
+        assert contents['8-10 1-1 1-1'] == ['speciate1']
+        assert template.condition_blocks['speciate1'].region == [[[1, 5], [1, 1], [1, 1]],
+                                                                [[8, 10], [1, 1], [1, 1]]]

@@ -238,8 +238,20 @@ class Template(InputFile):
         Comment lines are dropped by read_file but their line numbers are preserved, so the index has
         gaps where comments were; blank lines inside a block are legal CrunchTope input and carry no
         entry. Both are nothing to read, so callers skip them.
+
+        A *trailing* comment is dropped here, because most blocks address their values by position
+        from the end. `CO2(aq)  CO2(g)  3.12E-04  !!in bars` tokenised whole gives four words, so a
+        sweep writing to the last of them replaced 'bars' and left the partial pressure alone -- the
+        run then completed with the unswept value while conditions.nc, reading the same last token,
+        reported that the sweep had been applied. Silently, and self-consistently.
         """
-        return self.raw.get(line_num, '').split()
+        words = self.raw.get(line_num, '').split()
+
+        for position, word in enumerate(words):
+            if word.startswith('!'):
+                return words[:position]
+
+        return words
 
     def add_isotopes(self):
         """Add the isotope systems the config asks for, before anything else touches the database.
@@ -649,15 +661,21 @@ class Template(InputFile):
                 if not line_list:
                     continue
                 try:
-                    # Regex extracts keys as unique coordinate sets.
-                    key = re.findall(r"\d+-\d+", self.raw[a])
-                    key = ' '.join(key)
+                    # The coordinate set is the key, taken as the tokens themselves rather than by
+                    # matching a range pattern. CrunchTope accepts a single index as readily as a
+                    # range -- 'speciate1 1 1 1' as well as 'initial 1-100' -- and a regex for
+                    # '\d+-\d+' finds nothing in the former, so its key came out empty and collided
+                    # with the block keyword's, which is also keyed on ''. The header was overwritten,
+                    # the coordinates were dropped, and the deck Omphalos wrote had an orphan
+                    # condition name where its INITIAL_CONDITIONS block should have been.
+                    coordinates = line_list[1:]
                     # Check to see if the fix keyword has been invoked.
-                    if line_list[-1] == 'fix':
-                        entry = [line_list[0]] + [line_list[-1]]
+                    if coordinates and coordinates[-1] == 'fix':
+                        coordinates = coordinates[:-1]
+                        entry = [line_list[0], 'fix']
                     else:
                         entry = [line_list[0]]
-                    keyword_dict.update({key: entry})
+                    keyword_dict.update({' '.join(coordinates): entry})
                 except IndexError:
                     # The block keyword is by itself, so there is no coordinate to use as a key.
                     # This will raise an IndexError, so catch it and allocate

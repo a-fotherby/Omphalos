@@ -398,12 +398,18 @@ Modify parameters in standard CrunchTope blocks:
 | `FLOW` | `flow` |
 | `MINERALS` | `mineral_rates` |
 | `AQUEOUS_KINETICS` | `aqueous_kinetics` |
+| `ISOTOPES` | `isotopes` |
 | `EROSION/BURIAL` | `erosion/burial` |
 | `BOUNDARY_CONDITIONS` | `boundary_conditions` |
 
 > **Note:** `boundary_conditions` varies the *condition* a boundary draws from, not the boundary
 > type — `x_begin: ['custom', ['boundary', 'initial']]` turns `x_begin boundary flux` into
 > `x_begin initial flux`, leaving `flux` alone.
+
+> **Note:** `isotopes` entries are keyed on the **rare isotope**, since `primary` and `mineral` both
+> repeat as leftmost words, and the swept value is the last token — for a mineral, its
+> recrystallisation option: `Calcite44: ['custom', ['none', 'surface', 'bulk']]`. Words are recorded
+> as text in `conditions.nc`, as is any non-numeric swept value.
 
 > **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`). The one exception is `CONDITION`, which is matched case insensitively, so `CONDITION`, `Condition` and `condition` all work. Matching the others case insensitively would mistake condition-block entries such as `temperature` for block delimiters.
 

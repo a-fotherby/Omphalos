@@ -1002,3 +1002,76 @@ END
         assert contents['8-10 1-1 1-1'] == ['speciate1']
         assert template.condition_blocks['speciate1'].region == [[[1, 5], [1, 1], [1, 1]],
                                                                 [[8, 10], [1, 1], [1, 1]]]
+
+
+class TestDeckWithoutInitialConditions:
+    """A deck need not have an INITIAL_CONDITIONS block.
+
+    `speciate_only true` with no grid is legal CrunchTope, and is how the short course's PEST exercises
+    are written: they speciate a list of measured waters and stop. There are then no regions to assign,
+    which is not an error -- but condition_regions used to raise KeyError from the missing block and
+    take the whole parse with it, so none of those decks could be read at all.
+    """
+
+    DECK = """TITLE
+speciate only, no grid
+END
+
+RUNTIME
+speciate_only   true
+database  d.dbs
+END
+
+OUTPUT
+END
+
+PRIMARY_SPECIES
+Na+
+Ca++
+END
+
+Condition water-1
+temperature  25.0
+Na+  1.0E-03
+Ca++  2.0E-04
+END
+
+Condition water-2
+temperature  25.0
+Na+  2.0E-03
+Ca++  4.0E-04
+END
+"""
+
+    def _template(self, tmp_path):
+        import contextlib
+        import io
+
+        deck = tmp_path / 'deck.in'
+        deck.write_text(self.DECK)
+
+        from omphalos.template import Template
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template({'template': str(deck), 'database': None, 'aqueous_database': None,
+                             'catabolic_pathways': None, 'number_of_files': 1, 'timeout': 60,
+                             'conditions': None})
+
+    def test_the_deck_parses(self, tmp_path):
+        template = self._template(tmp_path)
+
+        assert 'INITIAL_CONDITIONS' not in template.keyword_blocks
+        assert sorted(template.condition_blocks) == ['water-1', 'water-2']
+
+    def test_every_condition_has_an_empty_region(self, tmp_path):
+        """Test that the regions are empty rather than absent, so callers can iterate them."""
+        template = self._template(tmp_path)
+
+        for condition in template.condition_blocks.values():
+            assert condition.region == []
+
+    def test_the_conditions_keep_their_contents(self, tmp_path):
+        # The point of reading such a deck at all: its conditions are the data.
+        template = self._template(tmp_path)
+
+        assert template.condition_blocks['water-2'].contents['Na+'] == ['2.0E-03']

@@ -269,6 +269,13 @@ class InputFile:
         for condition in self.condition_blocks:
             self.condition_blocks[condition].region = []
 
+        # A deck need not have the block at all. 'speciate_only true' with no grid is legal CrunchTope
+        # and is how the short course's PEST exercises are written: they speciate a list of measured
+        # waters and stop. There are then no regions to assign, which is not an error -- but it used to
+        # raise KeyError from here and take the whole parse with it.
+        if 'INITIAL_CONDITIONS' not in self.keyword_blocks:
+            return
+
         for coord_string in self.keyword_blocks['INITIAL_CONDITIONS'].contents:
             # Skip the block title line.
             if not coord_string:

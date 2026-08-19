@@ -38,7 +38,10 @@ CT_ERROR_PATTERNS = [
     # prints this and exits, which is worse than hanging: pexpect sees EOF, the run is recorded as
     # a success, and get_results goes on to parse a directory containing no tecplot output at all.
     # Exercise17, Exercise18 and Exercise19 of the short course all ship decks that hit this.
-    'No Z location for pressure',
+    # Matched on the substring, as the timeseries case below is, because CrunchTope reports whichever
+    # axis is missing: Exercise19 prints the Y wording, and the literal 'No Z location for pressure'
+    # let it through to be recorded as a success with no output.
+    'location for pressure',
     # A time_series entry giving only an X node in a 2-D or 3-D problem: 'time_series out.dat 251'
     # wants a Y index too, as 'time_series_at_node out.dat 30 30' has. CrunchTope exits, so this is
     # the same false success as the pressure case above. Matched on the substring so that the Y and

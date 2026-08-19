@@ -599,3 +599,48 @@ class TestNamesNetcdfRefuses:
         ds = xr.open_dataset(summary['output'],
                             group='database_parameters/surface_complexation/_>FeOHZn+_w')
         assert np.allclose(ds['log_k'].values, [1.32, 3.32])
+
+
+class TestWordValuedParameters:
+    """A swept value is not always a number.
+
+    The ISOTOPES block's recrystallisation option is `bulk`, `surface` or `none`, and a condition entry
+    may read `charge`. float() raises ValueError on those, which used to escape the except clause
+    uncaught and take the whole record with it.
+    """
+
+    CONFIG = {
+        'number_of_files': 3,
+        'isotopes': {'Calcite44Rifle': ['custom', ['none', 'surface', 'bulk']]},
+    }
+
+    def _write_runs(self, directory, options):
+        for run_num, option in enumerate(options):
+            run_dir = directory / f'run{run_num}'
+            run_dir.mkdir()
+            input_file = types.SimpleNamespace(
+                keyword_blocks={
+                    'ISOTOPES': types.SimpleNamespace(
+                        contents={'Calcite44Rifle': ['mineral', 'CalciteRifle', option]}),
+                },
+                condition_blocks={},
+            )
+            with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+                pickle.dump(input_file, f)
+
+    def test_a_word_is_recorded_as_text(self, tmp_path):
+        self._write_runs(tmp_path, ['none', 'surface', 'bulk'])
+
+        summary = compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        ds = xr.open_dataset(summary['output'], group='isotopes')
+        assert list(ds['Calcite44Rifle'].values) == ['none', 'surface', 'bulk']
+
+    def test_numbers_are_still_recorded_as_numbers(self, tmp_path):
+        # The fallback must not turn an ordinary numeric sweep into strings.
+        self._write_runs(tmp_path, ['0.021667', '0.021668', '0.021669'])
+
+        summary = compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        ds = xr.open_dataset(summary['output'], group='isotopes')
+        assert np.allclose(ds['Calcite44Rifle'].values, [0.021667, 0.021668, 0.021669])

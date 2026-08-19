@@ -35,6 +35,10 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           'surface_complexes': ['geochemical condition', -1],
           'mineral_rates': ['MINERALS', -1],
           'aqueous_kinetics': ['AQUEOUS_KINETICS', -1],
+          # Entries are keyed on the rare isotope, since 'primary' and 'mineral' both repeat, so the
+          # last token of a mineral line is its recrystallisation option -- bulk, surface or none.
+          # That is what the Ex8 short-course exercise sweeps, and it is a word rather than a number.
+          'isotopes': ['ISOTOPES', -1],
           'flow': ['FLOW', 0],
           'transport': ['TRANSPORT', -1],
           'erosion/burial': ['EROSION/BURIAL', -1],

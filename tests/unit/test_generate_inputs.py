@@ -1126,3 +1126,123 @@ class TestFormatTokenIsKept:
 
         assert template.keyword_blocks['TEMPERATURE'].contents['read_temperaturefile'] == \
             ['t_stage1.dat', 'FullForm']
+
+
+# A deck with an ISOTOPES block, minimal but complete enough to parse and print. The recrystallisation
+# option is the last token of the 'mineral' line, and both 'primary' and 'mineral' repeat as leftmost
+# words, so the block is keyed on the rare isotope rather than on the keyword.
+ISOTOPE_DECK = """TITLE
+isotope sweep
+END
+
+RUNTIME
+database  d.dbs
+END
+
+OUTPUT
+spatial_profile  80.0
+END
+
+PRIMARY_SPECIES
+Ca++
+Ca44++
+END
+
+MINERALS
+CalciteRifle    -label default -rate  -4.1
+Calcite44Rifle  -label default -rate  -4.10086946
+END
+
+ISOTOPES
+primary  Ca44++  Ca++  0.021667
+mineral  Calcite44Rifle  CalciteRifle  bulk
+END
+
+DISCRETIZATION
+xzones  1  1.0
+END
+
+Condition amendment
+temperature  25.0
+END
+
+INITIAL_CONDITIONS
+amendment  1-1  1-1  1-1
+END
+"""
+
+
+class TestIsotopeSweep:
+    """Tests for sweeping the ISOTOPES block.
+
+    The Ex8 short-course exercise sweeps the recrystallisation option -- bulk, surface or none -- which
+    decides how much of the mineral already present the isotopes may exchange with. It is a word, not a
+    number, and it sits in a block whose leftmost words repeat.
+    """
+
+    def _template(self, tmp_path, config_extra):
+        deck = tmp_path / 'iso.in'
+        deck.write_text(ISOTOPE_DECK)
+
+        from omphalos.template import Template
+
+        config = {
+            'template': str(deck), 'database': None, 'aqueous_database': None,
+            'catabolic_pathways': None, 'number_of_files': 3, 'timeout': 60, 'conditions': None,
+        }
+        config.update(config_extra)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template(config)
+
+    def test_isotopes_is_sweepable(self):
+        """Test that the block is addressable at all, at its last token."""
+        assert gi.CT_IDs['isotopes'] == ['ISOTOPES', -1]
+
+    def test_the_recrystallisation_option_reaches_every_run(self, tmp_path):
+        """Test that each run's deck carries the word the config gave it."""
+        template = self._template(tmp_path, {
+            'isotopes': {'Calcite44Rifle': ['custom', ['none', 'surface', 'bulk']]},
+        })
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        options = [file_dict[run].keyword_blocks['ISOTOPES'].contents['Calcite44Rifle'][-1]
+                   for run in sorted(file_dict)]
+        assert options == ['none', 'surface', 'bulk']
+
+    def test_the_primary_line_is_left_alone(self, tmp_path):
+        """Test that sweeping the mineral line does not disturb the isotope pair or its standard."""
+        template = self._template(tmp_path, {
+            'isotopes': {'Calcite44Rifle': ['custom', ['none', 'surface', 'bulk']]},
+        })
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        for run in file_dict:
+            assert file_dict[run].keyword_blocks['ISOTOPES'].contents['Ca44++'] == \
+                ['primary', 'Ca++', '0.021667']
+
+    def test_the_written_deck_round_trips(self, tmp_path):
+        """Test that the swept block prints back in the order CrunchTope reads it.
+
+        The ISOTOPES block is keyed on its second word, so printing has to put the key back in the
+        middle: 'mineral <rare> <common> <option>'. A block that printed in dictionary order would be
+        read by CrunchTope as a different statement entirely.
+        """
+        template = self._template(tmp_path, {
+            'isotopes': {'Calcite44Rifle': ['custom', ['none', 'surface', 'bulk']]},
+        })
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        written = tmp_path / 'written.in'
+        file_dict[1].path = written
+        file_dict[1].print()
+
+        lines = [line.split() for line in written.read_text().splitlines()]
+        assert ['mineral', 'Calcite44Rifle', 'CalciteRifle', 'surface'] in lines
+        assert ['primary', 'Ca44++', 'Ca++', '0.021667'] in lines

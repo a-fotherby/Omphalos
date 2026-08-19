@@ -521,9 +521,19 @@ class TestTwoDimensionalStartupFailures:
 
     def test_missing_k_range_on_a_pressure_zone_is_an_error_pattern(self):
         """Test that a FLOW zone entry without its K range is caught."""
-        assert 'No Z location for pressure' in run.CT_ERROR_PATTERNS
+        assert 'location for pressure' in run.CT_ERROR_PATTERNS
 
-    @pytest.mark.parametrize('pattern', ['Return to continue', 'No Z location for pressure'])
+    @pytest.mark.parametrize('wording', ['No Z location for pressure',
+                                         'No Y location for pressure'])
+    def test_either_missing_axis_is_matched(self, wording):
+        """Test that the pattern catches whichever axis CrunchTope names.
+
+        Exercise19 prints the Y wording, and against the literal 'No Z location for pressure' it went
+        through as a successful run that wrote nothing.
+        """
+        assert any(pattern in wording for pattern in run.CT_ERROR_PATTERNS)
+
+    @pytest.mark.parametrize('pattern', ['Return to continue', 'location for pressure'])
     def test_neither_is_recorded_as_a_successful_run(self, pattern, tmp_path, monkeypatch):
         """Test that matching either one flags the file and does not parse outputs."""
         error_code = run.CT_ERROR_PATTERNS.index(pattern) + 2

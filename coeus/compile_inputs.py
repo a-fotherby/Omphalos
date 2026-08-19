@@ -31,6 +31,42 @@ def _netcdf_name(name):
     return netcdf_name(name)
 
 
+def _values_from_tokens(tokens, make_var):
+    """Wrap per-run tokens into an xr.Variable, as numbers where they are numbers.
+
+    A swept value is usually a number, but not always: the ISOTOPES block's recrystallisation option
+    is `bulk`, `surface` or `none`, and a condition entry may read `charge`. Those have no numeric
+    value to record and would be lost entirely as a column of NaNs -- and `float('bulk')` raises
+    ValueError, which used to escape uncaught and take the whole record with it.
+
+    Args:
+        tokens: One raw token per run, or None where the run could not be read.
+        make_var: Wraps a list of per-run values into an xr.Variable.
+
+    Returns:
+        An xr.Variable of floats, or of strings where any readable token is not a number.
+    """
+    numbers = []
+
+    for raw in tokens:
+        if raw is None:
+            numbers.append(None)
+            continue
+        try:
+            numbers.append(float(raw))
+        except (TypeError, ValueError):
+            numbers.append(None)
+
+    readable = [number for raw, number in zip(tokens, numbers) if raw is not None]
+
+    # Vacuously true where nothing could be read, which is a column of NaNs: nothing there says the
+    # sweep was of anything but numbers.
+    if all(number is not None for number in readable):
+        return make_var([float('nan') if number is None else number for number in numbers])
+
+    return make_var(['' if raw is None else str(raw) for raw in tokens])
+
+
 def _min3p_token(input_file, block_name, keyword, line, token):
     """Return the raw token at a MIN3P modification's coordinate.
 
@@ -339,15 +375,15 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True,
                             {s: stage_configs[s][block][condition][entry] for s in range(num_stages)}
                         )
                     else:
-                        values = []
+                        tokens = []
                         for fn in file_nums:
                             try:
-                                val = input_files[fn].condition_blocks[condition].contents[entry][mod_pos]
-                                values.append(float(val))
+                                tokens.append(
+                                    input_files[fn].condition_blocks[condition].contents[entry][mod_pos])
                             except (KeyError, IndexError, TypeError) as e:
                                 print(f'Warning: Could not read {block}/{condition}/{entry} for file {fn}: {e}')
-                                values.append(float('nan'))
-                        data_vars[entry] = make_var(values)
+                                tokens.append(None)
+                        data_vars[entry] = _values_from_tokens(tokens, make_var)
 
                 write(xr.Dataset(data_vars, coords=make_coords()), f'{block}/{condition}')
                 groups_written += 1
@@ -361,15 +397,15 @@ def compile_inputs(config, output='conditions.nc', directory=None, verbose=True,
                         {s: stage_configs[s][block][entry] for s in range(num_stages)}
                     )
                 else:
-                    values = []
+                    tokens = []
                     for fn in file_nums:
                         try:
-                            val = input_files[fn].keyword_blocks[block_name].contents[entry][mod_pos]
-                            values.append(float(val))
+                            tokens.append(
+                                input_files[fn].keyword_blocks[block_name].contents[entry][mod_pos])
                         except (KeyError, IndexError, TypeError) as e:
                             print(f'Warning: Could not read {block}/{entry} for file {fn}: {e}')
-                            values.append(float('nan'))
-                    data_vars[entry] = make_var(values)
+                            tokens.append(None)
+                    data_vars[_netcdf_name(entry)] = _values_from_tokens(tokens, make_var)
 
             write(xr.Dataset(data_vars, coords=make_coords()), block)
             groups_written += 1

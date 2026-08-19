@@ -432,3 +432,118 @@ class TestPathHandling:
 
         result = fm.unpickle(tmp_path / 'test.pkl')
         assert result == data
+
+
+# The single-cell surface output of the Ex6B short-course exercise, verbatim in shape: nine names
+# for eleven columns. The two unnamed ones are the free sites, and they come first.
+SURFACE_TEC = ''' TITLE = "Surface Complex Concentration" 
+VARIABLES = "X"   "Y"   "Z"   ">FeO-_str"   ">FeOH2+_str"   ">FeOHZn+_str"   ">FeO-_w"   ">FeOH2+_w"   ">FeOHZn+_w"    
+ ZONE I=           1 , J=           1 , K=           1  F=POINT
+   5.0E-01   5.0E-01   5.0E-01   2.2194E-03   8.8783E-02   3.9934E-05   2.8258E-03   3.4301E-07   1.5975E-03   1.1304E-01   1.4368E-08
+'''
+
+
+class TestUndeclaredColumns:
+    """Tests for output that writes more columns than it names.
+
+    CrunchTope's `surface` writer builds its VARIABLES line over the secondary surface complexes and
+    then writes the data over the free sites *followed by* those complexes (GraphicsVisit.F90). The
+    file therefore carries unnamed leading columns, and because they come first, reading the header at
+    face value attributes every value to the wrong species.
+    """
+
+    def _write(self, tmp_path):
+        path = tmp_path / 'surface1.tec'
+        path.write_text(SURFACE_TEC)
+        return path
+
+    def test_the_data_width_is_counted_from_the_first_data_row(self, tmp_path):
+        assert fm.data_width(self._write(tmp_path), skip=3) == 11
+
+    def test_supplied_names_go_before_the_declared_ones(self):
+        headers = ['X', 'Y', 'Z', 'a', 'b']
+        reconciled = fm.reconcile_headers(headers, 7, leading_names=('site1', 'site2'))
+
+        assert reconciled == ['X', 'Y', 'Z', 'site1', 'site2', 'a', 'b']
+
+    def test_a_header_already_as_wide_as_the_data_is_untouched(self):
+        headers = ['X', 'Y', 'Z', 'a']
+
+        assert fm.reconcile_headers(headers, 4, leading_names=('unused',)) == headers
+
+    def test_the_wrong_number_of_names_falls_back_to_placeholders(self):
+        with pytest.warns(UserWarning, match='9 column names for 11'):
+            reconciled = fm.reconcile_headers(['X', 'Y', 'Z'] + list('abcdef'), 11,
+                                              leading_names=('only_one',))
+
+        # Placeholders still put the declared names back on their own columns, which is the point:
+        # a wrong name is worse than an obviously absent one.
+        assert reconciled[3:5] == ['unnamed_1', 'unnamed_2']
+        assert reconciled[5:] == list('abcdef')
+
+    def test_the_sites_land_on_their_own_values(self, tmp_path):
+        """Test that the reconstructed names describe the columns they are given.
+
+        Checked against the deck rather than against the file: the weak site density is 40x the
+        strong one, so the free-site columns must show that ratio. They do -- which is what
+        establishes that the unnamed columns are the sites and that they come first.
+        """
+        self._write(tmp_path)
+
+        ds = fm.parse_output(tmp_path, 'surface', 1,
+                             leading_names=('>FeOH_strong', '>FeOH_weak'))
+
+        strong = float(ds['>FeOH_strong'].values.ravel()[0])
+        weak = float(ds['>FeOH_weak'].values.ravel()[0])
+        assert strong == pytest.approx(2.2194e-03)
+        assert weak / strong == pytest.approx(40.0, rel=1e-3)
+        assert float(ds['>FeOHZn+_w'].values.ravel()[0]) == pytest.approx(1.4368e-08)
+
+    def test_a_single_cell_file_parses(self, tmp_path):
+        """Test that a 1x1x1 output is read, since every batch deck writes one."""
+        self._write(tmp_path)
+
+        ds = fm.parse_output(tmp_path, 'surface', 1,
+                             leading_names=('>FeOH_strong', '>FeOH_weak'))
+
+        assert dict(ds.sizes) == {'X': 1, 'Y': 1, 'Z': 1}
+
+
+class TestNetcdfNames:
+    """Tests for rewriting names netCDF will not accept.
+
+    Two distinct rules, and only the first was handled before: '/' is forbidden anywhere, and the
+    *first* character must be alphanumeric or an underscore. Every CrunchTope surface complex is
+    named with a leading '>', so nothing from a SURFACE_COMPLEXATION deck could be written at all.
+    """
+
+    def test_a_slash_is_replaced_anywhere(self):
+        assert fm.netcdf_name('C-Alk [eq/L]') == 'C-Alk [eq_per_L]'
+
+    def test_a_leading_symbol_is_prefixed(self):
+        assert fm.netcdf_name('>FeOHZn+_w') == '_>FeOHZn+_w'
+
+    def test_symbols_after_the_first_character_are_left_alone(self):
+        # netCDF accepts these, and renaming them would needlessly rewrite every species label.
+        for name in ('Ca++', 'SO4--', 'CO2(aq)', 'X>FeO'):
+            assert fm.netcdf_name(name) == name
+
+    def test_a_name_starting_with_a_digit_is_left_alone(self):
+        assert fm.netcdf_name('13CO2(aq)') == '13CO2(aq)'
+
+    def test_a_dataset_is_renamed_in_place_of_its_variables(self):
+        import xarray as xr
+
+        ds = xr.Dataset({'>FeO-_str': ('X', [1.0]), 'Ca++': ('X', [2.0])})
+        renamed = fm.sanitise_netcdf_names(ds)
+
+        assert set(renamed.data_vars) == {'_>FeO-_str', 'Ca++'}
+
+    def test_a_surface_complex_survives_a_netcdf_round_trip(self, tmp_path):
+        """Test the thing that actually failed: writing the name to a file."""
+        import xarray as xr
+
+        ds = fm.sanitise_netcdf_names(xr.Dataset({'>FeOHZn+_w': ('X', [1.4368e-08])}))
+        ds.to_netcdf(tmp_path / 'r.nc', group='surface', mode='a')
+
+        assert '_>FeOHZn+_w' in xr.open_dataset(tmp_path / 'r.nc', group='surface').data_vars

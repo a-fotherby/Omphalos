@@ -18,13 +18,17 @@ if str(_project_root) not in sys.path:
 
 
 def _netcdf_name(name):
-    """Return a name netCDF can hold.
+    """Return a name netCDF can hold, by the same rule the results file uses.
 
-    Group and variable names may not contain '/', which netCDF reads as a path separator. Database
-    entry names are chemical formulae and rate law labels, so most punctuation is fine and only the
-    slash needs replacing.
+    Database entry names are chemical formulae and rate law labels, so most punctuation is fine: it
+    is the '/' anywhere, and a first character that is neither alphanumeric nor an underscore, that
+    netCDF refuses. A surface complex is named '>FeOHZn+_w' and hits the second -- and because
+    `rhea` treats a failed record as a warning beside results it has already written, the whole
+    record went missing with only a line of output to say so.
     """
-    return str(name).replace('/', '_')
+    from core.file_methods import netcdf_name
+
+    return netcdf_name(name)
 
 
 def _min3p_token(input_file, block_name, keyword, line, token):

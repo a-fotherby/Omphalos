@@ -289,6 +289,25 @@ class InputFile:
 
                 self.condition_blocks[condition].region.append(condition_region)
 
+    def _surface_sites(self):
+        """The free surface sites the deck declares, in the order it declares them.
+
+        CrunchTope's `surface` output writes a column per free site before the columns it names, so
+        these are the names its header is missing. The deck's SURFACE_COMPLEXATION block is the only
+        place they appear in the order the output uses.
+
+        The block keyword itself is one of the parsed entries -- every block is keyed on the leftmost
+        word of each of its lines, the opening line included -- and has to come out, or the count of
+        supplied names exceeds the count of unnamed columns and none of them is used.
+        """
+        keyword = 'SURFACE_COMPLEXATION'
+        block = self.keyword_blocks.get(keyword)
+
+        if block is None:
+            return ()
+
+        return tuple(entry for entry in block.contents if entry != keyword)
+
     def get_results(self, tmp_dir, file_offset=0):
         """Parse CrunchTope output files and store results.
 
@@ -323,10 +342,16 @@ class InputFile:
             print(f'Parsing {category}')
             ds_list = list()
             skip_counter = 0
+            # The one category whose file names fewer columns than it writes. The names it omits are
+            # the free surface sites, which the deck lists in the order CrunchTope writes them, so
+            # they can be supplied from here -- and without them every column of that file is
+            # attributed to the wrong species. See core.file_methods.reconcile_headers.
+            leading_names = self._surface_sites() if category == 'surface' else ()
 
             for i, time in enumerate(times):
                 try:
-                    ds = fm.parse_output(tmp_dir, category, i + 1 + file_offset)
+                    ds = fm.parse_output(tmp_dir, category, i + 1 + file_offset,
+                                         leading_names=leading_names)
                     ds_list.append(ds)
                 except Exception as e:
                     skip_counter += 1

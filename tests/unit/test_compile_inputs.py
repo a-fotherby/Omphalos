@@ -551,3 +551,51 @@ class TestMin3pModifications:
 
         with pytest.raises(ValueError, match='pflotran'):
             compile_inputs(MIN3P_CONFIG, directory=tmp_path, verbose=False, simulator='pflotran')
+
+
+class _FixedDatabase:
+    """A database that reports one value, whatever is asked of it. Picklable, unlike a lambda."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def value(self, section, entry, parameter):
+        return self._value
+
+
+class TestNamesNetcdfRefuses:
+    """A '>'-prefixed database entry has to reach the record.
+
+    netCDF requires a group or variable name to begin with an alphanumeric or an underscore. Every
+    CrunchTope surface complex is named '>FeOHZn+_w', and because rhea treats a failed record as a
+    warning beside results it has already written, the whole of conditions.nc went missing with one
+    line of output to say so.
+    """
+
+    CONFIG = {
+        'number_of_files': 2,
+        'database_parameters': {
+            'surface_complexation': {
+                '>FeOHZn+_w': {'log_k': ['custom', [1.32, 3.32]]},
+            },
+        },
+    }
+
+    def _write_runs(self, directory, values):
+        for run_num, value in enumerate(values):
+            run_dir = directory / f'run{run_num}'
+            run_dir.mkdir()
+            input_file = _input_file()
+            input_file.database = _FixedDatabase(value)
+            with open(run_dir / f'input_file{run_num}_complete.pkl', 'wb') as f:
+                pickle.dump(input_file, f)
+
+    def test_the_group_is_written_under_a_name_netcdf_accepts(self, tmp_path):
+        self._write_runs(tmp_path, [1.32, 3.32])
+
+        summary = compile_inputs(self.CONFIG, directory=tmp_path, verbose=False)
+
+        assert summary['groups'] == 1
+        ds = xr.open_dataset(summary['output'],
+                            group='database_parameters/surface_complexation/_>FeOHZn+_w')
+        assert np.allclose(ds['log_k'].values, [1.32, 3.32])

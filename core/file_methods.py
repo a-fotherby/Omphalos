@@ -3,6 +3,7 @@
 import glob
 import pickle
 import re
+import warnings
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -89,7 +90,74 @@ def search_file(dictionary, by_val, allow_white_space=True):
     return np.array(keys_list, dtype=int)
 
 
-def parse_output(path, output, time_ref):
+# The X, Y and Z columns every TecPlot spatial output opens with. An unnamed column belongs after
+# them, never before, so this is where reconstructed names are inserted.
+COORDINATE_COLUMNS = 3
+
+
+def reconcile_headers(headers, width, leading_names=()):
+    """Return a header list as wide as the data, naming any column the file declared no name for.
+
+    CrunchTope's `surface` output writes more columns than it names. `GraphicsVisit.F90` builds the
+    VARIABLES line over `ns = 1, nsurf_sec` -- the secondary surface complexes -- and then writes the
+    data over `ns = 1, nsurf + nsurf_sec`, which is the free sites *followed by* those complexes. The
+    file therefore carries `nsurf` unnamed columns, and because they come first, every name in the
+    header sits two columns to the left of the values it describes: read at face value, the site
+    concentration is reported as the first complex, and so on to the end of the row.
+
+    Nothing in the file says so, and pandas makes it worse: given fewer names than columns it
+    promotes the surplus to a MultiIndex rather than complaining, and the ValueError that eventually
+    surfaces ('PandasMultiIndex only accepts 1-dimensional variables') points nowhere near the cause.
+
+    Args:
+        headers: The names the file declared, X/Y/Z first.
+        width: How many columns the data actually has.
+        leading_names: Names for the unnamed columns, in file order, where the caller knows them --
+            for `surface` output, the deck's SURFACE_COMPLEXATION sites. Used only if there are
+            exactly as many as are missing; otherwise placeholders are substituted, which still puts
+            the declared names back on their own columns.
+
+    Returns:
+        A list of names as long as the data is wide.
+    """
+    missing = width - len(headers)
+
+    if missing <= 0:
+        return list(headers)
+
+    names = list(leading_names)
+
+    if len(names) != missing:
+        names = [f'unnamed_{index + 1}' for index in range(missing)]
+        warnings.warn(
+            f'{output_description(headers)}: the file declares {len(headers)} column names for '
+            f'{width} columns of data. The {missing} unnamed column(s) have been called {names} and '
+            f'placed after X/Y/Z, which is where CrunchTope writes them.'
+        )
+
+    return list(headers[:COORDINATE_COLUMNS]) + names + list(headers[COORDINATE_COLUMNS:])
+
+
+def output_description(headers):
+    """A short description of an output file for a warning message."""
+    named = [name for name in headers[COORDINATE_COLUMNS:]][:3]
+
+    return f'TecPlot output carrying {named}...' if named else 'TecPlot output'
+
+
+def data_width(file_name, skip):
+    """Return how many whitespace-separated fields the first data row of a TecPlot file has."""
+    with open(file_name) as file:
+        for index, line in enumerate(file):
+            if index < skip:
+                continue
+            if line.strip():
+                return len(line.split())
+
+    return 0
+
+
+def parse_output(path, output, time_ref, leading_names=()):
     """Import the spatial profile output file of the system at the target time.
 
     Requires files to be in the TecPlot format.
@@ -98,6 +166,8 @@ def parse_output(path, output, time_ref):
         path: Path to the directory containing output files
         output: Name of the output file (without time suffix)
         time_ref: Time reference number for the output file
+        leading_names: Names for columns the file writes but does not declare, in file order. See
+            :func:`reconcile_headers`, which is only reached by CrunchTope's `surface` output.
 
     Returns:
         xarray Dataset with parsed output data
@@ -118,6 +188,9 @@ def parse_output(path, output, time_ref):
         # character: str.strip removes any of those characters, so a first column named 'SO4--'
         # would lose its leading S.
         headers = re.findall(r'"\s*(.*?)\s*"', headers)
+        # Made as wide as the data before reading, so pandas is never left to decide what to do with
+        # a column it has no name for.
+        headers = reconcile_headers(headers, data_width(file_name, skip=3), leading_names)
 
         df = pd.read_table(
             file_name,
@@ -247,17 +320,34 @@ def matching_output_name(results_path, name='conditions.nc'):
     return f'{stem}{match.group(1)}{suffix}'
 
 
+def netcdf_name(name):
+    """Return a name netCDF will accept, changing as little as possible.
+
+    Two rules, both established by trying them against the library rather than read off it:
+
+    * A '/' is the HDF5 group separator, so it cannot appear anywhere. MIN3P emits several
+      ('C-Alk [eq/L]').
+    * The *first* character must be alphanumeric or an underscore. Later characters are far more
+      permissive -- 'X>FeO' and 'Ca++' are both fine -- so only the leading one needs a prefix.
+      CrunchTope names every surface complex with a leading '>' ('>FeO-_str'), which is what makes
+      this reachable at all.
+    """
+    name = str(name).replace('/', '_per_')
+
+    if name and not (name[0].isalnum() or name[0] == '_'):
+        name = f'_{name}'
+
+    return name
+
+
 def sanitise_netcdf_names(ds):
     """Return ds with any variable or coordinate name netCDF cannot hold rewritten.
-
-    A '/' is the HDF5 group separator, so netCDF4 refuses it in a name outright rather than escaping
-    it. MIN3P emits several ('C-Alk [eq/L]'), which is why a MIN3P results file has to be renamed on
-    the way out; a CrunchTope label carrying one would fail identically.
 
     Applied both when a run's results are spilled to a temporary file and when the results file
     itself is written, so the two agree on what a variable is called.
     """
-    renames = {name: name.replace('/', '_per_') for name in list(ds.variables) if '/' in name}
+    renames = {name: netcdf_name(name) for name in list(ds.variables)}
+    renames = {old: new for old, new in renames.items() if old != new}
 
     return ds.rename(renames) if renames else ds
 
@@ -352,6 +442,9 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             if not spilled:
                 dataset = fix_smalls(dataset, category)
             group = raw(dataset, category)
+            # Results that were spilled have already been through this; results held in memory --
+            # the sequential omphalos path -- have not, and a surface complex would stop the write.
+            group = sanitise_netcdf_names(group)
             group.to_netcdf(path, group=category, mode='a')
             # Only one category is held at a time, so let this one go before building the next.
             del group

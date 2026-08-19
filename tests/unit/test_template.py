@@ -851,3 +851,49 @@ END
 
         assert text.count('permeability_X') == 3
         assert '1.0E-13 zone 22-33 1-42 1-1' in text
+
+
+class TestSurfaceSiteNames:
+    """The deck is the only place the `surface` output's missing column names can come from.
+
+    CrunchTope writes a column per free surface site before the columns its header names, so those
+    names have to be supplied from outside the file. SURFACE_COMPLEXATION lists them in the order the
+    output uses.
+    """
+
+    def _template(self, tmp_path, block):
+        import contextlib
+        import io
+
+        deck = tmp_path / 'deck.in'
+        deck.write_text(
+            'TITLE\ntest\nEND\n\n'
+            'RUNTIME\ndatabase  d.dbs\nEND\n\n'
+            'OUTPUT\nspatial_profile  365\nEND\n\n'
+            'PRIMARY_SPECIES\nH+\nEND\n\n'
+            f'{block}'
+            'DISCRETIZATION\nxzones  1  1.0\nEND\n\n'
+            'Condition initial\ntemperature  25.0\nEND\n\n'
+            'INITIAL_CONDITIONS\ninitial  1-1  1-1  1-1\nEND\n'
+        )
+
+        from omphalos.template import Template
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template({'template': str(deck), 'database': None, 'aqueous_database': None,
+                             'catabolic_pathways': None, 'number_of_files': 1, 'timeout': 60,
+                             'conditions': None})
+
+    def test_the_sites_are_returned_in_deck_order(self, tmp_path):
+        template = self._template(
+            tmp_path,
+            'SURFACE_COMPLEXATION\n>FeOH_strong  on Fe(OH)3\n>FeOH_weak  on Fe(OH)3\nEND\n\n',
+        )
+
+        assert template._surface_sites() == ('>FeOH_strong', '>FeOH_weak')
+
+    def test_a_deck_without_the_block_offers_no_names(self, tmp_path):
+        # Most decks have no surface complexation at all, and must not be made to look as if they do.
+        template = self._template(tmp_path, '')
+
+        assert template._surface_sites() == ()

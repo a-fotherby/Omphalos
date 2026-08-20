@@ -1246,3 +1246,82 @@ class TestIsotopeSweep:
         lines = [line.split() for line in written.read_text().splitlines()]
         assert ['mineral', 'Calcite44Rifle', 'CalciteRifle', 'surface'] in lines
         assert ['primary', 'Ca44++', 'Ca++', '0.021667'] in lines
+
+
+POROSITY_DECK = """TITLE
+porosity sweep
+END
+
+RUNTIME
+database  d.dbs
+END
+
+OUTPUT
+spatial_profile  1.0
+END
+
+PRIMARY_SPECIES
+Ca++
+END
+
+POROSITY
+porosity_update    true
+END
+"""
+
+
+class TestPorositySweep:
+    """Tests for sweeping the POROSITY block.
+
+    'porosity_update' is the switch coupling mineral volume change back to permeability, which is what
+    the Ex10 benchmark exists to exercise. CrunchTope reads it with read_logical, so the swept value is
+    a word rather than a number -- sweeping it makes the feedback itself the parameter.
+    """
+
+    def _template(self, tmp_path, config_extra):
+        deck = tmp_path / 'poro.in'
+        deck.write_text(POROSITY_DECK)
+
+        from omphalos.template import Template
+
+        config = {
+            'template': str(deck), 'database': None, 'aqueous_database': None,
+            'catabolic_pathways': None, 'number_of_files': 2, 'timeout': 60, 'conditions': None,
+        }
+        config.update(config_extra)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template(config)
+
+    def test_porosity_is_sweepable(self):
+        """Test that the block is addressable at all, at its last token."""
+        assert gi.CT_IDs['porosity'] == ['POROSITY', -1]
+
+    def test_the_feedback_switch_reaches_every_run(self, tmp_path):
+        """Test that each run's deck carries the word the config gave it."""
+        template = self._template(tmp_path, {
+            'porosity': {'porosity_update': ['custom', ['true', 'false']]},
+        })
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        settings = [file_dict[run].keyword_blocks['POROSITY'].contents['porosity_update'][-1]
+                    for run in sorted(file_dict)]
+        assert settings == ['true', 'false']
+
+    def test_the_written_deck_round_trips(self, tmp_path):
+        """Test that the swept switch prints back as CrunchTope reads it."""
+        template = self._template(tmp_path, {
+            'porosity': {'porosity_update': ['custom', ['true', 'false']]},
+        })
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        written = tmp_path / 'written.in'
+        file_dict[1].path = written
+        file_dict[1].print()
+
+        lines = [line.split() for line in written.read_text().splitlines()]
+        assert ['porosity_update', 'false'] in lines

@@ -27,7 +27,11 @@ KEY_SEPARATOR = '&'
 # the thing being specified (filename or node, exchanger, species), so it makes the key unique while
 # staying stable when a sweep changes the values. The suffix is stripped again when printing.
 REPEATABLE_ENTRIES = {
-    'OUTPUT': ('time_series',),
+    # Both spellings repeat, and for the same reason -- one entry per observation point. Ex10 of the
+    # short course names two, 'MingliangEffluent5a.out' and '...5b.out', and with only the bare
+    # 'time_series' listed here the second overwrote the first: every generated deck silently lost an
+    # observation point, and the file it named was never written.
+    'OUTPUT': ('time_series', 'time_series_at_node'),
     'ION_EXCHANGE': ('exchange',),
     'TRANSPORT': ('D_25',),
 }
@@ -90,6 +94,40 @@ def snapshot_times(output_contents):
         'OUTPUT block declares no snapshot times: expected one of '
         f'{" or ".join(SNAPSHOT_TIME_KEYWORDS)}. Without it CrunchTope does no time stepping.'
     )
+
+
+# The two spellings that ask CrunchTope for a time series at a grid cell. Unlike the snapshot-time
+# keywords these are not synonyms -- 'time_series' takes the node as separate indices and
+# 'time_series_at_node' as a node number -- but both name a file as their first token, which is all
+# that is needed to find the output afterwards.
+TIME_SERIES_KEYWORDS = ('time_series', 'time_series_at_node')
+
+
+def time_series_files(output_contents):
+    """Return the time-series output files an OUTPUT block asks for.
+
+    These are the only CrunchTope output written per timestep rather than per snapshot, which makes
+    them the way to see a transient: a `spatial_profile` list resolves whatever the deck author chose
+    to ask for, and no more.
+
+    Both keywords repeat, so entries arrive keyed as 'time_series&<filename>'. The filename is taken
+    from the entry's first token rather than from the key, since the key is only a uniqueness suffix.
+
+    Args:
+        output_contents: The contents dictionary of an OUTPUT keyword block.
+
+    Returns:
+        list of filenames, in first-seen order and without duplicates.
+    """
+    found = []
+    for entry, value in output_contents.items():
+        if entry.split(KEY_SEPARATOR)[0] not in TIME_SERIES_KEYWORDS or not value:
+            continue
+        name = value[0]
+        if name and name not in found:
+            found.append(name)
+
+    return found
 
 
 # The keywords that introduce a mineral surface area value in a condition block entry, per the

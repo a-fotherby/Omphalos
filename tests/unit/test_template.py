@@ -1075,3 +1075,72 @@ END
         template = self._template(tmp_path)
 
         assert template.condition_blocks['water-2'].contents['Na+'] == ['2.0E-03']
+
+
+class TestRepeatedTimeSeriesEntries:
+    """Tests for an OUTPUT block naming more than one time-series file.
+
+    Both spellings repeat, one entry per observation point. Ex10 of the short course names two files,
+    and with only the bare 'time_series' treated as repeatable the second overwrote the first: every
+    generated deck silently lost an observation point, and the file it named was never written.
+    """
+
+    DECK = """TITLE
+two observation points
+END
+
+OUTPUT
+time_units               years
+spatial_profile          1.0
+time_series_at_node      MingliangEffluent5a.out  2 21  1
+time_series_at_node      MingliangEffluent5b.out  6 21  1
+time_series_print        Tracer Ca++  pH
+END
+"""
+
+    def _template(self, tmp_path):
+        import contextlib
+        import io
+
+        from omphalos.template import Template
+
+        deck = tmp_path / 'two.in'
+        deck.write_text(self.DECK)
+
+        config = {
+            'template': str(deck), 'database': None, 'aqueous_database': None,
+            'catabolic_pathways': None, 'number_of_files': 1, 'timeout': 60, 'conditions': None,
+        }
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template(config)
+
+    def test_both_entries_survive(self, tmp_path):
+        """Test that neither observation point is dropped on read."""
+        contents = self._template(tmp_path).keyword_blocks['OUTPUT'].contents
+        keys = [k for k in contents if k.startswith('time_series_at_node')]
+
+        assert len(keys) == 2
+
+    def test_both_files_are_found(self, tmp_path):
+        """Test that the filenames are recoverable, which is how the output is located afterwards."""
+        from core.keyword_block import time_series_files
+
+        contents = self._template(tmp_path).keyword_blocks['OUTPUT'].contents
+
+        assert time_series_files(contents) == [
+            'MingliangEffluent5a.out', 'MingliangEffluent5b.out']
+
+    def test_both_are_written_back(self, tmp_path):
+        """Test that the deck written for a run still asks CrunchTope for both files.
+
+        The uniqueness suffix has to come off again on the way out, or CrunchTope reads a keyword it
+        does not recognise and quietly writes nothing.
+        """
+        template = self._template(tmp_path)
+        written = tmp_path / 'written.in'
+        template.path = written
+        template.print()
+
+        lines = [line.split() for line in written.read_text().splitlines()]
+        assert ['time_series_at_node', 'MingliangEffluent5a.out', '2', '21', '1'] in lines
+        assert ['time_series_at_node', 'MingliangEffluent5b.out', '6', '21', '1'] in lines

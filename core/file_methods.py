@@ -213,7 +213,16 @@ def parse_time_series(path, file_name):
     headers = [name.strip() for name in re.findall(r'"([^"]*)"', header_line)]
     headers = [netcdf_name(name) for name in headers if name.strip()]
 
-    headers = reconcile_headers(headers, data_width(full_path, skip=2), ())
+    # A column the header does not name belongs at the END here, not after the third one. A time
+    # series has no X/Y/Z to insert behind -- its first column is the time -- so reconcile_headers,
+    # which is written for spatial output, would put a placeholder at column 3 and shift every name
+    # after it onto the wrong data. What CrunchTope actually writes unnamed is a trailing field, and
+    # in Ex8's and Ex9's files it is identically zero at every timestep.
+    width = data_width(full_path, skip=2)
+    if width > len(headers):
+        headers += [f'unnamed_{index + 1}' for index in range(width - len(headers))]
+    elif width < len(headers):
+        headers = headers[:width]
 
     frame = pd.read_csv(full_path, sep=r'\s+', skipinitialspace=True, skiprows=[0, 1],
                         names=headers, quoting=csv.QUOTE_NONE)

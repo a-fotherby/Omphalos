@@ -649,3 +649,40 @@ class TestRepairExponents:
         """
         repaired = fm.repair_exponents(pd.Series(['4.4408920985-016']))
         assert float(repaired.iloc[0]) > 0.0
+
+    def test_an_unnamed_column_goes_at_the_end(self, tmp_path):
+        """Test that a column the header does not name is placed last, not after the third one.
+
+        Ex8's and Ex9's time series carry a trailing field the VARIABLES line never names, identically
+        zero at every timestep. A time series has no X/Y/Z to insert behind -- its first column is the
+        time -- so naming that column after the third, which is where spatial output wants one, would
+        shift every name after it onto the wrong data.
+        """
+        text = (
+            '# Time series at grid cell:   1   1   1\n'
+            'VARIABLES = "Time (days)" , "HCO3-  ", "Ca++  ", "Ca44++  ", "pH  ", "\n'
+            '  1.0E-10   1.50E-02   5.28E-03   1.14E-04   8.068E+00   0.00000000000000E+00\n'
+            '  2.0E-10   1.51E-02   5.29E-03   1.15E-04   8.070E+00   0.00000000000000E+00\n'
+        )
+        (tmp_path / 'batch.out').write_text(text)
+        ds = fm.parse_time_series(tmp_path, 'batch.out')
+
+        assert list(ds.data_vars) == ['HCO3-', 'Ca++', 'Ca44++', 'pH', 'unnamed_1']
+        # The named columns must still carry their own values.
+        assert ds['HCO3-'].values[0] == pytest.approx(1.50e-02)
+        assert ds['pH'].values[0] == pytest.approx(8.068)
+        assert ds['unnamed_1'].values.tolist() == [0.0, 0.0]
+
+    def test_more_names_than_columns_is_truncated(self, tmp_path):
+        """Test that a header naming more columns than the file writes does not misalign the read."""
+        text = (
+            '# Time series at grid cell:   1   1   1\n'
+            'VARIABLES = "Time (days)" , "A  ", "B  ", "C  "\n'
+            '  1.0E-10   1.0   2.0\n'
+            '  2.0E-10   1.1   2.1\n'
+        )
+        (tmp_path / 'short.out').write_text(text)
+        ds = fm.parse_time_series(tmp_path, 'short.out')
+
+        assert list(ds.data_vars) == ['A', 'B']
+        assert ds['A'].values[1] == pytest.approx(1.1)

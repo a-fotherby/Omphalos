@@ -1144,3 +1144,166 @@ END
         lines = [line.split() for line in written.read_text().splitlines()]
         assert ['time_series_at_node', 'MingliangEffluent5a.out', '2', '21', '1'] in lines
         assert ['time_series_at_node', 'MingliangEffluent5b.out', '6', '21', '1'] in lines
+
+
+NUCLEATION_DECK = """TITLE
+nucleation sweep
+END
+
+RUNTIME
+database  d.dbs
+END
+
+OUTPUT
+spatial_profile  1.0
+END
+
+MINERALS
+Calcite      -label nucleatecalcite
+SiO2(am)     -label nucleateSiO2(am)
+END
+
+NUCLEATION
+&Nucleation
+  NameMineral      = 'Calcite'
+  label            = 'nucleatecalcite'
+  A_zero25C        = 0.00000001
+  Sigma_mJm2       = 47
+  Surface          = 'Bogusite_i'
+    /
+&Nucleation
+  NameMineral      = 'SiO2(am)'
+  label            = 'nucleateSiO2(am)'
+  A_zero25C        = 0.00000001
+  Sigma_mJm2       = 20000
+  Surface          = 'Bogusite_i'
+    /
+END
+"""
+
+
+class TestNucleationBlock:
+    """Tests for the NUCLEATION block, whose contents are Fortran namelists.
+
+    Every &Nucleation group repeats every one of its keys, so keying on the leftmost word would leave
+    only the last group's value for each. Dropping the block instead -- which is what happened before
+    it was parsed at all -- is worse: CrunchTope reads the nucleation rate laws from the database via
+    the MINERALS labels, finds no block to configure them from, and blocks on stdin.
+    """
+
+    def _template(self, tmp_path, config_extra=None):
+        import contextlib
+        import io
+
+        from omphalos.template import Template
+
+        deck = tmp_path / 'nuc.in'
+        deck.write_text(NUCLEATION_DECK)
+
+        config = {
+            'template': str(deck), 'database': None, 'aqueous_database': None,
+            'catabolic_pathways': None, 'number_of_files': 3, 'timeout': 60, 'conditions': None,
+        }
+        config.update(config_extra or {})
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            return Template(config)
+
+    def test_the_block_is_not_dropped(self, tmp_path):
+        """Test that the block survives being read at all."""
+        assert 'NUCLEATION' in self._template(tmp_path).keyword_blocks
+
+    def test_both_groups_survive(self, tmp_path):
+        """Test that each group's entries are kept, keyed on the mineral they configure."""
+        contents = self._template(tmp_path).keyword_blocks['NUCLEATION'].contents
+
+        assert contents['Sigma_mJm2&Calcite'][-1] == '47'
+        assert contents['Sigma_mJm2&SiO2(am)'][-1] == '20000'
+        assert contents['Surface&Calcite'][-1] == "'Bogusite_i'"
+
+    def test_the_group_delimiters_are_not_entries(self, tmp_path):
+        """Test that '&Nucleation' and '/' are structure rather than data."""
+        contents = self._template(tmp_path).keyword_blocks['NUCLEATION'].contents
+
+        assert not [key for key in contents if key.startswith('&') or key.startswith('/')]
+
+    def test_nucleation_is_sweepable(self, tmp_path):
+        """Test that the block is addressable at its last token, which is the value after the '='."""
+        import omphalos.generate_inputs as gi
+
+        assert gi.CT_IDs['nucleation'] == ['NUCLEATION', -1]
+
+    def test_a_sweep_moves_one_group_only(self, tmp_path):
+        """Test that sweeping calcite's interfacial energy leaves the silica group untouched."""
+        import contextlib
+        import io
+
+        import omphalos.generate_inputs as gi
+
+        template = self._template(tmp_path, {
+            'nucleation': {'Sigma_mJm2&Calcite': ['custom', [30, 47, 70]]},
+        })
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        swept = [file_dict[run].keyword_blocks['NUCLEATION'].contents['Sigma_mJm2&Calcite'][-1]
+                 for run in sorted(file_dict)]
+        assert swept == ['30', '47', '70']
+
+        for run in file_dict:
+            other = file_dict[run].keyword_blocks['NUCLEATION'].contents['Sigma_mJm2&SiO2(am)']
+            assert other[-1] == '20000'
+
+    def test_the_written_deck_is_valid_namelist_input(self, tmp_path):
+        """Test that the block prints back as namelists CrunchTope's reader will accept.
+
+        Both group headers and terminators have to reappear, and character values have to keep their
+        quotes -- a namelist reader given an unquoted one stops with 'Error reading Nucleation
+        namelist'. Two separate NUCLEATION blocks would not do: the scan for the second group starts
+        from the top of the file and never finds it.
+        """
+        import contextlib
+        import io
+
+        import omphalos.generate_inputs as gi
+
+        template = self._template(tmp_path, {
+            'nucleation': {'Sigma_mJm2&Calcite': ['custom', [30, 47, 70]]},
+        })
+        with contextlib.redirect_stdout(io.StringIO()):
+            file_dict = gi.configure_input_files(template, str(tmp_path) + '/')
+
+        written = tmp_path / 'written.in'
+        file_dict[0].path = written
+        file_dict[0].print()
+        text = written.read_text()
+
+        assert text.count('NUCLEATION') == 1          # one block, not one per group
+        assert text.count('&Nucleation') == 2         # both groups
+        assert "NameMineral = 'Calcite'" in text
+        assert "NameMineral = 'SiO2(am)'" in text
+        assert 'Sigma_mJm2 = 30' in text
+        assert 'Sigma_mJm2 = 20000' in text
+
+        # Each group must be terminated, or the reader runs into the next one.
+        block = text[text.index('NUCLEATION'):]
+        block = block[:block.index('END')]
+        assert block.count('\n/') == 2
+
+    def test_a_deck_without_the_block_reads_cleanly(self, tmp_path):
+        """Test that a deck naming no nucleation is unaffected."""
+        import contextlib
+        import io
+
+        from omphalos.template import Template
+
+        deck = tmp_path / 'plain.in'
+        deck.write_text(NUCLEATION_DECK[:NUCLEATION_DECK.index('NUCLEATION\n&Nucleation')])
+        config = {
+            'template': str(deck), 'database': None, 'aqueous_database': None,
+            'catabolic_pathways': None, 'number_of_files': 1, 'timeout': 60, 'conditions': None,
+        }
+        with contextlib.redirect_stdout(io.StringIO()):
+            template = Template(config)
+
+        assert 'NUCLEATION' not in template.keyword_blocks

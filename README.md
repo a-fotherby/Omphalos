@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/tests-1124%20passed-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-1131%20passed-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/python-3.8%2B-blue" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/CrunchTope-supported-orange" alt="CrunchTope">
@@ -412,6 +412,8 @@ Modify parameters in standard CrunchTope blocks:
 | `MINERALS` | `mineral_rates` |
 | `AQUEOUS_KINETICS` | `aqueous_kinetics` |
 | `ISOTOPES` | `isotopes` |
+| `NUCLEATION` | `nucleation` |
+| `POROSITY` | `porosity` |
 | `EROSION/BURIAL` | `erosion/burial` |
 | `BOUNDARY_CONDITIONS` | `boundary_conditions` |
 
@@ -423,6 +425,10 @@ Modify parameters in standard CrunchTope blocks:
 > repeat as leftmost words, and the swept value is the last token — for a mineral, its
 > recrystallisation option: `Calcite44: ['custom', ['none', 'surface', 'bulk']]`. Words are recorded
 > as text in `conditions.nc`, as is any non-numeric swept value.
+
+> **Note:** `nucleation` entries are keyed on the **mineral** their `&Nucleation` namelist group
+> configures, since every group repeats every key: `'Sigma_mJm2&Calcite': ['custom', [30, 47, 70]]`
+> moves calcite's interfacial energy and leaves the other groups alone.
 
 > **Note:** Block names in your CrunchTope input file must be written in CAPITALS (e.g., `RUNTIME`, `FLOW`, `MINERALS`). The one exception is `CONDITION`, which is matched case insensitively, so `CONDITION`, `Condition` and `condition` all work. Matching the others case insensitively would mistake condition-block entries such as `temperature` for block delimiters.
 
@@ -1133,7 +1139,7 @@ omphalos/
 
 ## Testing
 
-The project includes a comprehensive test suite with **1124 tests**:
+The project includes a comprehensive test suite with **1131 tests**:
 
 ```bash
 # Run all tests

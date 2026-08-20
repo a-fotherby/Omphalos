@@ -76,6 +76,7 @@ class Template(InputFile):
         self.get_minerals()
         self.get_isotope_block()
         self.get_flow()
+        self.get_nucleation_block()
 
         if config['aqueous_database'] is not None:
             self.aqueous_database = CrunchNameList(config['aqueous_database'])
@@ -629,6 +630,53 @@ class Template(InputFile):
             print(
                 'The keyword "ISOTOPES" you searched for does not exist. If you are sure that this keyword is in your '
                 'input file, check your spelling.')
+
+    def get_nucleation_block(self):
+        """Read the NUCLEATION block, whose contents are Fortran namelists rather than keyword lines.
+
+        The block holds one `&Nucleation` group per nucleation pathway, and the groups repeat every one
+        of their keys -- `NameMineral`, `label`, `Sigma_mJm2` and the rest. Keying on the leftmost word,
+        as `get_keyword_block` does, would leave only the last group's value for each, so entries are
+        keyed `<keyword>&<mineral>` using the `NameMineral` of the group they belong to. That is also
+        what makes a single group's parameter addressable by a sweep.
+
+        Dropping the block was worse than mangling it: CrunchTope reads the nucleation rate laws from the
+        database via the MINERALS labels, finds no NUCLEATION block to configure them from, prints
+        'Nucleation type rate law found listed in database' and then blocks on stdin.
+
+        The group delimiters `&Nucleation` and `/` are not stored. `print` puts them back, because their
+        placement follows from the grouping rather than being information of its own.
+        """
+        keyword = 'NUCLEATION'
+        block_start = fm.search_file(self.raw, keyword)
+        if block_start.size == 0:
+            return
+
+        ending_array = fm.search_file(self.raw, 'END')
+        block_end = ending_array[np.searchsorted(ending_array, block_start)]
+
+        block = kb.KeywordBlock(keyword)
+        keyword_dict = {}
+        mineral = None
+
+        for line_number in np.arange(block_start[0], block_end[0]):
+            line_list = self.block_line(line_number)
+            if not line_list:
+                continue
+
+            first = line_list[0]
+            # The block keyword itself, and the namelist group delimiters, carry no entry.
+            if first.upper() == keyword or first.startswith('&') or first == '/':
+                continue
+
+            # A group announces which mineral it configures, and that names every key in it.
+            if first == 'NameMineral':
+                mineral = line_list[-1].strip("'\"")
+
+            keyword_dict[f'{first}{KEY_SEPARATOR}{mineral}'] = line_list[1:]
+
+        block.contents = keyword_dict
+        self.keyword_blocks.update({keyword: block})
 
     def get_initial_conditions_block(self):
         """Method to get the initial conditions block from the input file and encode it as a KeywordBlock object in

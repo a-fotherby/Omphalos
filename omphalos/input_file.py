@@ -6,7 +6,7 @@ import pandas as pd
 import xarray as xr
 
 from core.file_methods import netcdf_name, parse_time_series
-from core.keyword_block import snapshot_times, strip_entry_key, time_series_files
+from core.keyword_block import KEY_SEPARATOR, snapshot_times, strip_entry_key, time_series_files
 from omphalos import file_methods as fm
 
 
@@ -174,6 +174,25 @@ class InputFile:
                         line.insert(1, entry)
                         line.append('\n')
                         f.write(' '.join(line))
+                elif block == 'NUCLEATION':
+                    # The contents are Fortran namelists, so the group delimiters have to go back
+                    # around each mineral's entries. Entries are keyed '<keyword>&<mineral>' and dicts
+                    # keep insertion order, so grouping by the suffix reproduces the block as read.
+                    # Character values keep the quotes they were read with: a namelist reader given
+                    # NameMineral = Calcite unquoted stops with 'Error reading Nucleation namelist'.
+                    groups = {}
+                    for entry in self.keyword_blocks[block].contents:
+                        keyword, _, mineral = entry.partition(KEY_SEPARATOR)
+                        groups.setdefault(mineral, []).append(
+                            (keyword, self.keyword_blocks[block].contents[entry]))
+
+                    # The reader does not keep the block keyword as an entry, so write it here.
+                    f.write(f'{block}\n')
+                    for entries in groups.values():
+                        f.write('&Nucleation\n')
+                        for keyword, words in entries:
+                            f.write(f'  {" ".join([keyword] + list(words))}\n')
+                        f.write('/\n')
                 elif block == 'FLOW':
                     for entry in self.keyword_blocks[block].contents:
                         if (entry.find('permeability') != -1 or entry.find('pressure') != -1) and self.keyword_blocks[block].contents[entry][-1] != 'default':

@@ -39,6 +39,11 @@ CT_IDs = {'runtime': ['RUNTIME', -1],
           # last token of a mineral line is its recrystallisation option -- bulk, surface or none.
           # That is what the Ex8 short-course exercise sweeps, and it is a word rather than a number.
           'isotopes': ['ISOTOPES', -1],
+          # The NUCLEATION block holds Fortran namelists, one &Nucleation group per pathway, and every
+          # group repeats every key. Entries are keyed '<keyword>&<mineral>' so a single pathway's
+          # parameter is addressable -- 'Sigma_mJm2&Calcite' is the interfacial energy of calcite only.
+          # The value follows an '=', so it is the last token.
+          'nucleation': ['NUCLEATION', -1],
           # 'porosity_update' is the switch that couples mineral volume change back to permeability,
           # and CrunchTope reads it with read_logical -- so the swept value is a word, 'true' or
           # 'false', not a number. Sweeping it turns the feedback itself into a parameter.

@@ -547,3 +547,105 @@ class TestNetcdfNames:
         ds.to_netcdf(tmp_path / 'r.nc', group='surface', mode='a')
 
         assert '_>FeOHZn+_w' in xr.open_dataset(tmp_path / 'r.nc', group='surface').data_vars
+
+
+TIME_SERIES_FILE = (
+    '# Time series at grid cell:  80  13   1\n'
+    'VARIABLES = "Time (hrs) " , "K+                 ", "Mg++               ", "Cl-  ", "\n'
+    '  1.00000E-06                1.00000004749745E-09   2.00000004749745E-09   9.29560724540234E-10\n'
+    '  2.00000E-06                1.10000004749745E-09   2.20000004749745E-09   9.39560724540234E-10\n'
+    '  3.00000E-06                1.20000004749745E-09   2.40000004749745E-09   9.49560724540234E-10\n'
+)
+
+
+class TestTimeSeries:
+    """Tests for reading CrunchTope's per-timestep output.
+
+    This is the only output written every timestep rather than at chosen snapshot times, so it is the
+    only way to see a transient the deck author did not think to ask for.
+    """
+
+    def _write(self, tmp_path, text=TIME_SERIES_FILE):
+        path = tmp_path / 'Rolle.out'
+        path.write_text(text)
+        return path
+
+    def test_a_truncated_header_quote_does_not_swallow_the_file(self, tmp_path):
+        """Test that the file parses despite CrunchTope truncating its VARIABLES line mid-quote.
+
+        The header ends on a lone opening quote. Left to its default quoting the C parser treats that
+        as a string running to EOF and returns no rows at all -- silently, when names are supplied.
+        """
+        self._write(tmp_path)
+        ds = fm.parse_time_series(tmp_path, 'Rolle.out')
+
+        assert ds.sizes['step'] == 3
+        assert list(ds.data_vars) == ['K+', 'Mg++', 'Cl-']
+
+    def test_the_time_column_becomes_a_coordinate(self, tmp_path):
+        """Test that time is a coordinate on a positional step dimension, not a dimension itself.
+
+        Two runs of one sweep do not share a timestep sequence and need not even have the same number
+        of steps, so concatenating on time values would interleave NaN at every unshared time.
+        """
+        self._write(tmp_path)
+        ds = fm.parse_time_series(tmp_path, 'Rolle.out')
+
+        assert ds['step'].values.tolist() == [0, 1, 2]
+        assert 'time' in ds.coords
+        assert 'time' not in ds.dims
+        assert ds['time'].dims == ('step',)
+        assert ds['time'].values[0] == pytest.approx(1.0e-06)
+        assert ds['time'].attrs['long_name'] == 'Time (hrs)'
+
+    def test_the_values_are_read(self, tmp_path):
+        """Test that the data columns land against the right names."""
+        self._write(tmp_path)
+        ds = fm.parse_time_series(tmp_path, 'Rolle.out')
+
+        assert ds['K+'].values[0] == pytest.approx(1.00000004749745e-09)
+        assert ds['Mg++'].values[-1] == pytest.approx(2.40000004749745e-09)
+        assert ds['Cl-'].values[1] == pytest.approx(9.39560724540234e-10)
+
+    def test_a_malformed_exponent_is_repaired(self, tmp_path):
+        """Test that a value written without its 'E' is read as the number, not as zero."""
+        text = TIME_SERIES_FILE.replace('9.29560724540234E-10', '9.295607245-105')
+        self._write(tmp_path, text)
+        ds = fm.parse_time_series(tmp_path, 'Rolle.out')
+
+        assert ds['Cl-'].values[0] == pytest.approx(9.295607245e-105)
+
+
+class TestRepairExponents:
+    """Tests for the repair of exponents CrunchTope writes without their 'E'.
+
+    A value needing a three-digit exponent overruns its Fortran output field and loses the 'E',
+    so '1.2345E-100' is written '1.2345-100'.
+    """
+
+    @pytest.mark.parametrize('written, meant', [
+        ('1.2345-100', 1.2345e-100),
+        ('-1.2345-100', -1.2345e-100),
+        ('1.2345+100', 1.2345e100),
+        ('9.999-305', 9.999e-305),
+    ])
+    def test_a_missing_exponent_marker_is_restored(self, written, meant):
+        """Test that the repaired string parses as the number CrunchTope meant."""
+        repaired = fm.repair_exponents(pd.Series([written]))
+        assert float(repaired.iloc[0]) == pytest.approx(meant)
+
+    @pytest.mark.parametrize('value', [
+        '1.234e-05', '1.234E-100', '-1.234e+05', '0.5', '100', '1.0',
+    ])
+    def test_a_well_formed_value_is_untouched(self, value):
+        """Test that a value that already has its exponent marker is left alone."""
+        assert fm.repair_exponents(pd.Series([value])).iloc[0] == value
+
+    def test_the_value_is_kept_rather_than_zeroed(self):
+        """Test that the repair preserves the magnitude instead of substituting zero.
+
+        Zeroing was the previous behaviour. The numerical difference is nil below 1e-100, but a
+        column of repaired values no longer reads as a column of exact zeros.
+        """
+        repaired = fm.repair_exponents(pd.Series(['4.4408920985-016']))
+        assert float(repaired.iloc[0]) > 0.0

@@ -286,6 +286,19 @@ Available groups depend on your CrunchTope OUTPUT block configuration. Common gr
 - `pH` — Solution pH
 - `saturation` — Mineral saturation indices
 
+**Time series get their own groups.** Every `time_series` or `time_series_at_node` file the OUTPUT block
+names becomes `timeseries_<file stem>`. This is the only output written every timestep rather than at the
+`spatial_profile` times, so it is where a transient shows up that the snapshots are too coarse to catch.
+
+```python
+series = xr.open_dataset('results.nc', group='timeseries_Rolle')
+series['K+'].sel(file_num=0).plot(x='time')
+```
+
+Its dimension is `step`, a position in the run's own timestepping, with `time` as a coordinate on it — two
+runs of a sweep do not share a timestep sequence and need not even have the same number of steps, so a run
+that ended early leaves NaN at the tail rather than every run interleaving NaN at times it never reached.
+
 #### 2. Input File Record (`inputs.pkl`)
 
 ```python

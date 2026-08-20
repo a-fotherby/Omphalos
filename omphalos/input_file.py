@@ -1,10 +1,12 @@
 import copy
 import re
+from pathlib import Path
 
 import pandas as pd
 import xarray as xr
 
-from core.keyword_block import snapshot_times, strip_entry_key
+from core.file_methods import netcdf_name, parse_time_series
+from core.keyword_block import snapshot_times, strip_entry_key, time_series_files
 from omphalos import file_methods as fm
 
 
@@ -381,3 +383,28 @@ class InputFile:
             #except ValueError:
             #    print(f'WARNING: Output file {category} not parsed.')
             #    continue
+
+        self._get_time_series(tmp_dir)
+
+    def _get_time_series(self, tmp_dir):
+        """Parse the per-timestep output files the deck's OUTPUT block asks for.
+
+        Kept apart from the snapshot categories because it is a different kind of output: written
+        every timestep at one grid cell rather than over the whole grid at chosen times, so it
+        resolves a transient the snapshots can only sample. Each file becomes its own group, named
+        for the file, since one deck may observe several cells.
+
+        A missing or unreadable file is reported and skipped, as a snapshot category is: CrunchTope
+        writes nothing if it stopped before the first output interval, and that should not cost the
+        results that were written.
+
+        Args:
+            tmp_dir: Directory containing output files.
+        """
+        for file_name in time_series_files(self.keyword_blocks['OUTPUT'].contents):
+            group = f'timeseries_{netcdf_name(Path(file_name).stem)}'
+            try:
+                self.results[group] = parse_time_series(tmp_dir, file_name)
+                print(f'Parsing {group}')
+            except Exception as error:
+                print(f'WARNING: time series "{file_name}" not parsed. ({error})')

@@ -1,5 +1,6 @@
 """File I/O methods shared across simulator modules."""
 
+import csv
 import glob
 import pickle
 import re
@@ -157,6 +158,81 @@ def data_width(file_name, skip):
     return 0
 
 
+# A value whose exponent needs three digits, written without the 'E' that belongs before it, because
+# the number overran its Fortran output field: '1.2345-100' for 1.2345E-100. Anchored at the end of the
+# token and requiring at least two exponent digits, so a well-formed '1.234e-05' -- where the sign
+# follows a letter rather than a digit -- cannot match.
+MALFORMED_EXPONENT = re.compile(r'(\d)([-+])(\d{2,})$')
+
+
+def repair_exponents(values):
+    """Put the 'E' back into values CrunchTope wrote without one.
+
+    The alternative, and what this used to do, was to substitute zero. The magnitudes involved are
+    below 1e-100 so the numerical difference is nil, but a repaired value is still the number the
+    model produced, and a column of them no longer reads as a column of exact zeros.
+
+    Args:
+        values: A pandas Series or xarray DataArray of strings.
+
+    Returns:
+        The same object with the exponents repaired.
+    """
+    return values.str.replace(MALFORMED_EXPONENT.pattern, r'\1e\2\3', regex=True)
+
+
+def parse_time_series(path, file_name):
+    """Import a CrunchTope time-series output file.
+
+    This is the only CrunchTope output written per timestep rather than per snapshot, which makes it
+    the way to see a transient: a `spatial_profile` list resolves whatever times the deck author
+    thought to ask for and nothing between them.
+
+    The time axis is the run's own timestepping, so two runs of one sweep do not share it and need not
+    even be the same length. The dimension is therefore a positional `step` with the real times
+    carried as a coordinate on it, which is what lets runs concatenate without either inventing values
+    at times a run never reached or interleaving NaN at every time it did not share.
+
+    Args:
+        path: Path to the directory containing the file.
+        file_name: Name of the time-series file, as the deck's OUTPUT block gives it.
+
+    Returns:
+        xarray Dataset indexed on 'step', with 'time' as a coordinate on it.
+    """
+    import xarray as xr
+
+    full_path = Path(path) / file_name
+
+    with open(full_path) as file:
+        file.readline()                       # '# Time series at grid cell: ...'
+        header_line = file.readline()
+
+    # The header is a TecPlot VARIABLES line, and CrunchTope truncates it: the Ex5 deck's ends on a
+    # bare opening quote. Taking the quoted runs rather than splitting on commas ignores the stub.
+    headers = [name.strip() for name in re.findall(r'"([^"]*)"', header_line)]
+    headers = [netcdf_name(name) for name in headers if name.strip()]
+
+    headers = reconcile_headers(headers, data_width(full_path, skip=2), ())
+
+    frame = pd.read_csv(full_path, sep=r'\s+', skipinitialspace=True, skiprows=[0, 1],
+                        names=headers, quoting=csv.QUOTE_NONE)
+
+    for column in frame:
+        if frame[column].dtype == object:
+            frame[column] = repair_exponents(frame[column].astype(str)).astype(float)
+
+    # The first column is the time, whatever the deck's time_units called it.
+    time_column = headers[0]
+    dataset = xr.Dataset(
+        {name: ('step', frame[name].to_numpy()) for name in headers[1:]},
+        coords={'step': np.arange(len(frame)), 'time': ('step', frame[time_column].to_numpy())},
+    )
+    dataset['time'].attrs['long_name'] = time_column
+
+    return dataset
+
+
 def parse_output(path, output, time_ref, leading_names=()):
     """Import the spatial profile output file of the system at the target time.
 
@@ -197,18 +273,21 @@ def parse_output(path, output, time_ref, leading_names=()):
             sep=r'\s+',
             skipinitialspace=True,
             skiprows=[0, 1, 2],
-            names=headers
+            names=headers,
+            # Quoting off. The header line is the only quoted thing in the file and it is skipped, but
+            # CrunchTope can truncate it mid-quote -- the time series files do -- and an unclosed quote
+            # makes the C parser read the whole remaining file as one string field. With names given
+            # that returns zero rows rather than raising, so the failure is silent.
+            quoting=csv.QUOTE_NONE,
         )
         ds = df.to_xarray()
 
-        # Check for any variables that have been parsed that are not floats.
-        # Any that are mixed datatypes are likely due to CT scientific notation
-        # for values less than 1e-100. Replace and fix. If not the problem,
-        # an error should be thrown and caught in the try-except in which this
-        # is called.
+        # A column that came back as object rather than float holds at least one value CrunchTope
+        # wrote in a form Fortran cannot read back. Repair it. If that is not what is wrong, the
+        # astype below raises and is caught by the try-except this is called inside.
         for variable in ds:
             if ds[variable].dtype == object:
-                ds[variable] = ds[variable].astype(str).str.replace(r'\d.\d+-\d+', '0', regex=True).astype(float)
+                ds[variable] = repair_exponents(ds[variable].astype(str)).astype(float)
 
         ds = ds.set_index(index=('X', 'Y', 'Z'))
         ds = ds.unstack('index')

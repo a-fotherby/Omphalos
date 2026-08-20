@@ -19,8 +19,11 @@ from omphalos.settings import crunch_dir
 # minds it; it exists because the database cannot say what pressure it was computed at.
 LOGK_RECORD = 'logk_settings.json'
 
-# Error patterns searched in CrunchTope stdout. pexpect returns the index of the
-# first match, so more specific strings should come before generic ones.
+# A floating-point NaN as CrunchTope prints one, in a numeric field.
+NAN_PATTERN = r'[\s,=(][-+]?NaN[\s,)]'
+
+# Error patterns searched in CrunchTope stdout. pexpect compiles these as regular expressions and
+# returns the index of the first match, so more specific strings should come before generic ones.
 CT_ERROR_PATTERNS = [
     # Startup failure: CrunchTope cannot find the input file and then blocks on stdin, so without
     # this pattern the run sits until the configured timeout with no indication of why. Two causes:
@@ -47,15 +50,31 @@ CT_ERROR_PATTERNS = [
     # the same false success as the pressure case above. Matched on the substring so that the Y and
     # Z wordings are both caught.
     'location for timeseries must be specified',
+    # A database reaction whose components are not all present in the basis. CrunchTope prints the
+    # offending secondary species or mineral and then blocks on stdin, so this is a hang rather than
+    # an exit. It used to be caught only by the 'NaN' pattern below, and only by luck: the species
+    # that tripped it happened to be named NaNO3(aq). Any other name and the run burned its whole
+    # timeout with the cause sitting in plain text on stdout.
+    'species missing in reaction',
     'EXCEEDED MAXIMUM ITERATIONS',
     'TRY A',
     'divide by zero',
-    'NaN',
+    # The bare substring 'NaN' matched chemical names too -- NaNO3(aq) and NaNpO2CO3.3.5H2O are in
+    # every database the short course ships -- so a run could be failed for a species name appearing
+    # on stdout. Requiring a delimiter on both sides keeps a printed number and rejects a name, since
+    # what follows the 'NaN' in both of those is a letter. Deliberately un-anchored: pexpect searches
+    # a stream buffer, so '^' and '$' would refer to wherever that buffer happens to begin and end
+    # rather than to the start and end of a line.
+    NAN_PATTERN,
     'forrtl:',            # Fortran runtime error prefix
     'Segmentation fault',
     'Killed',
     'FATAL',
 ]
+
+# What to call a pattern in the failure message, where the pattern itself is a regex and so would
+# not read as anything. Patterns absent from here are printed as they are written.
+CT_ERROR_LABELS = {NAN_PATTERN: 'NaN in a printed value'}
 
 # error_code for a run that ended cleanly but wrote no output. Negative so that it can never collide
 # with an index into CT_ERROR_PATTERNS as that list grows.
@@ -286,7 +305,7 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
         _terminate(process)
     else:
         pattern = CT_ERROR_PATTERNS[error_code - 2]
-        print(f'Error in file {file_num}: "{pattern}".')
+        print(f'Error in file {file_num}: "{CT_ERROR_LABELS.get(pattern, pattern)}".')
         input_file.error_code = error_code
         _terminate(process)
 

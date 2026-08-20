@@ -1,5 +1,6 @@
 """Unit tests for omphalos/run.py."""
 
+import re
 from unittest.mock import Mock
 
 import pytest
@@ -834,3 +835,67 @@ class TestStaleLogKRecord:
 
         with open(tmp_path / run_module.LOGK_RECORD) as record:
             assert json.load(record) == {'pressure': 500.0}
+
+
+class TestNanPattern:
+    """Tests for the NaN error pattern.
+
+    The pattern has to catch a floating-point NaN as CrunchTope prints one while rejecting the
+    chemical names that contain the same three letters. NaNO3(aq) and NaNpO2CO3.3.5H2O are in
+    every database the short course ships, and both reach stdout on paths CrunchTope takes.
+    """
+
+    @pytest.mark.parametrize('line', [
+        ' Newton iteration residual =  NaN ',
+        ' total concentration   -NaN  1.0E-05',
+        ' values are (NaN, 1.0)',
+        'residual= NaN\n',
+        ' 1.000E-05  NaN  2.000E-05',
+    ])
+    def test_a_printed_nan_matches(self, line):
+        """Test that a NaN in a numeric field is caught."""
+        assert re.search(run.NAN_PATTERN, line), line
+
+    @pytest.mark.parametrize('line', [
+        ' species missing in reaction   142 NaNO3(aq)',
+        ' Adding a gas from the EQ3 database\n NaNO3(aq)',
+        ' NaNpO2CO3.3.5H2O',
+        " 'NaNO3(aq)'  4  1.0 'Na+'  1.0 'NO3-'",
+    ])
+    def test_a_species_name_does_not_match(self, line):
+        """Test that a chemical name containing 'NaN' is not read as a NaN."""
+        assert not re.search(run.NAN_PATTERN, line), line
+
+    def test_the_pattern_is_in_the_error_list(self):
+        """Test that the narrowed pattern is the one actually searched."""
+        assert run.NAN_PATTERN in run.CT_ERROR_PATTERNS
+        assert 'NaN' not in run.CT_ERROR_PATTERNS
+
+    def test_missing_species_is_caught_on_its_own(self):
+        """Test that a database reaction missing a component is caught by its own pattern.
+
+        It used to be caught only because the species that tripped it happened to be named
+        NaNO3(aq); CrunchTope then blocks on stdin, so with any other name the run hung until
+        its timeout with the cause printed on stdout.
+        """
+        assert 'species missing in reaction' in run.CT_ERROR_PATTERNS
+
+        line = ' species missing in reaction   142 CaSO4(aq)'
+        matched = [p for p in run.CT_ERROR_PATTERNS if re.search(p, line)]
+        assert 'species missing in reaction' in matched
+
+    def test_the_failure_message_reads_as_words_not_as_a_regex(self, tmp_path, monkeypatch, capsys):
+        """Test that a regex pattern is reported by its label rather than by its source."""
+        error_code = run.CT_ERROR_PATTERNS.index(run.NAN_PATTERN) + 2
+        process = Mock()
+        process.expect.return_value = error_code
+        monkeypatch.setattr(run.pexp, 'spawn', Mock(return_value=process))
+
+        input_file = Mock()
+        input_file.path = tmp_path / 'test.in'
+
+        run.crunchtope(input_file, 0, 10, tmp_path)
+
+        reported = capsys.readouterr().out
+        assert 'NaN in a printed value' in reported
+        assert run.NAN_PATTERN not in reported

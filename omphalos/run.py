@@ -66,6 +66,38 @@ CT_ERROR_PATTERNS = [
     # a stream buffer, so '^' and '$' would refer to wherever that buffer happens to begin and end
     # rather than to the start and end of a line.
     NAN_PATTERN,
+    # --- Refusals the newer CrunchTope releases print and older ones do not.
+    #
+    # Every pattern above was derived against BOGLSource2026, which is a CrunchTope 1.x derivative
+    # closest to upstream v2.0.0. Upstream v2.10 and v3.0 added fatal checks, and each of them prints a
+    # message and then blocks on stdin -- so left unmatched they cost a run its entire timeout and are
+    # recorded as a timeout rather than as the thing that actually went wrong. Checked against six
+    # known-good run logs across three builds for false positives before being added.
+    #
+    # v3.0 (upstream 56731f1, 2024-11-22) made H2O mandatory. Every deck written before that needs
+    # 'H2O' in PRIMARY_SPECIES and 'H2O 55.50843506' in each condition.
+    'H2O must be present',
+    # v2.10 retired the .ant control files; v3.0 and master retired the Hellmann rate law and several
+    # named options (KateMaher, Nuft). Both wordings appear.
+    'no longer used',
+    'no longer supported',
+    # v3.0 stopped falling back to a default database name.
+    'No default database exists',
+    'Ionic strength cannot be zero',
+    # Covers the tempreg filename and region count, the transpiration cell count, the pump units and
+    # the time-series region ID -- all v3.0 additions sharing one wording.
+    'must be provided',
+    'unit for space must be',
+    # A zone entry giving fewer coordinates than the build expects. BOGLSource2026 accepts an X range
+    # alone in INITIAL_CONDITIONS ('initial 1-100'); v2.0.0 onward want every axis.
+    'grid location should follow',
+    'Zero length string',
+    # An auxiliary file the deck names but which was never staged into the run directory.
+    'file not found',
+    # Nucleation: an unresolved substrate mineral, and a nucleation rate law in the database with no
+    # NUCLEATION block to configure it from.
+    'not found in list',
+    'rate law found listed in database',
     'forrtl:',            # Fortran runtime error prefix
     'Segmentation fault',
     'Killed',

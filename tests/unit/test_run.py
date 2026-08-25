@@ -899,3 +899,62 @@ class TestNanPattern:
         reported = capsys.readouterr().out
         assert 'NaN in a printed value' in reported
         assert run.NAN_PATTERN not in reported
+
+
+class TestNewerCrunchTopeRefusals:
+    """Tests that Omphalos notices a newer CrunchTope refusing a deck.
+
+    Every other pattern was derived against BOGLSource2026, a CrunchTope 1.x derivative. Upstream v2.10
+    and v3.0 added fatal checks, and each prints a message and then blocks on stdin -- so an unmatched
+    one costs the run its whole timeout and is recorded as a timeout rather than as the real failure.
+    """
+
+    # Message, and the release that introduced it.
+    REFUSALS = [
+        ('  H2O must be present in list of PRIMARY SPECIES', 'v3.0'),
+        ('  "AqueousControl.ant" no longer used', 'v2.10'),
+        ('  "CatabolicControl.ant" no longer used', 'v2.10'),
+        ('  Hellmann rate law no longer supported', 'master'),
+        ('  Ionic strength cannot be zero', 'v3.0'),
+        ('  No default database exists: Name of database must be specified in input file', 'v3.0'),
+        ('  A file name must be provided for tempreg', 'v3.0'),
+        ('  Number of cells must be provided for transpiration', 'v3.0'),
+        ('  Pump units must be provided and cannot be = 0.0 if there are pumping wells', 'master'),
+        ('  The unit for space must be m when psi_is_head = .FALSE.', 'v3.0'),
+        ('  A grid location should follow heterogeneity label', 'v2.0.0'),
+        ('  Zero length string following label', 'v2.0.0'),
+        ('  Liquid saturation file not found: QL-saturation.dat', 'all'),
+        ('  Mineral surface for nucleation not found in list', 'all'),
+        ('  Nucleation type rate law found listed in database', 'all'),
+    ]
+
+    @pytest.mark.parametrize('message, release', REFUSALS)
+    def test_the_refusal_is_matched(self, message, release):
+        """Test that each message a newer build can print is caught by some pattern."""
+        assert any(re.search(pattern, message) for pattern in run.CT_ERROR_PATTERNS), (
+            f'{release} can print {message.strip()!r} and no pattern matches it; '
+            'the run would block on stdin until its timeout'
+        )
+
+    @pytest.mark.parametrize('line', [
+        '  Number of heterogeneities =            4',
+        '  Using constant diffusion coefficient',
+        '  Graphics files printed at (yrs)',
+        '  INITIALIZATION COMPLETED',
+        '  Number of Newton iterations =  3',
+        '  Maximum change in master variable =   2.00E-04   at grid pts    5    1    1',
+        '  ---> READING GEOCHEMICAL CONDITIONS',
+        '  No aqueous kinetics block found',
+        '  Retardation parameters not found',
+        '  Assuming NO retardation (Kd = 0)',
+        '  No discretization in Z direction',
+        '  *** RUN SUCCESSFULLY COMPLETED ***',
+    ])
+    def test_ordinary_output_is_not_matched(self, line):
+        """Test that none of the patterns fire on lines a healthy run prints.
+
+        These are taken from run logs of completed simulations across all three local builds. A pattern
+        that matches one of them would kill working runs, which is how the bare 'NaN' pattern behaved.
+        """
+        matched = [p for p in run.CT_ERROR_PATTERNS if re.search(p, line)]
+        assert not matched, f'{matched} matched healthy output {line.strip()!r}'

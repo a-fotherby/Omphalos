@@ -114,6 +114,21 @@ def _axis_label(group, variable):
     return f'{variable} ({unit})' if unit else variable
 
 
+def outside_legend(axis, title=None):
+    """Put the legend beside the axes rather than over the data.
+
+    A sweep legend has one entry per run, so it is tall and lands on top of the profiles when
+    matplotlib places it 'best'. Outside to the right it never covers anything and the panels stay
+    the same size as each other.
+
+    The figure has to make room for it: `constrained_layout=True` on the subplots does so, and
+    `bbox_inches='tight'` does when saving. Without either, a wide legend is clipped at the figure
+    edge.
+    """
+    return axis.legend(title=title, frameon=False, loc='upper left',
+                       bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
+
+
 def _at(data, variable, run_index, time=-1, **fixed):
     """One run's values, with the singleton spatial axes dropped."""
     series = data[variable].isel(file_num=run_index)
@@ -197,7 +212,7 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
         axis.invert_yaxis()
 
     if legend and len(wanted) > 1:
-        axis.legend(title=short_name(chosen_parameter(sweep, parameter)), frameon=False)
+        outside_legend(axis, short_name(chosen_parameter(sweep, parameter)))
 
     return axis
 
@@ -268,7 +283,7 @@ def time_series(sweep, group, variable, axis=None, runs=None, parameter=None, le
     axis.set_ylabel(_axis_label(sweep.resolve(group), variable))
 
     if legend and len(wanted) > 1:
-        axis.legend(title=short_name(chosen_parameter(sweep, parameter)), frameon=False)
+        outside_legend(axis, short_name(chosen_parameter(sweep, parameter)))
 
     return axis
 

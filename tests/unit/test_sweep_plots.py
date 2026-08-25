@@ -208,6 +208,33 @@ class TestOrientation:
         assert list(along) == list(values)
 
 
+class TestLegendPlacement:
+    """A sweep legend has an entry per run, so inside the axes it sits on top of the data."""
+
+    def test_the_legend_sits_outside_the_axes(self, crossed):
+        figure, axis = plt.subplots(constrained_layout=True)
+        sp.profiles(crossed, 'totcon', 'SO4--', axis=axis)
+        figure.canvas.draw()
+
+        legend = axis.get_legend().get_window_extent()
+
+        assert legend.x0 >= axis.get_window_extent().x1
+
+    def test_the_time_series_legend_is_placed_the_same_way(self, tmp_path):
+        write_sweep(tmp_path, runs=3)
+        sweep = Sweep(tmp_path / 'results.nc')
+        figure, axis = plt.subplots(constrained_layout=True)
+        sp.profiles(sweep, 'totcon', 'SO4--', axis=axis)
+        figure.canvas.draw()
+
+        assert axis.get_legend().get_window_extent().x0 >= axis.get_window_extent().x1
+
+    def test_it_can_still_be_turned_off(self, crossed):
+        axis = sp.profiles(crossed, 'totcon', 'SO4--', legend=False)
+
+        assert axis.get_legend() is None
+
+
 class TestScalarPerRun:
 
     def test_a_value_per_run_is_plotted_against_the_parameter(self, crossed):

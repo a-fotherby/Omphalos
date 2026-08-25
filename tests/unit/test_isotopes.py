@@ -578,6 +578,36 @@ class TestNamelistReactions:
                             if e['name'] == hand['name'])
                 assert dict(tool) == dict(hand), hand['name']
 
+    def test_the_reactions_are_rebuilt_in_the_same_order(self, stripped_namelist, original_namelist):
+        """A generated reaction belongs beside its parent, where a hand-written one sits.
+
+        f90nml appends a new group to the end of the whole namelist, which would put a copy of an
+        entry from the first group below every later group -- a catabolic reaction printed under the
+        rate laws. CrunchTope reads it either way, but the generated file should diff cleanly against
+        the hand-built one.
+        """
+        from omphalos.isotopes import add_isotope_reactions
+
+        add_isotope_reactions(stripped_namelist, 'Cr', '53', self.LABELLED)
+
+        def sequence(namelist):
+            return [(str(group), entry.get('name')) for group, entry in namelist.namelist.items()]
+
+        assert sequence(stripped_namelist) == sequence(original_namelist)
+
+    def test_a_copy_follows_its_own_parent(self, stripped_namelist):
+        from omphalos.isotopes import add_isotope_reactions
+
+        add_isotope_reactions(
+            stripped_namelist, 'S', '34', {'SO4--': 'S34O4--'},
+            names={'Sulfate_reduction': 'Sulfate34_reduction'})
+
+        for group in ('aqueous', 'aqueouskinetics'):
+            names = [entry.get('name') for entry in stripped_namelist.namelist[group]]
+
+            if 'Sulfate34_reduction' in names:
+                assert names.index('Sulfate34_reduction') == names.index('Sulfate_reduction') + 1
+
     def test_the_reaction_name_takes_the_formula_rule(self):
         # 'Cr_Fe_redox' works because the underscore is neither lowercase nor a digit.
         assert isotope_name('Cr_Fe_redox', 'Cr', '53') == 'Cr53_Fe_redox'

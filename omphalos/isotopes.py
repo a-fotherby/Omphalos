@@ -32,6 +32,8 @@ some mineral rows, would both be mangled by a carbon isotope otherwise.
 
 import re
 
+import f90nml
+
 from core.keyword_block import KEY_SEPARATOR
 from omphalos.database import tokenise
 
@@ -854,6 +856,50 @@ def group_entries(namelist, group):
     return list(entries) if isinstance(entries, list) else [entries]
 
 
+def order_after_parents(namelist, placements):
+    """Move each generated reaction to sit directly after the one it was copied from.
+
+    ``add_cogroup`` appends to the end of the whole namelist, so an isotope copy of a reaction in the
+    first group lands after every other group -- a catabolic entry printed below the rate laws. That
+    still parses, because CrunchTope keys on name and type rather than position, but it makes a
+    generated database diff badly against a hand-written one.
+
+    The write order comes from f90nml's own cogroup bookkeeping rather than from key order, so
+    neither the underlying dict nor ``_cogroups`` can be resorted to move an entry. The namelist is
+    rebuilt instead, adding groups in the wanted sequence. Walking ``items()`` keeps whatever
+    interleaving of groups the file already had.
+    """
+    if not placements:
+        return
+
+    generated = {(group, new_name) for group, new_name, _ in placements}
+    after = {}
+
+    for group, new_name, parent_name in placements:
+        after.setdefault((group, parent_name), []).append(new_name)
+
+    sequence = [(str(group), entry) for group, entry in namelist.namelist.items()]
+    entries = {(group, entry.get('name')): entry for group, entry in sequence}
+
+    fresh = f90nml.Namelist()
+
+    for group, entry in sequence:
+        name = entry.get('name')
+
+        if (group, name) in generated:
+            continue
+
+        fresh.add_cogroup(group, entry)
+
+        for new_name in after.get((group, name), ()):
+            copied = entries.get((group, new_name))
+
+            if copied is not None:
+                fresh.add_cogroup(group, copied)
+
+    namelist.namelist = fresh
+
+
 def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_offset=None):
     """Duplicate a namelist's reactions for an isotope, in place.
 
@@ -887,6 +933,7 @@ def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_of
     import copy as copy_module
 
     added, needs_name = [], []
+    placements = []
 
     if namelist is None or not getattr(namelist, 'namelist', None):
         return added, needs_name
@@ -926,5 +973,8 @@ def add_isotope_reactions(namelist, element, label, labelled, names=None, keq_of
             namelist.namelist.add_cogroup(group, copied)
             existing.add(new_name)
             added.append(f'{group}/{new_name}')
+            placements.append((group, new_name, name))
+
+    order_after_parents(namelist, placements)
 
     return added, needs_name

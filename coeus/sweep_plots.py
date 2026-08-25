@@ -122,10 +122,16 @@ def outside_legend(axis, title=None):
     the same size as each other.
 
     The figure has to make room for it: `constrained_layout=True` on the subplots does so, and
-    `bbox_inches='tight'` does when saving. Without either, a wide legend is clipped at the figure
-    edge.
+    `bbox_inches='tight'` does when saving. Use one or the other, not both -- together they fight
+    and matplotlib gives up with 'constrained_layout not applied'.
+
+    Beyond a dozen runs the legend is split across columns. A fifteen-run sweep in a single column
+    is taller than the axes, and constrained_layout responds by shrinking the axes to nothing.
     """
-    return axis.legend(title=title, frameon=False, loc='upper left',
+    entries = len(axis.get_legend_handles_labels()[0])
+    columns = max(1, -(-entries // 12))
+
+    return axis.legend(title=title, frameon=False, loc='upper left', ncol=columns,
                        bbox_to_anchor=(1.02, 1.0), borderaxespad=0.0)
 
 
@@ -185,10 +191,16 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
     distance = data[along].values
     invert = vertical if invert is None else invert
 
+    # A batch model is one cell, so its "profile" is a single point per run and a line through it
+    # draws nothing at all -- an empty pair of axes that looks like a loading failure. ex8 is such
+    # a sweep; its story is in the time series rather than along X.
+    style = {'marker': 'o'} if len(distance) == 1 else {}
+
     for run in wanted:
         index = sweep.runs.index(run)
         values = _at(data, variable, index, time, Y=y, Z=z)
-        axis.plot(*((values, distance) if vertical else (distance, values)), label=labels[run])
+        axis.plot(*((values, distance) if vertical else (distance, values)),
+                  label=labels[run], **style)
 
     space = f'{along} (m)'
     value = _axis_label(sweep.resolve(group), variable)

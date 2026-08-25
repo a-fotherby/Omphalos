@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from coeus import sweep_plots as sp  # noqa: E402
 from coeus.sweep import Sweep  # noqa: E402
-from tests.unit.test_sweep import write_sweep  # noqa: E402
+from tests.unit.test_sweep import TIMES, write_sweep  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -206,6 +206,32 @@ class TestOrientation:
 
         assert list(across) == list(distance)
         assert list(along) == list(values)
+
+
+class TestSingleCellSweep:
+    """A batch model is one cell, so a profile along X is one point per run."""
+
+    def test_a_single_point_gets_a_marker(self, tmp_path):
+        """Without one the line has no length and the axes look empty, as if nothing loaded."""
+        import numpy as np
+        import xarray as xr
+
+        values = np.arange(4 * len(TIMES), dtype=float).reshape(4, len(TIMES), 1, 1, 1)
+        xr.Dataset(
+            {'SO4--': (('file_num', 'time', 'X', 'Y', 'Z'), values)},
+            coords={'file_num': list(range(4)), 'time': TIMES,
+                    'X': [0.5], 'Y': [0.0], 'Z': [0.0]},
+        ).to_netcdf(tmp_path / 'results.nc', group='totcon', mode='w')
+
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--')
+
+        assert all(line.get_marker() not in ('', 'None') for line in axis.lines)
+
+    def test_a_column_is_left_unmarked(self, tmp_path):
+        write_sweep(tmp_path, runs=2)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--')
+
+        assert all(line.get_marker() in ('', 'None') for line in axis.lines)
 
 
 class TestLegendPlacement:

@@ -128,6 +128,63 @@ class TestProfiles:
         assert axis.get_legend().get_title().get_text() == 'epsilon'
 
 
+class TestOrientation:
+    """A 1-D column reads either way round, and which is wanted depends on the column."""
+
+    def test_horizontal_puts_distance_on_x(self, tmp_path):
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--')
+
+        assert axis.get_xlabel() == 'X (m)'
+        assert axis.get_ylabel() == 'SO4-- (mol/kgw)'
+
+    def test_vertical_puts_distance_on_y(self, tmp_path):
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--', vertical=True)
+
+        assert axis.get_ylabel() == 'X (m)'
+        assert axis.get_xlabel() == 'SO4-- (mol/kgw)'
+
+    def test_vertical_runs_the_depth_axis_downwards(self, tmp_path):
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--', vertical=True)
+
+        assert axis.yaxis_inverted()
+
+    def test_vertical_moves_the_value_axis_to_the_top(self, tmp_path):
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--', vertical=True)
+
+        assert axis.xaxis.get_label_position() == 'top'
+
+    def test_horizontal_is_not_inverted(self, tmp_path):
+        write_sweep(tmp_path)
+
+        assert not sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--').yaxis_inverted()
+
+    def test_the_inversion_can_be_refused(self, tmp_path):
+        """A horizontal flow path drawn vertically for space should not be upside down."""
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--',
+                           vertical=True, invert=False)
+
+        assert not axis.yaxis_inverted()
+        assert axis.get_ylabel() == 'X (m)'
+
+    def test_the_data_is_the_same_either_way(self, tmp_path):
+        write_sweep(tmp_path)
+        sweep = Sweep(tmp_path / 'results.nc')
+        flat = sp.profiles(sweep, 'totcon', 'SO4--')
+        _, upright = plt.subplots()
+        upright = sp.profiles(sweep, 'totcon', 'SO4--', axis=upright, vertical=True)
+
+        across, along = flat.lines[0].get_data()
+        values, distance = upright.lines[0].get_data()
+
+        assert list(across) == list(distance)
+        assert list(along) == list(values)
+
+
 class TestScalarPerRun:
 
     def test_a_value_per_run_is_plotted_against_the_parameter(self, crossed):

@@ -129,11 +129,17 @@ def _at(data, variable, run_index, time=-1, **fixed):
 
 
 def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=None,
-             along='X', y=0, z=0, legend=True):
+             along='X', y=0, z=0, legend=True, vertical=False, invert=None):
     """Profile along the column at one time, one line per run.
 
     The commonest figure in the demos. Runs are labelled by what was swept, so the legend says what
     distinguishes the lines rather than merely numbering them.
+
+    A 1-D column reads either way round, and which one is wanted depends on the column rather than
+    on the data: distance along the flow path goes on the x axis, but a column thought of as depth
+    belongs on the y axis running downwards, with the value across the top. `vertical=True` gives
+    the second, including the axis inversion and the move of the value axis to the top that the
+    convention carries with it.
 
     Args:
         sweep: A Sweep, or a path to a results.nc.
@@ -146,6 +152,11 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
         along: The spatial dimension to plot against.
         y, z: Indices of the other two spatial axes.
         legend: Whether to draw the legend.
+        vertical: Put the spatial axis on y and the value across the top, as a depth plot.
+        invert: Whether the spatial axis runs downwards. Defaults to True when `vertical`, which is
+            the depth convention, and False otherwise. Set it explicitly for a column that is not a
+            depth -- a horizontal flow path drawn vertically for space reasons should not be
+            upside down.
 
     Returns:
         The axes drawn on.
@@ -157,13 +168,28 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
     labels = run_labels(sweep, parameter)
     wanted = sweep.runs if runs is None else list(runs)
     distance = data[along].values
+    invert = vertical if invert is None else invert
 
     for run in wanted:
         index = sweep.runs.index(run)
-        axis.plot(distance, _at(data, variable, index, time, Y=y, Z=z), label=labels[run])
+        values = _at(data, variable, index, time, Y=y, Z=z)
+        axis.plot(*((values, distance) if vertical else (distance, values)), label=labels[run])
 
-    axis.set_xlabel(f'{along} (m)')
-    axis.set_ylabel(_axis_label(sweep.resolve(group), variable))
+    space = f'{along} (m)'
+    value = _axis_label(sweep.resolve(group), variable)
+
+    if vertical:
+        axis.set_xlabel(value)
+        axis.set_ylabel(space)
+        # The value belongs across the top of a depth plot, where it is read before the profile.
+        axis.xaxis.tick_top()
+        axis.xaxis.set_label_position('top')
+    else:
+        axis.set_xlabel(space)
+        axis.set_ylabel(value)
+
+    if invert and not axis.yaxis_inverted():
+        axis.invert_yaxis()
 
     if legend and len(wanted) > 1:
         axis.legend(title=short_name(chosen_parameter(sweep, parameter)), frameon=False)

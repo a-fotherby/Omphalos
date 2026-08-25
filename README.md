@@ -1188,6 +1188,7 @@ value reaches it. Skipped without a binary, and marked `smoke`, so `pytest -m 'n
 | `tests/unit/test_slurm_interface.py` | `rhea/slurm_interface.py` — result compilation, failed-run accounting, run-directory clearing |
 | `tests/unit/test_slurm_exec.py` | `rhea/slurm_exec.py` — that each run, and each stage, reads and writes its own auxiliary files |
 | `tests/unit/test_coeus_helper.py` | `coeus/helper.py` — result loading and error filtering |
+| `tests/unit/test_sweep.py` | `coeus/sweep.py` — the results/conditions join, renamed output groups, and detecting runs that stopped early |
 | `tests/integration/test_omphalos_workflow.py` | End-to-end workflows across the modules above |
 | `tests/integration/test_smoke.py` | CrunchTope run against the decks and databases Omphalos writes |
 | `tests/integration/test_smoke_min3p.py` | MIN3P run against the decks Omphalos writes, including a restart chain |

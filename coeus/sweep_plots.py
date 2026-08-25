@@ -187,6 +187,11 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
     else:
         axis.set_xlabel(space)
         axis.set_ylabel(value)
+        # Put the x axis back at the bottom rather than assuming it was never moved. Drawing both
+        # orientations onto one axes otherwise leaves the label up top, and `clear()` is only a
+        # partial fix -- it restores the label but leaves the tick marks on the top spine.
+        axis.xaxis.tick_bottom()
+        axis.xaxis.set_label_position('bottom')
 
     if invert and not axis.yaxis_inverted():
         axis.invert_yaxis()

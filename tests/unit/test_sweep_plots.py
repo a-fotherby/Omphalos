@@ -171,6 +171,29 @@ class TestOrientation:
         assert not axis.yaxis_inverted()
         assert axis.get_ylabel() == 'X (m)'
 
+    def test_horizontal_labels_the_bottom(self, tmp_path):
+        write_sweep(tmp_path)
+        axis = sp.profiles(Sweep(tmp_path / 'results.nc'), 'totcon', 'SO4--')
+
+        assert axis.xaxis.get_label_position() == 'bottom'
+
+    def test_switching_back_returns_the_label_to_the_bottom(self, tmp_path):
+        """Drawing both orientations onto one axes must not leave the label up top.
+
+        `clear()` is not enough on its own: it restores the label but leaves the tick marks on the
+        top spine, so the axis is put back explicitly.
+        """
+        write_sweep(tmp_path)
+        sweep = Sweep(tmp_path / 'results.nc')
+        _, axis = plt.subplots()
+
+        sp.profiles(sweep, 'totcon', 'SO4--', axis=axis, vertical=True, legend=False)
+        assert axis.xaxis.get_label_position() == 'top'
+
+        sp.profiles(sweep, 'totcon', 'SO4--', axis=axis, vertical=False, legend=False)
+        assert axis.xaxis.get_label_position() == 'bottom'
+        assert not axis.xaxis._major_tick_kw.get('tick2On')
+
     def test_the_data_is_the_same_either_way(self, tmp_path):
         write_sweep(tmp_path)
         sweep = Sweep(tmp_path / 'results.nc')

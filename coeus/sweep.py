@@ -23,10 +23,13 @@ so the drawing lives in `coeus.sweep_plots` and the widgets that drive it live i
 """
 
 import ast
+import pickle
 import re
+import warnings
 from pathlib import Path
 
 import netCDF4
+import numpy as np
 import xarray as xr
 
 # Output categories renamed between CrunchTope builds, keyed by the older (1.x / BOGLSource2026)
@@ -83,6 +86,78 @@ def units(group):
     'xgram' and has not been run down, so an axis label should be left bare rather than invented.
     """
     return GROUP_UNITS.get(group) or GROUP_UNITS.get(GROUP_ALIASES.get(group))
+
+
+# Simulators name their axes differently, and only the names differ: CrunchTope writes X/Y/Z and a
+# physical `time`, MIN3P writes x/y/z and indexes its snapshots by `output`, an integer with no
+# physical value attached. Resolving the names here keeps every caller simulator-agnostic.
+TIME_DIMS = ('time', 'output')
+
+
+def axis_name(data, axis='X'):
+    """Return the name this dataset uses for a spatial axis, or None if it has none.
+
+    Accepts either case, so `axis_name(data, 'X')` finds MIN3P's `x`.
+    """
+    for candidate in (axis, axis.lower(), axis.upper()):
+        if candidate in data.dims:
+            return candidate
+
+    return None
+
+
+def time_name(data):
+    """Return the dimension this dataset indexes snapshots by, or None.
+
+    `time` for CrunchTope, `output` for MIN3P. A group carrying both -- MIN3P's breakthrough files
+    have `output` alongside a ragged per-run `time` over `step` -- resolves to `time`, which is the
+    one with physical values on it.
+    """
+    for candidate in TIME_DIMS:
+        if candidate in data.dims:
+            return candidate
+
+    return None
+
+
+def spatial_axes(data):
+    """The spatial dimensions present, in x-y-z order, under the names this file uses."""
+    found = (axis_name(data, axis) for axis in 'XYZ')
+
+    return [name for name in found if name is not None]
+
+
+def profile_axis(data):
+    """The spatial dimension a 1-D profile should be drawn along, or None.
+
+    Whichever axis actually varies, rather than always x: MIN3P's dissolution demo is a column
+    running down `z` with `x` and `y` singleton, and plotting against x there draws a single point.
+    """
+    axes = spatial_axes(data)
+    varying = [name for name in axes if data.sizes[name] > 1]
+
+    return next(iter(varying or axes), None)
+
+
+# A units suffix in a variable name, e.g. 'C-Alk [eq_per_L]'. Square brackets only: round ones would
+# take the '(aq)' off half the species in a CrunchTope basis and call it a unit.
+NAMED_UNITS = re.compile(r'^(.*?)\s*\[([^\[\]]+)\]\s*$')
+
+
+def split_units(variable):
+    """Split a units suffix off a variable name, as (name, units).
+
+    MIN3P carries the unit in the variable name where CrunchTope carries it in the .tec TITLE for
+    the whole group, so this is the only place a MIN3P unit can be read from -- nothing in the
+    netCDF has a units attribute. Returns (variable, None) where there is no suffix.
+    """
+    match = NAMED_UNITS.match(variable)
+
+    if not match:
+        return variable, None
+
+    # MIN3P spells a solidus '_per_', presumably to keep it out of filenames.
+    return match.group(1), match.group(2).replace('_per_', '/')
 
 
 def group_names(path):
@@ -186,6 +261,60 @@ class Sweep:
 
         return []
 
+    def spatial_groups(self):
+        """Groups holding a field over space -- the ones a profile or a map can be drawn from."""
+        return [group for group in self.groups
+                if self.data(group).data_vars and spatial_axes(self.data(group))]
+
+    def series_groups(self):
+        """Groups holding a record at fixed observation points, written every timestep.
+
+        Identified by structure rather than by name, because the names agree on nothing: CrunchTope
+        calls these `timeseries_*` and MIN3P calls them `gbc`, `gbm`, `gbt`. What both do is carry
+        `time` as a *coordinate* over `step`, where a spatial group carries it as a dimension of its
+        own -- one row of times per run, since the steps a run takes are its own.
+        """
+        return [group for group in self.groups
+                if self.data(group).data_vars
+                and 'time' in self.data(group).coords and 'time' not in self.data(group).dims]
+
+    def map_groups(self):
+        """Groups with two spatial axes of real extent -- the ones `field` can map."""
+        found = []
+
+        for group in self.spatial_groups():
+            data = self.data(group)
+
+            if sum(data.sizes[axis] > 1 for axis in spatial_axes(data)) > 1:
+                found.append(group)
+
+        return found
+
+    def snapshot_count(self, group):
+        """How many snapshots a group holds, for sizing a control that steps through them."""
+        axis = self.snapshot_axis(group)
+
+        return 0 if axis is None else self.data(group).sizes[axis[0]]
+
+    @property
+    def simulator(self):
+        """Which code wrote this sweep, as 'min3p' or 'crunchtope'.
+
+        Nothing in the file records it, so it is read off the dimension names: MIN3P indexes its
+        snapshots by `output` and names its axes in lower case, CrunchTope uses `time` and X/Y/Z.
+        Used only to choose defaults the file cannot supply, such as the units of the time axis.
+        """
+        for group in self.groups:
+            dims = self.data(group).dims
+
+            if 'output' in dims:
+                return 'min3p'
+
+            if 'time' in dims or 'X' in dims:
+                return 'crunchtope'
+
+        return 'crunchtope'
+
     @property
     def parameter_groups(self):
         """The groups of conditions.nc -- one per swept keyword block, e.g. 'aqueous_kinetics'."""
@@ -195,15 +324,74 @@ class Sweep:
         return group_names(self.conditions_path)
 
     @property
+    def records_path(self):
+        """Path to the records.pkl a MIN3P sweep leaves beside its results, or None."""
+        alongside = self.results_path.parent / 'records.pkl'
+
+        return alongside if alongside.exists() else None
+
+    def _record_parameters(self):
+        """What each run was given, recovered from a MIN3P records.pkl.
+
+        A MIN3P sweep writes no conditions.nc: Omphalos pickles the InputFile objects instead. So
+        what varied is recovered by comparing the decks against each other token by token, which
+        finds the same thing conditions.nc would have recorded -- and finds it without being told
+        what the sweep was supposed to vary.
+
+        Parameters are named `keyword[line][token]` within their block, because a MIN3P keyword can
+        carry several lines and each line several values, and the sweep may have moved any one of
+        them. Values are returned as floats where they parse as numbers, so a legend can format them
+        and `scalar_per_run` can plot against them.
+        """
+        if self.records_path is None:
+            return {}
+
+        try:
+            with open(self.records_path, 'rb') as handle:
+                # Unpickling needs min3p.input_file importable, which it is whenever coeus is:
+                # both live in the same checkout.
+                records = _CompatUnpickler(handle).load()
+        except Exception as problem:
+            # A sweep must stay readable when its records do not: the results are the point and the
+            # only thing lost is the run labels. Said out loud rather than swallowed, because
+            # 'run 0, run 1' otherwise looks like a sweep that varied nothing.
+            warnings.warn(f'could not read {self.records_path.name}, so runs cannot be labelled '
+                          f'by what varied: {type(problem).__name__}: {problem}')
+
+            return {}
+
+        tokens = {int(run): _deck_tokens(record) for run, record in records.items()}
+
+        if not tokens:
+            return {}
+
+        shared = set.intersection(*(set(found) for found in tokens.values()))
+        found = {}
+
+        for key in sorted(shared):
+            values = [tokens[run].get(key) for run in self.runs if run in tokens]
+
+            if len(set(values)) < 2:
+                continue
+
+            block, keyword, line, token = key
+            found.setdefault(block, {})[f'{keyword}[{line}][{token}]'] = [
+                _number(value) for value in values
+            ]
+
+        return found
+
+    @property
     def parameters(self):
         """What each run was given, as {group: {parameter: [value per file_num]}}.
 
-        Reads conditions.nc, which Omphalos writes with `--compile-inputs`. Returns an empty dict
-        where there is no conditions file, since a sweep is still readable without one -- the runs
-        just cannot be labelled by what varied.
+        Reads conditions.nc, which Omphalos writes with `--compile-inputs`, and falls back to the
+        records.pkl a MIN3P sweep writes in its place. Returns an empty dict where there is neither,
+        since a sweep is still readable without one -- the runs just cannot be labelled by what
+        varied.
         """
         if self.conditions_path is None:
-            return {}
+            return self._record_parameters()
 
         found = {}
 
@@ -289,6 +477,55 @@ class Sweep:
 
         return {run: (last, last >= target) for run, last in times.items()}
 
+    def snapshot_axis(self, group):
+        """How one output category indexes its snapshots, as (dim, marks, physical), or None.
+
+        `marks` gives the value to report for each position along `dim`, and `physical` says whether
+        those values are simulated times or merely a count. Three shapes turn up:
+
+        - CrunchTope shares one `time` coordinate across every run, so `marks` is 1-D.
+        - MIN3P's breakthrough groups carry a ragged `time` over `(file_num, step)` -- each run has
+          its own times -- so `marks` is 2-D and indexed by run.
+        - MIN3P's spatial groups carry only `output`, a bare integer index with no coordinate values
+          attached. There is no time to report, so the position is used and `physical` is False.
+        """
+        data = self.data(group)
+
+        if 'file_num' not in data.dims or not data.data_vars:
+            return None
+
+        times = data['time'] if 'time' in data.coords else None
+
+        if times is not None and times.dims == ('time',):
+            return 'time', times.values, True
+
+        if times is not None and 'file_num' in times.dims:
+            axis = next((dim for dim in times.dims if dim != 'file_num'), None)
+
+            if axis is not None:
+                return axis, times.values, True
+
+        axis = time_name(data)
+
+        return None if axis is None else (axis, np.arange(data.sizes[axis]), False)
+
+    def _completeness_source(self):
+        """The group completeness should be read from, as (group, dim, marks, physical), or None.
+
+        Groups indexing snapshots by simulated time are preferred over ones carrying only a count,
+        so a MIN3P sweep is measured against its breakthrough times rather than its snapshot number
+        whenever both are present.
+        """
+        candidates = [(group, self.snapshot_axis(group)) for group in self.groups]
+        found = [(group, axis) for group, axis in candidates if axis is not None]
+
+        for physical in (True, False):
+            for group, (dim, marks, is_time) in found:
+                if is_time is physical:
+                    return group, dim, marks, is_time
+
+        return None
+
     def _times(self):
         """The last time each run actually has data for, as {file_num: time}.
 
@@ -298,32 +535,73 @@ class Sweep:
         coordinate would therefore report every run as reaching the end. The data has to be read
         instead, and the answer is the last time at which a run holds a finite value.
         """
-        for group in self.groups:
-            data = self.data(group)
+        source = self._completeness_source()
 
-            if 'file_num' not in data.dims or 'time' not in data.dims or not data.data_vars:
+        if source is None:
+            return {}
+
+        group, axis, marks, _ = source
+        data = self.data(group)
+        # Any variable will do -- a run that stopped writes nothing at all past that point, so
+        # every variable goes NaN together.
+        variable = data[next(iter(data.data_vars))]
+        marks = np.asarray(marks)
+        found = {}
+
+        for index, run in enumerate(data['file_num'].values):
+            series = variable.isel(file_num=index)
+            # Collapse everything but the snapshot axis, so one finite cell anywhere counts.
+            present = series.notnull().any(
+                dim=[dim for dim in series.dims if dim != axis]
+            ).values
+
+            if not present.any():
                 continue
 
-            # Any variable will do -- a run that stopped writes nothing at all past that point, so
-            # every variable goes NaN together.
-            variable = data[next(iter(data.data_vars))]
-            times = data['time'].values
-            found = {}
+            last = present.nonzero()[0][-1]
+            # A ragged time has one row per run; a shared one is the same for all of them.
+            row = marks[index] if marks.ndim > 1 else marks
+            found[int(run)] = float(row[last])
 
-            for index, run in enumerate(data['file_num'].values):
-                series = variable.isel(file_num=index)
-                # Collapse everything but time, so one finite cell anywhere counts as output.
-                present = series.notnull().any(
-                    dim=[dim for dim in series.dims if dim != 'time']
-                ).values
+        return found
 
-                if present.any():
-                    found[int(run)] = float(times[present.nonzero()[0][-1]])
 
-            if found:
-                return found
+class _CompatUnpickler(pickle.Unpickler):
+    """Unpickle a records.pkl written under a different Python than the one reading it.
 
-        return {}
+    Omphalos runs sweeps in its own environment and the notebooks run in a plotting one, and the two
+    are not on the same Python. A pickled `Path` records its class as `pathlib._local.Path` from
+    3.13 and as `pathlib.Path` before that, so a records.pkl written by the newer one is unreadable
+    from the older with `ModuleNotFoundError: No module named 'pathlib._local'`. Only the module
+    name is redirected; the object that comes back is the same.
+    """
+
+    def find_class(self, module, name):
+        if module == 'pathlib._local':
+            module = 'pathlib'
+
+        return super().find_class(module, name)
+
+
+def _deck_tokens(record):
+    """Every value token in one MIN3P deck, as {(block, keyword, line, token): text}."""
+    found = {}
+
+    for name, block in record.keyword_blocks.items():
+        for keyword, lines in block.contents.items():
+            for line_index, line in enumerate(lines):
+                for token_index, token in enumerate(line.tokens):
+                    found[(name, keyword, line_index, token_index)] = token
+
+    return found
+
+
+def _number(token):
+    """A deck token as a float where it is one, and unchanged where it is not."""
+    try:
+        return float(token)
+    except (TypeError, ValueError):
+        return token
 
 
 def _hashable(value):
@@ -377,15 +655,23 @@ def describe(sweep, stream=None):
         reached = {run: time for run, (time, _) in completeness.items()}
         short = sorted(run for run, (_, done) in completeness.items() if not done)
         furthest = max(reached.values())
+        source = sweep._completeness_source()
+        # Only say 'time' where the numbers are times. MIN3P's spatial output is indexed by a bare
+        # snapshot counter, and calling that a time would invite it to be checked against the deck.
+        physical = source is None or source[3]
+        measure = 'time' if physical else f'{source[1]} index'
 
         if short:
             write(f'  INCOMPLETE: {len(short)} of {len(completeness)} runs stopped before '
                   f'{furthest:g}, the furthest any run reached')
             for run in short:
                 write(f'      run {run}: stopped at {reached[run]:g}')
-        else:
+        elif physical:
             write(f'  all runs reached {furthest:g} '
                   f'-- check that against the time the deck asked for')
+        else:
+            write(f'  all runs wrote {furthest + 1:g} snapshots (no simulated time recorded '
+                  f'against them, only a {measure})')
 
     failures = sweep.failures()
 
@@ -406,8 +692,11 @@ def describe(sweep, stream=None):
                               for value in distinct[:6])
             write(f'      {name}: {len(distinct)} distinct value(s) [{shown}'
                   f'{", ..." if len(distinct) > 6 else ""}]')
+    elif sweep.conditions_path is None and sweep.records_path is None:
+        write('  no conditions.nc or records.pkl alongside, so runs cannot be labelled by '
+              'what varied')
     elif sweep.conditions_path is None:
-        write('  no conditions.nc alongside, so runs cannot be labelled by what varied')
+        write('  records.pkl records no token that differs between runs')
     else:
         write('  conditions.nc records no parameter that differs between runs')
 

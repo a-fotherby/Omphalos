@@ -23,7 +23,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from coeus.sweep import Sweep, units
+from coeus.sweep import Sweep, axis_name, profile_axis, split_units, time_name, units
 
 STYLE = Path.home() / 'Python' / 'mpl_styles' / 'publication.mplstyle'
 
@@ -109,9 +109,12 @@ def run_labels(sweep, parameter=None, fmt='{:g}'):
 
 
 def _axis_label(group, variable):
-    unit = units(group)
+    # MIN3P puts the unit in the variable name and CrunchTope puts it in the group's .tec TITLE, so
+    # the name is asked first: where it carries one it is the more specific of the two.
+    name, unit = split_units(variable)
+    unit = unit or units(group)
 
-    return f'{variable} ({unit})' if unit else variable
+    return f'{name} ({unit})' if unit else name
 
 
 def outside_legend(axis, title=None):
@@ -136,21 +139,27 @@ def outside_legend(axis, title=None):
 
 
 def _at(data, variable, run_index, time=-1, **fixed):
-    """One run's values, with the singleton spatial axes dropped."""
-    series = data[variable].isel(file_num=run_index)
+    """One run's values, with the singleton spatial axes dropped.
 
-    if 'time' in series.dims:
-        series = series.isel(time=time)
+    `fixed` names axes in upper case whatever the file calls them, so `Z=0` selects MIN3P's `z`.
+    """
+    series = data[variable].isel(file_num=run_index)
+    snapshots = time_name(data)
+
+    if snapshots in series.dims:
+        series = series.isel({snapshots: time})
 
     for name, index in fixed.items():
-        if name in series.dims:
-            series = series.isel({name: index})
+        resolved = axis_name(data, name)
+
+        if resolved in series.dims:
+            series = series.isel({resolved: index})
 
     return series.squeeze()
 
 
 def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=None,
-             along='X', y=0, z=0, legend=True, vertical=False, invert=None):
+             along=None, y=0, z=0, legend=True, vertical=False, invert=None):
     """Profile along the column at one time, one line per run.
 
     The commonest figure in the demos. Runs are labelled by what was swept, so the legend says what
@@ -166,11 +175,12 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
         sweep: A Sweep, or a path to a results.nc.
         group: Output category, in either build's spelling.
         variable: Which variable in it, e.g. 'SO4--'.
-        time: Index into the time axis. Defaults to the last.
+        time: Index into the snapshot axis. Defaults to the last.
         axis: Axes to draw on. A new figure is made if omitted.
         runs: Which file_nums to draw. Defaults to all of them.
         parameter: Which swept parameter to label by. See `run_labels`.
-        along: The spatial dimension to plot against.
+        along: The spatial dimension to plot against, in either case. Defaults to whichever axis
+            actually varies, so a column running down z is found without being named.
         y, z: Indices of the other two spatial axes.
         legend: Whether to draw the legend.
         vertical: Put the spatial axis on y and the value across the top, as a depth plot.
@@ -188,8 +198,18 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
 
     labels = run_labels(sweep, parameter)
     wanted = sweep.runs if runs is None else list(runs)
+    along = profile_axis(data) if along is None else (axis_name(data, along) or along)
+
+    if along is None:
+        raise KeyError(f"group '{group}' has no spatial axis to profile along; "
+                       f'its dimensions are {sorted(data.dims)}')
+
     distance = data[along].values
     invert = vertical if invert is None else invert
+    # Hold the other two axes, whichever this file calls them. The one being profiled is dropped
+    # rather than fixed, and any that is already singleton is squeezed away regardless.
+    fixed = {'X': 0, 'Y': y, 'Z': z}
+    fixed.pop(along.upper(), None)
 
     # A batch model is one cell, so its "profile" is a single point per run and a line through it
     # draws nothing at all -- an empty pair of axes that looks like a loading failure. ex8 is such
@@ -198,11 +218,11 @@ def profiles(sweep, group, variable, time=-1, axis=None, runs=None, parameter=No
 
     for run in wanted:
         index = sweep.runs.index(run)
-        values = _at(data, variable, index, time, Y=y, Z=z)
+        values = _at(data, variable, index, time, **fixed)
         axis.plot(*((values, distance) if vertical else (distance, values)),
                   label=labels[run], **style)
 
-    space = f'{along} (m)'
+    space = f'{along.upper()} (m)'
     value = _axis_label(sweep.resolve(group), variable)
 
     if vertical:
@@ -265,19 +285,38 @@ def scalar_per_run(sweep, values, axis=None, parameter=None, marker='o'):
     return axis
 
 
-def time_series(sweep, group, variable, axis=None, runs=None, parameter=None, legend=True):
+def time_series(sweep, group, variable, axis=None, runs=None, parameter=None, legend=True,
+                point=0, time_units=None):
     """A time series at one observation point, one line per run.
 
-    The `timeseries_*` groups are written every timestep rather than at the snapshot times, and
-    carry `time` as a coordinate over `step`. A run that stopped early is padded, so the trailing
-    NaNs are dropped rather than plotted as a gap running to the end of the axis.
+    Both codes write these every timestep rather than at the snapshot times, and carry `time` as a
+    coordinate over `step` -- one row per run, since the steps a run takes are its own. A run that
+    stopped early is padded, so the trailing NaNs are dropped rather than plotted as a gap running
+    to the end of the axis.
+
+    Args:
+        point: Which observation point, where the group holds several. MIN3P writes one breakthrough
+            record per observation point and stacks them on `output`; CrunchTope writes a group per
+            point, so this is ignored there.
+        time_units: What to put on the x axis after 'time'. Defaults to days for CrunchTope, and to
+            nothing at all for MIN3P, whose output interval is set in the deck and recorded nowhere
+            in the results.
+
+    Raises:
+        KeyError: if the group carries no time coordinate, which means it is a spatial group rather
+            than a breakthrough one.
     """
     sweep = sweep if isinstance(sweep, Sweep) else Sweep(sweep)
     data = sweep.data(group)
     axis = axis or plt.subplots()[1]
 
+    if 'time' not in data.coords:
+        raise KeyError(f"group '{group}' records no time, so it has no series to draw; "
+                       f'its dimensions are {sorted(data.dims)}')
+
     labels = run_labels(sweep, parameter)
     wanted = sweep.runs if runs is None else list(runs)
+    steps = next((dim for dim in data['time'].dims if dim != 'file_num'), 'time')
 
     for run in wanted:
         index = sweep.runs.index(run)
@@ -287,11 +326,18 @@ def time_series(sweep, group, variable, axis=None, runs=None, parameter=None, le
         if 'file_num' in times.dims:
             times = times.isel(file_num=index)
 
+        # Anything left besides the step axis is a stack of observation points.
+        for name in [dim for dim in series.dims if dim != steps]:
+            series = series.isel({name: point})
+
         finite = np.isfinite(np.asarray(series.values))
         axis.plot(np.asarray(times.values)[finite], np.asarray(series.values)[finite],
                   label=labels[run])
 
-    axis.set_xlabel('time (days)')
+    if time_units is None and sweep.simulator == 'crunchtope':
+        time_units = 'days'
+
+    axis.set_xlabel(f'time ({time_units})' if time_units else 'time')
     axis.set_ylabel(_axis_label(sweep.resolve(group), variable))
 
     if legend and len(wanted) > 1:
@@ -312,11 +358,20 @@ def field(sweep, group, variable, run, time=-1, axis=None, z=0, colorbar=True, *
     data = sweep.data(group)
     axis = axis or plt.subplots()[1]
 
-    values = _at(data, variable, sweep.runs.index(run), time, Z=z)
-    mesh = axis.pcolormesh(data['X'].values, data['Y'].values, np.asarray(values).T, **kwargs)
+    across, up = axis_name(data, 'X'), axis_name(data, 'Y')
 
-    axis.set_xlabel('X (m)')
-    axis.set_ylabel('Y (m)')
+    # Both axes must have real extent, not merely exist. A 1-D column carries Y and Z as singleton
+    # dimensions in both codes, so testing only for their presence lets a column through to
+    # pcolormesh, which fails with 'not enough values to unpack' and names nothing useful.
+    if any(name is None or data.sizes[name] < 2 for name in (across, up)):
+        raise KeyError(f"group '{group}' has no two axes to map; "
+                       f'its dimensions are {dict(data.sizes)}')
+
+    values = _at(data, variable, sweep.runs.index(run), time, Z=z)
+    mesh = axis.pcolormesh(data[across].values, data[up].values, np.asarray(values).T, **kwargs)
+
+    axis.set_xlabel(f'{across.upper()} (m)')
+    axis.set_ylabel(f'{up.upper()} (m)')
 
     if colorbar:
         axis.figure.colorbar(mesh, ax=axis, label=_axis_label(sweep.resolve(group), variable))

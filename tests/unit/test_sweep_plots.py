@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from coeus import sweep_plots as sp  # noqa: E402
 from coeus.sweep import Sweep  # noqa: E402
-from tests.unit.test_sweep import TIMES, write_sweep  # noqa: E402
+from tests.unit.test_sweep import TIMES, write_min3p_sweep, write_sweep  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -305,3 +305,75 @@ class TestNoWidgetDependency:
         source = Path(sp.__file__).read_text()
 
         assert 'ipywidgets' not in source.replace('ipywidgets. The widget layer', '')
+
+
+class TestMin3pPlots:
+    """The same calls, against output whose axes are named differently."""
+
+    def test_a_profile_finds_the_axis_that_varies(self, tmp_path):
+        # A z column with x and y singleton: defaulting to x would draw a single point.
+        sweep = Sweep(write_min3p_sweep(tmp_path, along='z', cells=5))
+        axis = sp.profiles(sweep, 'gsc', 'no3-1')
+
+        assert axis.get_xlabel() == 'Z (m)'
+        assert len(axis.lines) == len(sweep.runs)
+        assert len(axis.lines[0].get_xdata()) == 5
+
+    def test_a_profile_finds_an_x_column_too(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path, along='x', cells=4))
+
+        assert sp.profiles(sweep, 'gsc', 'no3-1').get_xlabel() == 'X (m)'
+
+    def test_a_named_axis_is_accepted_in_either_case(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path, along='z', cells=5))
+
+        assert sp.profiles(sweep, 'gsc', 'no3-1', along='Z').get_xlabel() == 'Z (m)'
+
+    def test_units_are_read_out_of_the_variable_name(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+        axis = sp.profiles(sweep, 'gsc', 'C-Alk [eq_per_L]')
+
+        assert axis.get_ylabel() == 'C-Alk (eq/L)'
+
+    def test_a_crunchtope_species_keeps_its_parenthesised_state(self, tmp_path):
+        # 'CO2(aq)' is a species name, not a unit, and must survive the units split intact.
+        assert sp._axis_label('totcon', 'CO2(aq)') == 'CO2(aq) (mol/kgw)'
+
+    def test_a_series_selects_one_observation_point(self, tmp_path):
+        # MIN3P stacks its observation points on `output`; a line must come from one of them.
+        sweep = Sweep(write_min3p_sweep(tmp_path, steps=6))
+        axis = sp.time_series(sweep, 'gbc', 'na+1')
+
+        assert len(axis.lines) == len(sweep.runs)
+        assert len(axis.lines[0].get_xdata()) == 6
+
+    def test_a_series_does_not_claim_units_min3p_never_recorded(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+
+        assert sp.time_series(sweep, 'gbc', 'na+1').get_xlabel() == 'time'
+
+    def test_a_crunchtope_series_still_says_days(self, tmp_path):
+        write_sweep(tmp_path)
+        import numpy as np
+        import xarray as xr
+        xr.Dataset(
+            {'SO4--': (('file_num', 'step'), np.zeros((4, 3)))},
+            coords={'file_num': list(range(4)), 'step': [0, 1, 2],
+                    'time': (('file_num', 'step'), np.tile([0.0, 1.0, 2.0], (4, 1)))},
+        ).to_netcdf(tmp_path / 'results.nc', group='timeseries_influent', mode='a')
+
+        axis = sp.time_series(Sweep(tmp_path / 'results.nc'), 'timeseries_influent', 'SO4--')
+
+        assert axis.get_xlabel() == 'time (days)'
+
+    def test_a_spatial_group_refuses_to_be_drawn_as_a_series(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+
+        with pytest.raises(KeyError, match='records no time'):
+            sp.time_series(sweep, 'gsc', 'no3-1')
+
+    def test_a_one_dimensional_group_refuses_to_be_mapped(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+
+        with pytest.raises(KeyError, match='no two axes'):
+            sp.field(sweep, 'gsc', 'no3-1', run=0)

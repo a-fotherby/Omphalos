@@ -275,3 +275,113 @@ class TestBasics:
         sweep = Sweep(tmp_path / 'results.nc')
 
         assert sweep.data('totcon') is sweep.data('totcon')
+
+
+def write_min3p_sweep(directory, runs=4, cells=5, along='z', steps=6, stop_after=None):
+    """Write a results.nc shaped the way MIN3P's writer does, not CrunchTope's.
+
+    Three differences, all of them real and all taken from the demo sweeps:
+
+    - spatial axes are lower case, and the column may run down any of them (the dissolution demo
+      is a z column with x and y singleton);
+    - spatial output is indexed by `output`, a bare integer with no times attached;
+    - breakthrough output carries a ragged `time` over `(file_num, step)` -- one row per run --
+      alongside an `output` axis that stacks the observation points.
+    """
+    stop_after = stop_after or {}
+    axes = {'x': 1, 'y': 1, 'z': 1} | {along: cells}
+    shape = (runs, 2, axes['x'], axes['y'], axes['z'])
+
+    xr.Dataset(
+        {'no3-1': (('file_num', 'output', 'x', 'y', 'z'),
+                   np.arange(np.prod(shape), dtype=float).reshape(shape)),
+         'C-Alk [eq_per_L]': (('file_num', 'output', 'x', 'y', 'z'),
+                              np.ones(shape, dtype=float))},
+        coords={'file_num': list(range(runs)), 'output': [0, 1],
+                'x': np.arange(axes['x'], dtype=float),
+                'y': np.arange(axes['y'], dtype=float),
+                'z': np.arange(axes['z'], dtype=float)},
+    ).to_netcdf(directory / 'results.nc', group='gsc', mode='w')
+
+    series = np.arange(runs * 2 * steps, dtype=float).reshape((runs, 2, steps))
+    times = np.tile(np.arange(steps, dtype=float), (runs, 1))
+
+    for run, produced in stop_after.items():
+        series[run, :, produced:] = np.nan
+
+    xr.Dataset(
+        {'na+1': (('file_num', 'output', 'step'), series)},
+        coords={'file_num': list(range(runs)), 'output': [0, 1],
+                'step': list(range(steps)), 'time': (('file_num', 'step'), times)},
+    ).to_netcdf(directory / 'results.nc', group='gbc', mode='a')
+
+    return directory / 'results.nc'
+
+
+class TestMin3pShapes:
+    """MIN3P names its axes differently; nothing about the analysis should depend on that."""
+
+    def test_the_simulator_is_recognised(self, tmp_path):
+        assert Sweep(write_min3p_sweep(tmp_path)).simulator == 'min3p'
+
+    def test_a_crunchtope_sweep_is_still_recognised(self, tmp_path):
+        assert Sweep(write_sweep(tmp_path)).simulator == 'crunchtope'
+
+    def test_spatial_and_series_groups_are_told_apart(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+
+        # By structure, not by name: 'gsc' and 'gbc' say nothing a matcher could use.
+        assert sweep.spatial_groups() == ['gsc']
+        assert sweep.series_groups() == ['gbc']
+
+    def test_crunchtope_groups_are_told_apart_the_same_way(self, tmp_path):
+        write_sweep(tmp_path)
+        xr.Dataset(
+            {'SO4--': (('file_num', 'step'), np.zeros((4, 3)))},
+            coords={'file_num': list(range(4)), 'step': [0, 1, 2],
+                    'time': (('file_num', 'step'), np.tile([0.0, 1.0, 2.0], (4, 1)))},
+        ).to_netcdf(tmp_path / 'results.nc', group='timeseries_influent', mode='a')
+        sweep = Sweep(tmp_path / 'results.nc')
+
+        assert sweep.spatial_groups() == ['totcon']
+        assert sweep.series_groups() == ['timeseries_influent']
+
+    def test_a_one_dimensional_sweep_offers_nothing_to_map(self, tmp_path):
+        assert Sweep(write_min3p_sweep(tmp_path)).map_groups() == []
+
+    def test_snapshots_are_counted_where_there_are_no_times(self, tmp_path):
+        assert Sweep(write_min3p_sweep(tmp_path)).snapshot_count('gsc') == 2
+
+    def test_completeness_prefers_the_axis_carrying_real_times(self, tmp_path):
+        # gsc offers only a snapshot counter; gbc carries actual times, so it wins.
+        sweep = Sweep(write_min3p_sweep(tmp_path, steps=6))
+        group, _, _, physical = sweep._completeness_source()
+
+        assert (group, physical) == ('gbc', True)
+
+    def test_a_run_that_stopped_early_is_caught_on_a_ragged_time(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path, steps=6, stop_after={1: 3}))
+        completeness = sweep.completeness()
+
+        assert completeness[1] == (2.0, False)
+        assert completeness[0] == (5.0, True)
+
+
+class TestMin3pParameters:
+    """A MIN3P sweep writes no conditions.nc, so what varied is recovered from records.pkl."""
+
+    def test_no_records_means_no_labels_rather_than_an_error(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+
+        assert sweep.varied() == {}
+        assert sweep.runs == [0, 1, 2, 3]
+
+    def test_an_unreadable_records_file_warns_and_keeps_the_sweep_usable(self, tmp_path):
+        write_min3p_sweep(tmp_path)
+        (tmp_path / 'records.pkl').write_bytes(b'not a pickle')
+        sweep = Sweep(tmp_path / 'results.nc')
+
+        with pytest.warns(UserWarning, match='records.pkl'):
+            assert sweep.varied() == {}
+
+        assert sweep.data('gsc') is not None

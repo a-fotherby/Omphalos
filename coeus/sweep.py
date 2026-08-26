@@ -185,6 +185,17 @@ class Sweep:
     def __init__(self, results, conditions=None):
         self.results_path = Path(results)
 
+        # A sweep directory is a reasonable thing to point at, and netCDF4 answers one with
+        # 'NetCDF: Unknown file format', which names neither the problem nor the fix.
+        if self.results_path.is_dir():
+            inside = self.results_path / 'results.nc'
+
+            if not inside.is_file():
+                raise FileNotFoundError(f'{self.results_path} is a directory with no results.nc '
+                                        f'in it')
+
+            self.results_path = inside
+
         if not self.results_path.exists():
             raise FileNotFoundError(f'no results file at {self.results_path}')
 

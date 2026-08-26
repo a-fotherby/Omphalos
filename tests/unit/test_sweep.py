@@ -385,3 +385,27 @@ class TestMin3pParameters:
             assert sweep.varied() == {}
 
         assert sweep.data('gsc') is not None
+
+
+class TestSweepPaths:
+    """A sweep directory is a reasonable thing to point at, and netCDF4 answers one badly."""
+
+    def test_a_directory_finds_the_results_inside_it(self, tmp_path):
+        write_sweep(tmp_path)
+
+        assert Sweep(tmp_path).results_path == tmp_path / 'results.nc'
+
+    def test_a_directory_still_finds_the_conditions_beside_them(self, tmp_path):
+        write_sweep(tmp_path, conditions=True)
+
+        assert Sweep(tmp_path).varied()
+
+    def test_a_directory_without_results_says_so(self, tmp_path):
+        # netCDF4's own answer is 'NetCDF: Unknown file format', which names neither the problem
+        # nor the fix.
+        with pytest.raises(FileNotFoundError, match='no results.nc'):
+            Sweep(tmp_path)
+
+    def test_a_missing_path_still_says_so(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match='no results file'):
+            Sweep(tmp_path / 'nowhere.nc')

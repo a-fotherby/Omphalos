@@ -147,6 +147,13 @@ def _at(data, variable, run_index, time=-1, **fixed):
     snapshots = time_name(data)
 
     if snapshots in series.dims:
+        # Held in range rather than allowed to raise. Not every group has the same number of
+        # snapshots -- MIN3P writes its velocity field once and its chemistry many times -- so a
+        # browser stepping from one group to another arrives carrying an index the new group does
+        # not have. 'Later than the last' means the last; xarray would instead raise an IndexError
+        # from inside its own indexing code, naming neither the group nor the snapshot.
+        available = series.sizes[snapshots]
+        time = max(-available, min(time, available - 1))
         series = series.isel({snapshots: time})
 
     for name, index in fixed.items():

@@ -377,3 +377,39 @@ class TestMin3pPlots:
 
         with pytest.raises(KeyError, match='no two axes'):
             sp.field(sweep, 'gsc', 'no3-1', run=0)
+
+
+class TestStaleSnapshotIndex:
+    """Groups need not have the same number of snapshots, so a browser arrives carrying an index."""
+
+    def test_an_index_past_the_end_draws_the_last_snapshot(self, tmp_path):
+        # MIN3P writes its velocity field once and its chemistry many times, so stepping from one
+        # to the other asks for a snapshot that does not exist. xarray answers with an IndexError
+        # raised inside its own indexing code, naming neither the group nor the snapshot.
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+        last = sp.profiles(sweep, 'gsc', 'no3-1', time=-1).lines[0].get_ydata()
+        past = sp.profiles(sweep, 'gsc', 'no3-1', time=99).lines[0].get_ydata()
+
+        assert list(past) == list(last)
+
+    def test_an_index_before_the_start_draws_the_first(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+        first = sp.profiles(sweep, 'gsc', 'no3-1', time=0).lines[0].get_ydata()
+        before = sp.profiles(sweep, 'gsc', 'no3-1', time=-99).lines[0].get_ydata()
+
+        assert list(before) == list(first)
+
+    def test_an_index_in_range_is_left_alone(self, tmp_path):
+        sweep = Sweep(write_min3p_sweep(tmp_path))
+        first = sp.profiles(sweep, 'gsc', 'no3-1', time=0).lines[0].get_ydata()
+        last = sp.profiles(sweep, 'gsc', 'no3-1', time=1).lines[0].get_ydata()
+
+        assert list(first) != list(last)
+
+    def test_a_crunchtope_group_clamps_the_same_way(self, tmp_path):
+        write_sweep(tmp_path)
+        sweep = Sweep(tmp_path / 'results.nc')
+        last = sp.profiles(sweep, 'totcon', 'SO4--', time=len(TIMES) - 1).lines[0].get_ydata()
+        past = sp.profiles(sweep, 'totcon', 'SO4--', time=99).lines[0].get_ydata()
+
+        assert list(past) == list(last)

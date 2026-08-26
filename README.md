@@ -1372,6 +1372,10 @@ conditions = xr.open_dataset('conditions.nc', group='parameters/initial')
 - **`prod_vars(file, category, vars, name)`** — creates a new variable in the dataset that is the element-wise product of a list of existing variables
 - **`format_axis(axis, font_props, category, plot_var, column)`** — applies consistent axis formatting for CrunchTope depth-profile plots, including category-appropriate axis labels and symlog scaling for `rate` and `saturation` output
 
+[**topepan**](https://github.com/a-fotherby/topepan) is a companion Jupyter environment that puts
+widgets over `coeus.sweep_plots` to browse a sweep's `results.nc`, and reads single CrunchTope or
+MIN3P runs straight from their output files.
+
 ### Example Notebooks
 
 Two notebooks are provided in `coeus/`:

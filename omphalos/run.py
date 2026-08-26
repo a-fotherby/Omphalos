@@ -98,6 +98,13 @@ CT_ERROR_PATTERNS = [
     # NUCLEATION block to configure it from.
     'not found in list',
     'rate law found listed in database',
+    # The Numerical Recipes error handler, which CrunchTope uses for the linear solves. It prints
+    # 'nrerror: <what>' and stops -- with **exit status 0**, so nothing downstream notices. A v3.0
+    # build hit 'nrerror: singular matrix in ludcmp' partway through an Ex9 run, after which rhea
+    # recorded the file as complete and the sweep looked clean: eight runs of plausible output that
+    # simply stopped early. The run had been converging comfortably up to that point (five Newton
+    # iterations, 2e-05 change), so nothing before it hinted either.
+    'nrerror:',
     'forrtl:',            # Fortran runtime error prefix
     'Segmentation fault',
     'Killed',

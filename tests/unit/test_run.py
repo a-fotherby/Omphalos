@@ -25,6 +25,17 @@ class TestCrunchTopeErrorPatterns:
         """
         assert 'Cannot find input file' in run.CT_ERROR_PATTERNS
 
+    def test_a_failed_linear_solve_is_an_error_pattern(self):
+        """CrunchTope's Numerical Recipes handler stops the run but exits 0.
+
+        Nothing downstream notices: rhea records the file as complete and the sweep looks clean,
+        leaving a results.nc of plausible output that simply stops early. Seen on a v3.0 build,
+        which quit an Ex9 run at day 16.7 of 43 while still converging in five Newton iterations.
+        """
+        line = ' nrerror: singular matrix in ludcmp'
+
+        assert any(pattern in line for pattern in run.CT_ERROR_PATTERNS)
+
     @pytest.mark.parametrize('pattern', run.CT_ERROR_PATTERNS)
     def test_error_pattern_sets_error_code_and_skips_parsing(self, pattern, tmp_path, monkeypatch):
         """Test that a matched error pattern flags the run and skips output parsing."""

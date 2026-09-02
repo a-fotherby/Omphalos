@@ -11,7 +11,7 @@ def raw(dataset, output_key):
     set_list = []
     for i in dataset:
         set_list.append(dataset[i].results[output_key])
-    array = xr.concat(set_list, dim='file_num')
+    array = xr.concat(set_list, dim='file_num', join='outer')
 
     return array
 

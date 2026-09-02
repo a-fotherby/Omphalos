@@ -39,10 +39,9 @@ logk = [
 [tool.setuptools.packages.find]
 # A flat layout with several subsystems, so setuptools will not guess: without this,
 # `pip install -e .` fails with "Multiple top-level packages discovered in a flat-layout".
-# namespaces = true is load-bearing -- only core and min3p carry an __init__.py. xgboost is
-# excluded because installing a top-level `xgboost` would shadow the real library.
+# namespaces = true is load-bearing -- only core and min3p carry an __init__.py.
 include = ["coeus*", "core*", "min3p*", "omphalos*", "pflotran*", "rhea*"]
-exclude = ["tests*", "utils*", "xgboost*"]
+exclude = ["tests*", "utils*", "ml*"]
 namespaces = true
 
 [tool.pytest.ini_options]
@@ -65,7 +64,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["core", "omphalos", "pflotran", "rhea", "coeus"]
+source = ["core", "omphalos", "pflotran", "rhea", "coeus", "min3p"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]

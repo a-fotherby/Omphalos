@@ -8,6 +8,8 @@ dependencies:
   - pyyaml
   - pexpect
   - netcdf4
+  # Interpolates log K grids in omphalos/logk.py; pygcc pulls it in, but say so.
+  - scipy
   - pytest
   - pytest-cov
   # Optional: only needed for `rhea <config> local -b parallel`. The default xargs backend needs

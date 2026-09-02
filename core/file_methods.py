@@ -466,7 +466,7 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             if key == 0:
                 continue
             else:
-                ds = xr.concat([ds, dataset[key].results], dim='file_num')
+                ds = xr.concat([ds, dataset[key].results], dim='file_num', join='outer')
         return ds
     elif simulator == 'min3p':
         # MIN3P-style: each InputFile.results is already a dict of per-category
@@ -501,8 +501,12 @@ def dataset_to_netcdf(dataset, simulator='crunchtope'):
             if not ds_list:
                 continue
             try:
+                # join='outer' is the current default, stated because xarray is changing it
+                # to 'exact'. MIN3P runs take their own number of timesteps, so `step` never
+                # matches across a sweep; under 'exact' this raises, and the except below
+                # would swallow it and drop the category from results.nc without failing.
                 dim = pd.Index(file_nums, name='file_num')
-                group = xr.concat(ds_list, dim=dim)
+                group = xr.concat(ds_list, dim=dim, join='outer')
                 group.to_netcdf(path, group=category, mode='a')
             except Exception as exc:  # noqa: BLE001 - warn and skip misaligned category
                 print(f'WARNING: MIN3P category "{category}" not written to netCDF. ({exc})')

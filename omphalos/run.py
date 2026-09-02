@@ -710,7 +710,7 @@ def concat_staged_results(stages_dict):
             continue
 
         aligned, finest = _align_stage_grids(datasets)
-        concatenated[category] = xr.concat(aligned, dim='time')
+        concatenated[category] = xr.concat(aligned, dim='time', join='outer')
         if finest is not None:
             host = max(host, stage_nums[finest])
 

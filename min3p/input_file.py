@@ -108,4 +108,4 @@ class InputFile:
                 continue
 
             dim = pd.Index(parsed_indices, name='output')
-            self.results[category] = xr.concat(ds_list, dim=dim)
+            self.results[category] = xr.concat(ds_list, dim=dim, join='outer')

@@ -61,7 +61,7 @@ def raw(dataset, output_key):
                 set_list.append(nan_data)
                 file_nums.append(i)
 
-    array = xr.concat(set_list, dim=pd.Index(file_nums, name='file_num'))
+    array = xr.concat(set_list, dim=pd.Index(file_nums, name='file_num'), join='outer')
 
     return array
 

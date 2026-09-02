@@ -55,7 +55,7 @@ if __name__ == "__main__":
     # Combine all datasets along a new axis called 'file_number'
     if datasets:
         try:
-            combined_dataset = xr.concat(datasets, dim="file_number", coords='minimal', compat='override')
+            combined_dataset = xr.concat(datasets, dim="file_number", coords='minimal', compat='override', join='outer')
             print("Combined xarray Dataset successfully created.")
 
             # Write the combined dataset to a NetCDF file with date and time in the name

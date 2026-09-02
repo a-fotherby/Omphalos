@@ -49,7 +49,7 @@ def pflotran(input_file, file_num, timeout, tmp_dir):
 def concat_results(input_file):
     import xarray as xr
     later_inputs_list = [input_file.later_inputs[name].results for name in input_file.later_inputs]
-    results = xr.concat(later_inputs_list, dim='time')
+    results = xr.concat(later_inputs_list, dim='time', join='outer')
     input_file.results = results
     return input_file
 

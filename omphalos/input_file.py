@@ -397,7 +397,7 @@ class InputFile:
             # If file formatting for that output file category is bad then will try to concat nothing
             # and this will throw ValueError.
             #try:
-            ds = xr.concat(ds_list, dim=times[:len(times)-skip_counter])
+            ds = xr.concat(ds_list, dim=times[:len(times)-skip_counter], join='outer')
             self.results.update({category: ds})
             #except ValueError:
             #    print(f'WARNING: Output file {category} not parsed.')

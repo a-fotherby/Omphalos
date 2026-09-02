@@ -39,7 +39,7 @@
 - [Installation](#installation)
   - [Linux/Mac](#linuxmac)
   - [Windows](#windows)
-  - [Development Setup](#development-setup)
+  - [Installing the library only](#installing-the-library-only)
 - [Quick Start](#quick-start)
   - [Example Configuration](#example-configuration)
   - [Run Your First Simulation](#run-your-first-simulation)
@@ -118,19 +118,17 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 conda activate omphalos
 ```
 
-### Development Setup
+### Installing the library only
 
-For development with testing capabilities:
+Makes the packages importable and the tests runnable. It does **not** give a working Omphalos — the
+`omphalos` and `rhea` commands and `crunch_dir` both come from `install.sh`. Use it for the test
+suite, or to make `coeus` importable for [topepan](https://github.com/a-fotherby/topepan).
 
 ```bash
-# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
-pip install -e ".[dev]"
-
-# Run tests
+pip install -e ".[dev]"  # add ,plots for coeus.sweep_plots; ,logk to recompute log K
 pytest tests/ -v
 ```
 

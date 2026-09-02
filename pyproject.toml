@@ -7,13 +7,17 @@ name = "omphalos"
 version = "0.1.0"
 description = "Automation tool for geochemical modelling experiments"
 readme = "README.md"
-requires-python = ">=3.8"
+# 3.9, not 3.8: omphalos/restart_file.py annotates signatures with builtin generics.
+requires-python = ">=3.9"
 dependencies = [
     "numpy>=1.20",
     "pandas>=1.3",
     "xarray>=0.19",
     "pyyaml>=5.4",
     "f90nml>=1.3",
+    # Imported at module scope: netCDF4 by coeus.sweep, pexpect by omphalos.run.
+    "netCDF4>=1.5",
+    "pexpect>=4.8",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +26,24 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-mock>=3.10",
 ]
+# Optional so Omphalos stays installable on a headless cluster.
+plots = [
+    "matplotlib>=3.4",
+]
+# For recomputing a database's log K columns (omphalos/logk.py); scipy backs its interpolation.
+logk = [
+    "pygcc>=1.5.3",
+    "scipy>=1.7",
+]
+
+[tool.setuptools.packages.find]
+# A flat layout with several subsystems, so setuptools will not guess: without this,
+# `pip install -e .` fails with "Multiple top-level packages discovered in a flat-layout".
+# namespaces = true is load-bearing -- only core and min3p carry an __init__.py. xgboost is
+# excluded because installing a top-level `xgboost` would shadow the real library.
+include = ["coeus*", "core*", "min3p*", "omphalos*", "pflotran*", "rhea*"]
+exclude = ["tests*", "utils*", "xgboost*"]
+namespaces = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

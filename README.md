@@ -39,7 +39,7 @@
 - [Installation](#installation)
   - [Linux/Mac](#linuxmac)
   - [Windows](#windows)
-  - [Installing the library only](#installing-the-library-only)
+  - [Library only (no CLI)](#library-only-no-cli)
 - [Quick Start](#quick-start)
   - [Example Configuration](#example-configuration)
   - [Run Your First Simulation](#run-your-first-simulation)
@@ -118,7 +118,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 conda activate omphalos
 ```
 
-### Installing the library only
+### Library only (no CLI)
 
 Makes the packages importable and the tests runnable. It does **not** give a working Omphalos — the
 `omphalos` and `rhea` commands and `crunch_dir` both come from `install.sh`. Use it for the test

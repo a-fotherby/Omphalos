@@ -148,18 +148,33 @@ def _configured_override():
     return dict(crunch_keywords)
 
 
-def _configured_binary():
-    """Return the CrunchTope path settings.py records, or None if there is no settings.py.
+def binary():
+    """Return the CrunchTope path to run, or None if nothing configures one.
+
+    `OMPHALOS_CRUNCH_DIR` takes precedence over settings.py. That is what makes a build comparison
+    safe: pointing one sweep at a different binary otherwise means editing the installed settings.py,
+    which is a global mutation that an interrupted run would leave behind.
+
+    Read on each call rather than at import, so setting the variable per subprocess works.
 
     settings.py is written by install.sh and is not tracked, so it is absent in a fresh checkout and
     in CI.
     """
+    override = os.environ.get('OMPHALOS_CRUNCH_DIR')
+
+    if override:
+        return override
+
     try:
         from omphalos.settings import crunch_dir
     except ImportError:
         return None
 
     return crunch_dir
+
+
+# Kept as the old private name so existing callers are unaffected.
+_configured_binary = binary
 
 
 def deck_keywords(runtime_contents):

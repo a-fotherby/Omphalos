@@ -153,3 +153,43 @@ class TestUnidentifiableBuild:
         ck.check_deck({'database': ['x.dbs']}, _binary(tmp_path, 'no keywords here'))
 
         assert not [w for w in recwarn if 'Could not tell' in str(w.message)]
+
+
+class TestBinarySelection:
+    """Which CrunchTope to run, and how a build comparison redirects it.
+
+    The alternative to an environment variable is rewriting omphalos/settings.py per build, which is
+    a global mutation an interrupted run would leave behind pointing at the wrong binary.
+    """
+
+    def test_the_environment_wins_over_settings(self, monkeypatch):
+        monkeypatch.setenv('OMPHALOS_CRUNCH_DIR', '/somewhere/CrunchTope_v3_opt')
+
+        assert ck.binary() == '/somewhere/CrunchTope_v3_opt'
+
+    def test_it_is_read_on_each_call(self, monkeypatch):
+        # Resolved per call, not at import, so setting it per subprocess works.
+        monkeypatch.setenv('OMPHALOS_CRUNCH_DIR', '/first/CrunchTope')
+        first = ck.binary()
+        monkeypatch.setenv('OMPHALOS_CRUNCH_DIR', '/second/CrunchTope')
+
+        assert (first, ck.binary()) == ('/first/CrunchTope', '/second/CrunchTope')
+
+    def test_an_empty_override_falls_through_to_settings(self, monkeypatch):
+        from omphalos import settings
+
+        monkeypatch.setattr(settings, 'crunch_dir', '/from/settings/CrunchTope', raising=False)
+        monkeypatch.setenv('OMPHALOS_CRUNCH_DIR', '')
+
+        assert ck.binary() == '/from/settings/CrunchTope'
+
+    def test_no_override_uses_settings(self, monkeypatch):
+        from omphalos import settings
+
+        monkeypatch.setattr(settings, 'crunch_dir', '/from/settings/CrunchTope', raising=False)
+        monkeypatch.delenv('OMPHALOS_CRUNCH_DIR', raising=False)
+
+        assert ck.binary() == '/from/settings/CrunchTope'
+
+    def test_the_old_private_name_still_works(self):
+        assert ck._configured_binary is ck.binary

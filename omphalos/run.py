@@ -13,7 +13,6 @@ import core.keyword_block as kb
 from core.file_methods import data_cats
 from core.keyword_block import SNAPSHOT_TIME_KEYWORDS, snapshot_times
 import omphalos.crunch_keywords as ck
-from omphalos.settings import crunch_dir
 
 # Where a per-run log K recomputation records the settings it used. CrunchTope neither reads nor
 # minds it; it exists because the database cannot say what pressure it was computed at.
@@ -320,7 +319,7 @@ def crunchtope(input_file, file_num, timeout, tmp_dir, file_offset=0):
     # 'Cannot find input file' and blocks on stdin until the timeout. A long path can also
     # overrun CrunchTope's own fixed-length buffer. The deck always sits directly in tmp_dir and
     # pexpect is already given cwd=tmp_dir, so the basename resolves and is the shortest form.
-    command = f'{crunch_dir} {Path(input_file.path).name}'
+    command = f'{ck.binary()} {Path(input_file.path).name}'
     process = pexp.spawn(command, timeout=timeout, cwd=str(tmp_dir), encoding='latin-1')
     process.logfile = sys.stdout
 
